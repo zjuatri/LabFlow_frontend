@@ -24,3 +24,50 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.02);
+  }
+}
+
+/* Placeholder for contentEditable paragraph editor */
+[contenteditable][data-placeholder]:empty:before {
+  content: attr(data-placeholder);
+  color: rgb(113 113 122);
+}
+
+.inline-math-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #e4e4e7;
+  color: #18181b;
+  border-radius: 4px;
+  padding: 0 4px;
+  margin: 0 2px;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  cursor: pointer;
+  user-select: none;
+  border: 1px solid #d4d4d8;
+}
+
+.dark .inline-math-pill {
+  background-color: #27272a;
+  color: #e4e4e7;
+  border-color: #3f3f46;
+}
+
+.inline-math-pill:hover {
+  background-color: #d4d4d8;
+}
+
+.dark .inline-math-pill:hover {
+  background-color: #3f3f46;
+}

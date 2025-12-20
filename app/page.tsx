@@ -1,65 +1,114 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+
+import { clearToken, getToken } from '@/lib/auth';
+import { createProject, listProjects, Project } from '@/lib/api';
+
+export default function HomePage() {
+  const router = useRouter();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [title, setTitle] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await listProjects();
+      setProjects(data);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '加载失败';
+      if (msg.toLowerCase().includes('not authenticated') || msg.toLowerCase().includes('invalid token')) {
+        clearToken();
+        router.push('/login');
+        return;
+      }
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!getToken()) {
+      router.push('/login');
+      return;
+    }
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router]);
+
+  const onCreate = async () => {
+    if (!title.trim()) return;
+    setError(null);
+    try {
+      const p = await createProject(title.trim());
+      setTitle('');
+      router.push(`/projects/${p.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '创建失败');
+    }
+  };
+
+  const onLogout = () => {
+    clearToken();
+    router.push('/login');
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">我的项目</h1>
+          <button
+            className="px-3 py-1 rounded border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            onClick={onLogout}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            退出登录
+          </button>
         </div>
-      </main>
+
+        <div className="mt-4 flex gap-2">
+          <input
+            className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+            placeholder="新项目标题"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <button
+            className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white"
+            onClick={onCreate}
+          >
+            创建
+          </button>
+        </div>
+
+        {error && <div className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</div>}
+
+        <div className="mt-6">
+          {loading ? (
+            <div className="text-zinc-600 dark:text-zinc-400">加载中...</div>
+          ) : projects.length === 0 ? (
+            <div className="text-zinc-600 dark:text-zinc-400">还没有项目</div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {projects.map((p) => (
+                <button
+                  key={p.id}
+                  className="text-left p-4 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded hover:border-zinc-400 dark:hover:border-zinc-600"
+                  onClick={() => router.push(`/projects/${p.id}`)}
+                >
+                  <div className="font-semibold text-zinc-900 dark:text-zinc-100">{p.title}</div>
+                  <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{new Date(p.updated_at).toLocaleString()}</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
