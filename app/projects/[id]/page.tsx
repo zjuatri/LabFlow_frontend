@@ -73,25 +73,82 @@ function SvgPage({
     const marker = markers.item(activeLocalIndex);
     if (!marker) return;
 
-    // The rendered content for the same block is typically the next sibling element.
-    // Fall back to parent sibling if needed.
-    let contentEl = marker.nextElementSibling as (SVGGraphicsElement | null);
-    if (!contentEl && marker.parentElement) {
-      contentEl = marker.parentElement.nextElementSibling as (SVGGraphicsElement | null);
+    const isMarker = (el: Element | null) => !!el && el.matches?.('path[fill="#000001"]');
+    const isSkippable = (el: Element) => {
+      const tag = el.tagName.toLowerCase();
+      if (tag === 'defs' || tag === 'clipPath' || tag === 'mask' || tag === 'metadata' || tag === 'style') return true;
+      if (isMarker(el)) return true;
+      return false;
+    };
+
+    const getScreenRect = (g: SVGGraphicsElement) => {
+      const ctm = g.getScreenCTM();
+      if (!ctm) return null;
+      let bbox: DOMRect;
+      try {
+        const bb = g.getBBox();
+        if (!(bb.width > 0.5 && bb.height > 0.5)) return null;
+        // DOMRect-like
+        bbox = bb as unknown as DOMRect;
+      } catch {
+        return null;
+      }
+      const p1 = new DOMPoint(bbox.x, bbox.y).matrixTransform(ctm);
+      const p2 = new DOMPoint(bbox.x + bbox.width, bbox.y + bbox.height).matrixTransform(ctm);
+      const left = Math.min(p1.x, p2.x);
+      const top = Math.min(p1.y, p2.y);
+      const right = Math.max(p1.x, p2.x);
+      const bottom = Math.max(p1.y, p2.y);
+      if (!Number.isFinite(left) || !Number.isFinite(top) || !Number.isFinite(right) || !Number.isFinite(bottom)) return null;
+      return { left, top, right, bottom };
+    };
+
+    const nextMarker = markers.item(activeLocalIndex + 1);
+
+    // Compute a union bbox for everything rendered by this block.
+    // Strategy: collect ALL top-level elements between the marker's position and next marker's position.
+    // Build a flat list of all elements in document order.
+    const allElements: Element[] = [];
+    const collectAll = (el: Element) => {
+      allElements.push(el);
+      for (let i = 0; i < el.children.length; i++) {
+        collectAll(el.children[i]);
+      }
+    };
+    collectAll(svgElement);
+
+    // Find indices of markers in this flat list
+    const markerIdx = allElements.indexOf(marker);
+    const nextMarkerIdx = nextMarker ? allElements.indexOf(nextMarker) : allElements.length;
+
+    let union: { left: number; top: number; right: number; bottom: number } | null = null;
+
+    // Process all elements between the two markers
+    for (let i = markerIdx + 1; i < nextMarkerIdx && i < allElements.length; i++) {
+      const el = allElements[i];
+      if (isSkippable(el)) continue;
+
+      const g = el as unknown as SVGGraphicsElement;
+      if (typeof (g as any).getBBox !== 'function') continue;
+      const rect = getScreenRect(g);
+      if (!rect) continue;
+
+      union = union
+        ? {
+            left: Math.min(union.left, rect.left),
+            top: Math.min(union.top, rect.top),
+            right: Math.max(union.right, rect.right),
+            bottom: Math.max(union.bottom, rect.bottom),
+          }
+        : rect;
     }
-    if (!contentEl) return;
 
-    // Convert SVG bbox to screen rect
-    const ctm = contentEl.getScreenCTM();
-    if (!ctm) return;
-    const bbox = contentEl.getBBox();
-    const p1 = new DOMPoint(bbox.x, bbox.y).matrixTransform(ctm);
-    const p2 = new DOMPoint(bbox.x + bbox.width, bbox.y + bbox.height).matrixTransform(ctm);
+    if (!union) return;
 
-    const left = Math.min(p1.x, p2.x);
-    const top = Math.min(p1.y, p2.y);
-    const width = Math.abs(p2.x - p1.x);
-    const height = Math.abs(p2.y - p1.y);
+    const left = union.left;
+    const top = union.top;
+    const width = Math.max(0, union.right - union.left);
+    const height = Math.max(0, union.bottom - union.top);
 
     const containerRect = containerRef.current.getBoundingClientRect();
     const overlayLeft = left - containerRect.left;

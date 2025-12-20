@@ -1,9 +1,9 @@
 import { TypstBlock, DocumentSettings, defaultDocumentSettings, PersistedMathPayload, PersistedTablePayload, PersistedTableCell } from './types';
 import {
-  LF_MATH_MARKER, LF_TABLE_MARKER, LF_IMAGE_MARKER, LF_DOC_MARKER,
+  LF_MATH_MARKER, LF_TABLE_MARKER, LF_IMAGE_MARKER, LF_CHART_MARKER, LF_DOC_MARKER,
   base64EncodeUtf8, base64DecodeUtf8, generateId,
   defaultParagraphLeadingEm, snapLineSpacingMultiplier, leadingEmFromMultiplier,
-  detectParagraphListKind, inlineToSingleLine, safeParseTablePayload, inferLineSpacingMultiplier,
+  inlineToSingleLine, safeParseTablePayload, safeParseChartPayload, inferLineSpacingMultiplier,
   convertMixedParagraph
 } from './utils';
 import { typstToLatexMath } from '../math-convert';
@@ -102,6 +102,23 @@ export function blocksToTypst(blocks: TypstBlock[], opts?: { settings?: Document
           } else {
             out.push(imageLine);
           }
+          break;
+        }
+
+      case 'chart':
+        {
+          const payload = safeParseChartPayload(block.content ?? '');
+          const imageUrl = (payload.imageUrl ?? '').trim();
+          const encoded = `${LF_CHART_MARKER}${base64EncodeUtf8(JSON.stringify(payload))}*/`;
+
+          if (!imageUrl) {
+            out.push(`#align(center)[(未生成图表)]${encoded}`);
+            break;
+          }
+
+          const width = block.width || '100%';
+          const imageLine = `#align(center, image("${imageUrl}", width: ${width}, height: auto))${encoded}`;
+          out.push(imageLine);
           break;
         }
       
@@ -417,6 +434,32 @@ export function typstToBlocks(code: string): TypstBlock[] {
 
     // 图片
     if (trimmed.startsWith('#align(center, image(')) {
+      const chartMarker = trimmed.match(/\/\*LF_CHART:([A-Za-z0-9+/=]+)\*\//);
+      if (chartMarker) {
+        try {
+          const decoded: unknown = JSON.parse(base64DecodeUtf8(chartMarker[1]));
+          const payload = (decoded && typeof decoded === 'object') ? (decoded as Record<string, unknown>) : {};
+          const match = trimmed.match(/#align\(center,\s*image\("([^"]+)"/);
+          const imageUrl = match?.[1] ?? '';
+          const merged = {
+            ...(payload && typeof payload === 'object' ? payload : {}),
+            imageUrl: (typeof payload['imageUrl'] === 'string' ? (payload['imageUrl'] as string) : imageUrl) || imageUrl,
+          };
+
+          blocks.push({
+            id: generateId(),
+            type: 'chart',
+            content: JSON.stringify(merged),
+          });
+
+          // Skip the next title/caption line if present (we store title in the payload).
+          skipNextCaptionBecausePreviousImage = true;
+          continue;
+        } catch {
+          // fall through
+        }
+      }
+
       // If a caption line is directly above the image (position=above), skip it.
       if (i > 0) {
         const prev = lines[i - 1].replace(/\r$/, '').trim();
@@ -483,7 +526,12 @@ export function typstToBlocks(code: string): TypstBlock[] {
       const prev = lines[i - 1]?.replace(/\r$/, '').trim() ?? '';
       if (nextFew.some((x) => x.includes(LF_TABLE_MARKER))) continue;
       if (nextFew.some((x) => x.includes(LF_IMAGE_MARKER))) continue;
+      if (nextFew.some((x) => x.includes(LF_CHART_MARKER))) continue;
       if (skipNextCaptionBecausePreviousImage && prev.includes(LF_IMAGE_MARKER)) {
+        skipNextCaptionBecausePreviousImage = false;
+        continue;
+      }
+      if (skipNextCaptionBecausePreviousImage && prev.includes(LF_CHART_MARKER)) {
         skipNextCaptionBecausePreviousImage = false;
         continue;
       }

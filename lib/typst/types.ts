@@ -1,4 +1,33 @@
-export type BlockType = 'heading' | 'paragraph' | 'code' | 'math' | 'image' | 'list' | 'table';
+export type BlockType = 'heading' | 'paragraph' | 'code' | 'math' | 'image' | 'list' | 'table' | 'chart';
+
+export type ChartType = 'scatter' | 'bar' | 'pie' | 'hbar';
+export type ChartDataSource = 'manual' | 'table';
+
+export type PersistedChartSelection = {
+  blockId: string;
+  r1: number;
+  c1: number;
+  r2: number;
+  c2: number;
+};
+
+export type PersistedChartPayload = {
+  chartType: ChartType;
+  title: string;
+  xLabel: string;
+  yLabel: string;
+  legend: boolean;
+  dataSource: ChartDataSource;
+
+  // Manual input (CSV/TSV-like). Kept so user can keep editing.
+  manualText: string;
+
+  // When importing from an existing table selection.
+  tableSelection?: PersistedChartSelection;
+
+  // Rendered image URL (served by backend static storage).
+  imageUrl?: string;
+};
 
 export interface TypstBlock {
   id: string;
@@ -16,6 +45,8 @@ export interface TypstBlock {
 
   // Image caption text (global numbering/position is stored in DocumentSettings).
   caption?: string;
+
+  // Chart blocks store their editor state inside content (PersistedChartPayload JSON).
 
   // Math block dual-format support.
   // - mathFormat: which editor the user is currently using

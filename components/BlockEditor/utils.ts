@@ -377,6 +377,13 @@ export const typstInlineToHtml = (typst: string): string => {
     .join('');
 };
 
+export const typstInlineToPlainText = (typst: string): string => {
+  if (typeof document === 'undefined') return (typst ?? '').toString();
+  const div = document.createElement('div');
+  div.innerHTML = typstInlineToHtml(typst ?? '');
+  return (div.textContent ?? '').replace(/\u00A0/g, ' ');
+};
+
 export const htmlToTypstInline = (root: HTMLElement): string => {
   const walk = (node: Node): string => {
     if (node.nodeType === Node.TEXT_NODE) return (node.textContent ?? '');
