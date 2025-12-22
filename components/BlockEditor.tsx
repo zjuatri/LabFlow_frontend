@@ -353,12 +353,12 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
 
   type BarSeries = {
     name: string;
-    source: 'manual' | 'table';
-    axisMode: TableAxisMode;
-    // Manual: values aligned to barXRow.
+    // Y axis chooses its own source (X is shared at chart-level).
+    ySource?: 'manual' | 'table';
+    // Manual: values aligned to chart-level barX vector.
     yRow?: string;
-    // Table: selection provides both x labels and y values (2 rows/cols).
-    tableSelection?: TableSelection;
+    // Table: selection is a 1D vector (single row or single column).
+    yTableSelection?: TableSelection;
   };
 
   type PieRow = { label: string; value: string };
@@ -446,20 +446,98 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
             if (!item || typeof item !== 'object') return null;
             const it = item as Record<string, unknown>;
             const name = typeof it['name'] === 'string' ? (it['name'] as string) : `系列${idx + 1}`;
-            const source = it['source'] === 'table' ? 'table' : 'manual';
-            const axisMode: TableAxisMode = it['axisMode'] === 'rows' ? 'rows' : 'cols';
+            const legacySource = it['source'] === 'table' ? 'table' : 'manual';
+            const ySource = it['ySource'] === 'table' ? 'table' : it['ySource'] === 'manual' ? 'manual' : undefined;
             const yRow = typeof it['yRow'] === 'string' ? (it['yRow'] as string) : '';
-            const tableSelection = readSelection(it['tableSelection']);
-            return { name, source, axisMode, yRow, tableSelection };
+            const yTableSelection = readSelection(it['yTableSelection']);
+
+            // Legacy combined selection: split into X + Y vectors.
+            const axisMode: TableAxisMode = it['axisMode'] === 'rows' ? 'rows' : 'cols';
+            const legacySel = readSelection(it['tableSelection']);
+            if (!yTableSelection && legacySource === 'table' && legacySel) {
+              const top = Math.min(legacySel.r1, legacySel.r2);
+              const bottom = Math.max(legacySel.r1, legacySel.r2);
+              const left = Math.min(legacySel.c1, legacySel.c2);
+              const right = Math.max(legacySel.c1, legacySel.c2);
+              if (axisMode === 'rows') {
+                const rY = Math.min(bottom, top + 1);
+                // Y is the second row.
+                const ySel: TableSelection = { blockId: legacySel.blockId, r1: rY, r2: rY, c1: left, c2: right };
+                return { name, ySource: 'table', yRow, yTableSelection: ySel };
+              }
+              const cY = Math.min(right, left + 1);
+              // Y is the second column.
+              const ySel: TableSelection = { blockId: legacySel.blockId, r1: top, r2: bottom, c1: cY, c2: cY };
+              return { name, ySource: 'table', yRow, yTableSelection: ySel };
+            }
+
+            return { name, ySource: ySource ?? legacySource, yRow, yTableSelection };
           })
           .filter(Boolean) as BarSeries[];
       }
 
       const barXRow = typeof parsed['barXRow'] === 'string' ? (parsed['barXRow'] as string) : '';
+      const barXSource: 'manual' | 'table' = parsed['barXSource'] === 'table' ? 'table' : 'manual';
+      const barXTableSelection = readSelection(parsed['barXTableSelection']);
+
+      let migratedBarXSel: TableSelection | undefined = undefined;
+
+      // If we migrated legacy per-series combined selections, derive a shared X selection from the first one.
+      if (!barXTableSelection) {
+        const firstLegacy = Array.isArray(barSeriesUnknown) ? barSeriesUnknown[0] : null;
+        const firstLegacyObj = firstLegacy && typeof firstLegacy === 'object' ? (firstLegacy as Record<string, unknown>) : null;
+        const firstSel = firstLegacyObj ? readSelection(firstLegacyObj['tableSelection']) : undefined;
+        const firstAxisMode: TableAxisMode = firstLegacyObj?.['axisMode'] === 'rows' ? 'rows' : 'cols';
+        if (firstSel) {
+          const top = Math.min(firstSel.r1, firstSel.r2);
+          const bottom = Math.max(firstSel.r1, firstSel.r2);
+          const left = Math.min(firstSel.c1, firstSel.c2);
+          const right = Math.max(firstSel.c1, firstSel.c2);
+          if (firstAxisMode === 'rows') {
+            const rX = top;
+            // X is the first row.
+            migratedBarXSel = { blockId: firstSel.blockId, r1: rX, r2: rX, c1: left, c2: right };
+          } else {
+            const cX = left;
+            // X is the first column.
+            migratedBarXSel = { blockId: firstSel.blockId, r1: top, r2: bottom, c1: cX, c2: cX };
+          }
+        }
+      }
+
+      const finalBarXTableSelection = barXTableSelection ?? migratedBarXSel;
+      const finalBarXSource: 'manual' | 'table' = finalBarXTableSelection ? 'table' : barXSource;
 
       // pie
+      const pieLabelSource: 'manual' | 'table' = parsed['pieLabelSource'] === 'table' ? 'table' : 'manual';
+      const pieValueSource: 'manual' | 'table' = parsed['pieValueSource'] === 'table' ? 'table' : 'manual';
+      const pieLabelRow = typeof parsed['pieLabelRow'] === 'string' ? (parsed['pieLabelRow'] as string) : '';
+      const pieValueRow = typeof parsed['pieValueRow'] === 'string' ? (parsed['pieValueRow'] as string) : '';
+      const pieLabelTableSelection = readSelection(parsed['pieLabelTableSelection']);
+      const pieValueTableSelection = readSelection(parsed['pieValueTableSelection']);
+
+      // Legacy combined pie selection: split into label/value vectors.
       const pieAxisMode: TableAxisMode = parsed['pieAxisMode'] === 'rows' ? 'rows' : 'cols';
-      const pieTableSelection = readSelection(parsed['pieTableSelection']);
+      const legacyPieSel = readSelection(parsed['pieTableSelection']);
+      let migratedPieLabelSel = pieLabelTableSelection;
+      let migratedPieValueSel = pieValueTableSelection;
+      if ((!migratedPieLabelSel || !migratedPieValueSel) && legacyPieSel) {
+        const top = Math.min(legacyPieSel.r1, legacyPieSel.r2);
+        const bottom = Math.max(legacyPieSel.r1, legacyPieSel.r2);
+        const left = Math.min(legacyPieSel.c1, legacyPieSel.c2);
+        const right = Math.max(legacyPieSel.c1, legacyPieSel.c2);
+        if (pieAxisMode === 'rows') {
+          const rL = top;
+          const rV = Math.min(bottom, top + 1);
+          migratedPieLabelSel = { blockId: legacyPieSel.blockId, r1: rL, r2: rL, c1: left, c2: right };
+          migratedPieValueSel = { blockId: legacyPieSel.blockId, r1: rV, r2: rV, c1: left, c2: right };
+        } else {
+          const cL = left;
+          const cV = Math.min(right, left + 1);
+          migratedPieLabelSel = { blockId: legacyPieSel.blockId, r1: top, r2: bottom, c1: cL, c2: cL };
+          migratedPieValueSel = { blockId: legacyPieSel.blockId, r1: top, r2: bottom, c1: cV, c2: cV };
+        }
+      }
       const pieRowsUnknown = parsed['pieRows'];
       let pieRows: PieRow[] = [];
       if (Array.isArray(pieRowsUnknown)) {
@@ -556,6 +634,14 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
           .filter(Boolean) as PieRow[];
       }
 
+      // If manual pie rows exist but axis rows are empty, migrate to axis-row format.
+      let finalPieLabelRow = pieLabelRow;
+      let finalPieValueRow = pieValueRow;
+      if (!finalPieLabelRow.trim() && !finalPieValueRow.trim() && pieRows.length > 0) {
+        finalPieLabelRow = pieRows.map((r) => (r.label ?? '').trim()).filter(Boolean).join('\t');
+        finalPieValueRow = pieRows.map((r) => (r.value ?? '').trim()).filter(Boolean).join('\t');
+      }
+
       return {
         chartType,
         title: typeof parsed['title'] === 'string' ? (parsed['title'] as string) : '',
@@ -568,10 +654,16 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
         tableSelection: legacySelection,
         scatterSeries,
         barXRow,
+        barXSource: finalBarXSource,
+        barXTableSelection: finalBarXTableSelection,
         barSeries,
         pieRows,
-        pieAxisMode,
-        pieTableSelection,
+        pieLabelSource: migratedPieLabelSel ? 'table' : pieLabelSource,
+        pieValueSource: migratedPieValueSel ? 'table' : pieValueSource,
+        pieLabelRow: finalPieLabelRow,
+        pieValueRow: finalPieValueRow,
+        pieLabelTableSelection: migratedPieLabelSel,
+        pieValueTableSelection: migratedPieValueSel,
         imageUrl: typeof parsed['imageUrl'] === 'string' ? (parsed['imageUrl'] as string) : '',
       };
     } catch {
@@ -584,12 +676,18 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
         dataSource: 'manual',
         manualText: '',
         tableSelection: undefined,
-        scatterSeries: [{ name: '系列1', source: 'manual', axisMode: 'cols', xRow: '', yRow: '', tableSelection: undefined }],
+        scatterSeries: [{ name: '系列1', xSource: 'manual', ySource: 'manual', xRow: '', yRow: '', xTableSelection: undefined, yTableSelection: undefined }],
         barXRow: '',
-        barSeries: [{ name: '系列1', source: 'manual', axisMode: 'cols', yRow: '', tableSelection: undefined }],
+        barXSource: 'manual',
+        barXTableSelection: undefined,
+        barSeries: [{ name: '系列1', ySource: 'manual', yRow: '', yTableSelection: undefined }],
         pieRows: [{ label: '', value: '' }],
-        pieAxisMode: 'cols',
-        pieTableSelection: undefined,
+        pieLabelSource: 'manual',
+        pieValueSource: 'manual',
+        pieLabelRow: '',
+        pieValueRow: '',
+        pieLabelTableSelection: undefined,
+        pieValueTableSelection: undefined,
         imageUrl: '',
       };
     }
@@ -654,43 +752,51 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
     updateChart({ barSeries: next } as Partial<NonNullable<typeof payload>>);
   };
 
-  const applyLastTableSelectionToBarSeries = (seriesIndex: number) => {
-    if (block.type !== 'chart') return;
-    const snap = lastTableSelection;
-    if (!snap) return;
-    setBarSeries((prev) => {
-      const next = prev.slice();
-      const base: BarSeries = next[seriesIndex]
-        ?? { name: `系列${seriesIndex + 1}`, source: 'table', axisMode: 'cols', yRow: '', tableSelection: undefined };
-
-      const top = Math.min(snap.r1, snap.r2);
-      const bottom = Math.max(snap.r1, snap.r2);
-      const left = Math.min(snap.c1, snap.c2);
-      const right = Math.max(snap.c1, snap.c2);
-      const normalized = base.axisMode === 'rows'
-        ? { blockId: snap.blockId, r1: top, r2: top + 1, c1: left, c2: right }
-        : { blockId: snap.blockId, r1: top, r2: bottom, c1: left, c2: left + 1 };
-
-      next[seriesIndex] = { ...base, source: 'table', tableSelection: normalized };
-      return next;
-    });
-  };
-
-  const applyLastTableSelectionToPie = () => {
-    if (block.type !== 'chart') return;
-    const snap = lastTableSelection;
-    if (!snap) return;
-    const payload = safeParseChartContent(block.content);
-
+  const normalizeSnapToVector = (snap: LastTableSelection): TableSelection => {
     const top = Math.min(snap.r1, snap.r2);
     const bottom = Math.max(snap.r1, snap.r2);
     const left = Math.min(snap.c1, snap.c2);
     const right = Math.max(snap.c1, snap.c2);
-    const normalized = (payload.pieAxisMode ?? 'cols') === 'rows'
-      ? { blockId: snap.blockId, r1: top, r2: top + 1, c1: left, c2: right }
-      : { blockId: snap.blockId, r1: top, r2: bottom, c1: left, c2: left + 1 };
+    const height = bottom - top;
+    const width = right - left;
+    const asRow = height === 0 || (height !== 0 && width >= height);
+    return asRow
+      ? { blockId: snap.blockId, r1: top, r2: top, c1: left, c2: right }
+      : { blockId: snap.blockId, r1: top, r2: bottom, c1: left, c2: left };
+  };
 
-    updateChart({ dataSource: 'table', pieTableSelection: normalized });
+  const applyLastTableSelectionToBarX = () => {
+    if (block.type !== 'chart') return;
+    const snap = lastTableSelection;
+    if (!snap) return;
+    const normalized = normalizeSnapToVector(snap);
+    updateChart({ barXSource: 'table', barXTableSelection: normalized } as Partial<NonNullable<typeof chart>>);
+  };
+
+  const applyLastTableSelectionToBarSeriesY = (seriesIndex: number) => {
+    if (block.type !== 'chart') return;
+    const snap = lastTableSelection;
+    if (!snap) return;
+    const normalized = normalizeSnapToVector(snap);
+    setBarSeries((prev) => {
+      const next = prev.slice();
+      const base: BarSeries = next[seriesIndex]
+        ?? { name: `系列${seriesIndex + 1}`, ySource: 'manual', yRow: '', yTableSelection: undefined };
+      next[seriesIndex] = { ...base, ySource: 'table', yTableSelection: normalized };
+      return next;
+    });
+  };
+
+  const applyLastTableSelectionToPieAxis = (axis: 'label' | 'value') => {
+    if (block.type !== 'chart') return;
+    const snap = lastTableSelection;
+    if (!snap) return;
+    const normalized = normalizeSnapToVector(snap);
+    if (axis === 'label') {
+      updateChart({ pieLabelSource: 'table', pieLabelTableSelection: normalized } as Partial<NonNullable<typeof chart>>);
+    } else {
+      updateChart({ pieValueSource: 'table', pieValueTableSelection: normalized } as Partial<NonNullable<typeof chart>>);
+    }
   };
 
   const getTablePayloadById = (id: string) => {
@@ -778,61 +884,58 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
     const series = (payload.barSeries ?? []) as BarSeries[];
     const safeSeries = series.length > 0
       ? series
-      : [{ name: '系列1', source: 'manual', axisMode: 'cols', yRow: '', tableSelection: undefined }];
+      : [{ name: '系列1', ySource: 'manual', yRow: '', yTableSelection: undefined }];
 
     const out: Array<{ label: string; value: number; series?: string }> = [];
 
-    // Mixed mode: each series independently chooses manual or table.
-    const xs = parseTsvRow(payload.barXRow).filter((x) => x.length > 0);
-
-    for (let si = 0; si < safeSeries.length; si++) {
-      const s = safeSeries[si];
-      const seriesLabel = (s.name ?? '').trim() || `系列${si + 1}`;
-
-      if ((s.source ?? 'manual') === 'manual') {
-        const ys = parseTsvRow(s.yRow);
-        const n = Math.min(xs.length, ys.length);
-        for (let i = 0; i < n; i++) {
-          const lab = xs[i];
-          if (!lab) continue;
-          const v = Number(ys[i]);
-          if (!Number.isFinite(v)) continue;
-          out.push({ label: lab, value: v, series: seriesLabel });
-        }
-        continue;
-      }
-
-      const sel = s.tableSelection;
-      if (!sel?.blockId) continue;
+    const readVectorFromSelection = (sel: TableSelection | undefined): string[] => {
+      if (!sel?.blockId) return [];
       const tablePayload = getTablePayloadById(sel.blockId);
-      if (!tablePayload) continue;
-      const rows = tablePayload.rows;
-      const cols = tablePayload.cols;
+      if (!tablePayload) return [];
       const top = Math.min(sel.r1, sel.r2);
       const bottom = Math.max(sel.r1, sel.r2);
       const left = Math.min(sel.c1, sel.c2);
       const right = Math.max(sel.c1, sel.c2);
 
-      if (s.axisMode === 'rows') {
-        const rX = top;
-        const rY = Math.min(rows - 1, top + 1);
-        for (let c = left; c <= right; c++) {
-          const lab = getCellPlain(tablePayload, rX, c);
-          if (!lab) continue;
-          const v = Number(getCellPlain(tablePayload, rY, c));
-          if (!Number.isFinite(v)) continue;
-          out.push({ label: lab, value: v, series: seriesLabel });
-        }
-      } else {
-        const cX = left;
-        const cY = Math.min(cols - 1, left + 1);
-        for (let r = top; r <= bottom; r++) {
-          const lab = getCellPlain(tablePayload, r, cX);
-          if (!lab) continue;
-          const v = Number(getCellPlain(tablePayload, r, cY));
-          if (!Number.isFinite(v)) continue;
-          out.push({ label: lab, value: v, series: seriesLabel });
-        }
+      const outV: string[] = [];
+      if (top === bottom) {
+        for (let c = left; c <= right; c++) outV.push(getCellPlain(tablePayload, top, c));
+        return outV;
+      }
+      if (left === right) {
+        for (let r = top; r <= bottom; r++) outV.push(getCellPlain(tablePayload, r, left));
+        return outV;
+      }
+      if ((right - left) >= (bottom - top)) {
+        for (let c = left; c <= right; c++) outV.push(getCellPlain(tablePayload, top, c));
+        return outV;
+      }
+      for (let r = top; r <= bottom; r++) outV.push(getCellPlain(tablePayload, r, left));
+      return outV;
+    };
+
+    const xs = ((payload.barXSource ?? 'manual') === 'table'
+      ? readVectorFromSelection(payload.barXTableSelection)
+      : parseTsvRow(payload.barXRow))
+      .map((x) => (x ?? '').trim())
+      .filter((x) => x.length > 0);
+
+    for (let si = 0; si < safeSeries.length; si++) {
+      const s = safeSeries[si];
+      const seriesLabel = (s.name ?? '').trim() || `系列${si + 1}`;
+
+      const ys = ((s.ySource ?? 'manual') === 'table'
+        ? readVectorFromSelection(s.yTableSelection)
+        : parseTsvRow(s.yRow))
+        .map((y) => (y ?? '').trim());
+
+      const n = Math.min(xs.length, ys.length);
+      for (let i = 0; i < n; i++) {
+        const lab = xs[i];
+        if (!lab) continue;
+        const v = Number(ys[i]);
+        if (!Number.isFinite(v)) continue;
+        out.push({ label: lab, value: v, series: seriesLabel });
       }
     }
 
@@ -841,49 +944,48 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
 
   const pieToData = (payload: ReturnType<typeof safeParseChartContent>) => {
     const out: Array<{ label: string; value: number }> = [];
-    if ((payload.dataSource ?? 'manual') === 'manual') {
-      const rows = (payload.pieRows ?? []) as PieRow[];
-      for (const r of rows) {
-        const label = (r.label ?? '').trim();
-        const v = Number((r.value ?? '').trim());
-        if (!label) continue;
-        if (!Number.isFinite(v)) continue;
-        out.push({ label, value: v });
+
+    const readVectorFromSelection = (sel: TableSelection | undefined): string[] => {
+      if (!sel?.blockId) return [];
+      const tablePayload = getTablePayloadById(sel.blockId);
+      if (!tablePayload) return [];
+      const top = Math.min(sel.r1, sel.r2);
+      const bottom = Math.max(sel.r1, sel.r2);
+      const left = Math.min(sel.c1, sel.c2);
+      const right = Math.max(sel.c1, sel.c2);
+
+      const outV: string[] = [];
+      if (top === bottom) {
+        for (let c = left; c <= right; c++) outV.push(getCellPlain(tablePayload, top, c));
+        return outV;
       }
-      return out;
-    }
-
-    const sel = payload.pieTableSelection;
-    if (!sel?.blockId) return out;
-    const tablePayload = getTablePayloadById(sel.blockId);
-    if (!tablePayload) return out;
-    const rows = tablePayload.rows;
-    const cols = tablePayload.cols;
-    const top = Math.min(sel.r1, sel.r2);
-    const bottom = Math.max(sel.r1, sel.r2);
-    const left = Math.min(sel.c1, sel.c2);
-    const right = Math.max(sel.c1, sel.c2);
-    const axisMode: TableAxisMode = payload.pieAxisMode === 'rows' ? 'rows' : 'cols';
-
-    if (axisMode === 'rows') {
-      const rL = top;
-      const rV = Math.min(rows - 1, top + 1);
-      for (let c = left; c <= right; c++) {
-        const label = getCellPlain(tablePayload, rL, c);
-        if (!label) continue;
-        const v = Number(getCellPlain(tablePayload, rV, c));
-        if (!Number.isFinite(v)) continue;
-        out.push({ label, value: v });
+      if (left === right) {
+        for (let r = top; r <= bottom; r++) outV.push(getCellPlain(tablePayload, r, left));
+        return outV;
       }
-      return out;
-    }
+      if ((right - left) >= (bottom - top)) {
+        for (let c = left; c <= right; c++) outV.push(getCellPlain(tablePayload, top, c));
+        return outV;
+      }
+      for (let r = top; r <= bottom; r++) outV.push(getCellPlain(tablePayload, r, left));
+      return outV;
+    };
 
-    const cL = left;
-    const cV = Math.min(cols - 1, left + 1);
-    for (let r = top; r <= bottom; r++) {
-      const label = getCellPlain(tablePayload, r, cL);
+    const labels = ((payload.pieLabelSource ?? 'manual') === 'table'
+      ? readVectorFromSelection(payload.pieLabelTableSelection)
+      : parseTsvRow(payload.pieLabelRow))
+      .map((x) => (x ?? '').trim());
+
+    const values = ((payload.pieValueSource ?? 'manual') === 'table'
+      ? readVectorFromSelection(payload.pieValueTableSelection)
+      : parseTsvRow(payload.pieValueRow))
+      .map((x) => (x ?? '').trim());
+
+    const n = Math.min(labels.length, values.length);
+    for (let i = 0; i < n; i++) {
+      const label = labels[i];
+      const v = Number(values[i]);
       if (!label) continue;
-      const v = Number(getCellPlain(tablePayload, r, cV));
       if (!Number.isFinite(v)) continue;
       out.push({ label, value: v });
     }
@@ -1523,29 +1625,7 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
             />
           </div>
 
-          {(chart?.chartType ?? 'scatter') === 'pie' ? (
-            <div className="flex items-center gap-3 flex-wrap">
-              <label className="text-xs text-zinc-600 dark:text-zinc-400">数据来源</label>
-              <label className="text-xs flex items-center gap-1">
-                <input
-                  type="radio"
-                  name={`chart-source-${block.id}`}
-                  checked={(chart?.dataSource ?? 'manual') === 'manual'}
-                  onChange={() => updateChart({ dataSource: 'manual' })}
-                />
-                手动输入
-              </label>
-              <label className="text-xs flex items-center gap-1">
-                <input
-                  type="radio"
-                  name={`chart-source-${block.id}`}
-                  checked={(chart?.dataSource ?? 'manual') === 'table'}
-                  onChange={() => updateChart({ dataSource: 'table' })}
-                />
-                从表格导入
-              </label>
-            </div>
-          ) : null}
+          {null}
 
           {(chart?.chartType ?? 'scatter') === 'scatter' ? (
             <div className="flex flex-col gap-3">
@@ -1584,15 +1664,6 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
                     next.push({ name: `系列${n}`, xSource: 'manual', ySource: 'manual', xRow: '', yRow: '', xTableSelection: undefined, yTableSelection: undefined });
                     return next;
                   });
-                };
-
-                const parseRow = (row: string | undefined) => (row ?? '').split('\t');
-                const toRow = (cells: string[]) => {
-                  // Keep a compact row; trailing empties trimmed.
-                  let end = cells.length - 1;
-                  while (end >= 0 && (cells[end] ?? '').trim() === '') end--;
-                  const trimmed = cells.slice(0, Math.max(0, end + 1));
-                  return trimmed.join('\t');
                 };
 
                 const renderManualAxisRow = (axis: 'x' | 'y', s: ScatterSeries, idx: number) => {
@@ -1934,7 +2005,10 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
                 const series = (chart?.barSeries ?? []) as BarSeries[];
                 const safeSeries: BarSeries[] = series.length > 0
                   ? series
-                  : [{ name: '系列1', source: 'manual', axisMode: 'cols', yRow: '', tableSelection: undefined }];
+                  : [{ name: '系列1', ySource: 'manual', yRow: '', yTableSelection: undefined }];
+
+                const barXSource: ChartDataSource = (chart?.barXSource ?? 'manual') as ChartDataSource;
+                const barXTableSelection: TableSelection | undefined = chart?.barXTableSelection;
 
                 const upsert = (idx: number, patch: Partial<BarSeries>) => {
                   setBarSeries((prev) => {
@@ -1942,7 +2016,7 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
                     const next = base.slice();
                     const cur = next[idx]
                       ?? safeSeries[idx]
-                      ?? { name: `系列${idx + 1}`, source: 'manual', axisMode: 'cols', yRow: '', tableSelection: undefined };
+                      ?? { name: `系列${idx + 1}`, ySource: 'manual', yRow: '', yTableSelection: undefined };
                     next[idx] = { ...cur, ...patch } as BarSeries;
                     return next;
                   });
@@ -1954,7 +2028,7 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
                     next.splice(idx, 1);
                     return next.length > 0
                       ? next
-                      : [{ name: '系列1', source: 'manual', axisMode: 'cols', yRow: '', tableSelection: undefined }];
+                      : [{ name: '系列1', ySource: 'manual', yRow: '', yTableSelection: undefined }];
                   });
                 };
 
@@ -1962,7 +2036,7 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
                   setBarSeries((prev) => {
                     const next = prev.slice();
                     const n = next.length + 1;
-                    next.push({ name: `系列${n}`, source: 'manual', axisMode: 'cols', yRow: '', tableSelection: undefined });
+                    next.push({ name: `系列${n}`, ySource: 'manual', yRow: '', yTableSelection: undefined });
                     return next;
                   });
                 };
@@ -1974,8 +2048,6 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
                   const trimmed = cells.slice(0, Math.max(0, end + 1));
                   return trimmed.join('\t');
                 };
-
-                const anyManual = safeSeries.some((s) => (s.source ?? 'manual') === 'manual');
 
                 const renderXRow = () => {
                   const xCells0 = parseRow(chart?.barXRow);
@@ -2080,363 +2152,69 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
                   return r >= top && r <= bottom && c >= left && c <= right;
                 };
 
-                const renderTableSelector = (s: BarSeries, idx: number) => {
-                  const blockId = s.tableSelection?.blockId ?? '';
-                  const tablePayload = blockId ? getTablePayloadById(blockId) : null;
-                  const rows = tablePayload?.rows ?? 0;
-                  const cols = tablePayload?.cols ?? 0;
-                  const sel = s.tableSelection;
-                  const pickKey = `bar-${block.id}-${idx}`;
-
-                  const constrainTo2Axis = (
-                    axisMode: TableAxisMode,
-                    rect: { r1: number; c1: number; r2: number; c2: number },
-                  ) => {
-                    const top = Math.min(rect.r1, rect.r2);
-                    const bottom = Math.max(rect.r1, rect.r2);
-                    const left = Math.min(rect.c1, rect.c2);
-                    const right = Math.max(rect.c1, rect.c2);
-                    if (axisMode === 'rows') {
-                      const r1 = Math.max(0, Math.min(rows - 1, top));
-                      const r2 = Math.max(0, Math.min(rows - 1, r1 + 1));
-                      return { r1, r2, c1: left, c2: right };
-                    }
-                    const c1 = Math.max(0, Math.min(cols - 1, left));
-                    const c2 = Math.max(0, Math.min(cols - 1, c1 + 1));
-                    return { r1: top, r2: bottom, c1, c2 };
-                  };
-
-                  const pickCell = (e: ReactMouseEvent, r: number, c: number) => {
-                    e.preventDefault();
-                    if (!blockId) return;
-
-                    const anchor = chartPickAnchor && chartPickAnchor.key === pickKey ? chartPickAnchor : null;
-
-                    if (chartSelectionMode) {
-                      if (!sel || sel.r1 !== sel.r2 || sel.c1 !== sel.c2) {
-                        setChartPickAnchor({ key: pickKey, r, c });
-                        upsert(idx, { tableSelection: { blockId, r1: r, c1: c, r2: r, c2: c } });
-                        return;
-                      }
-                      setChartPickAnchor(null);
-                      const constrained = constrainTo2Axis(s.axisMode, { r1: sel.r1, c1: sel.c1, r2: r, c2: c });
-                      upsert(idx, { tableSelection: { blockId, ...constrained } });
-                      return;
-                    }
-
-                    if (e.shiftKey && anchor) {
-                      const constrained = constrainTo2Axis(s.axisMode, { r1: anchor.r, c1: anchor.c, r2: r, c2: c });
-                      upsert(idx, { tableSelection: { blockId, ...constrained } });
-                      return;
-                    }
-
-                    setChartPickAnchor({ key: pickKey, r, c });
-                    upsert(idx, { tableSelection: { blockId, r1: r, c1: c, r2: r, c2: c } });
-                  };
-
-                  return (
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <label className="text-xs text-zinc-600 dark:text-zinc-400">表格</label>
-                        <select
-                          value={blockId}
-                          onChange={(e) => {
-                            const nextId = e.target.value;
-                            if (!nextId) {
-                              upsert(idx, { tableSelection: undefined });
-                              return;
-                            }
-                            upsert(idx, { tableSelection: { blockId: nextId, r1: 0, r2: 9, c1: 0, c2: 1 } });
-                          }}
-                          className="text-xs px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
-                        >
-                          <option value="">请选择表格</option>
-                          {availableTables.map((t) => (
-                            <option key={t.id} value={t.id}>{t.label}</option>
-                          ))}
-                        </select>
-
-                        <label className="text-xs text-zinc-600 dark:text-zinc-400 ml-2">X/Y 方向</label>
-                        <label className="text-xs flex items-center gap-1">
-                          <input
-                            type="radio"
-                            name={`bar-axis-${block.id}-${idx}`}
-                            checked={s.axisMode === 'cols'}
-                            onChange={() => {
-                              const cur = s.tableSelection;
-                              if (!cur?.blockId) {
-                                upsert(idx, { axisMode: 'cols' });
-                                return;
-                              }
-                              const left = Math.min(cur.c1, cur.c2);
-                              upsert(idx, { axisMode: 'cols', tableSelection: { ...cur, c1: left, c2: left + 1 } });
-                            }}
-                          />
-                          按列（X=左列，Y=右列）
-                        </label>
-                        <label className="text-xs flex items-center gap-1">
-                          <input
-                            type="radio"
-                            name={`bar-axis-${block.id}-${idx}`}
-                            checked={s.axisMode === 'rows'}
-                            onChange={() => {
-                              const cur = s.tableSelection;
-                              if (!cur?.blockId) {
-                                upsert(idx, { axisMode: 'rows' });
-                                return;
-                              }
-                              const top = Math.min(cur.r1, cur.r2);
-                              upsert(idx, { axisMode: 'rows', tableSelection: { ...cur, r1: top, r2: top + 1 } });
-                            }}
-                          />
-                          按行（X=上行，Y=下行）
-                        </label>
-
-                        <button
-                          type="button"
-                          onClick={() => applyLastTableSelectionToBarSeries(idx)}
-                          disabled={!lastTableSelection}
-                          className="ml-auto px-2 py-1 text-xs rounded border border-zinc-300 dark:border-zinc-600 disabled:opacity-40"
-                          title={lastTableSelection ? '使用最近一次在表格块中框选的区域' : '请先在任意表格块中框选一块区域'}
-                        >
-                          使用最近选区
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setChartSelectionMode((v) => !v)}
-                          className={`px-2 py-1 text-xs rounded flex items-center gap-1 border border-zinc-300 dark:border-zinc-600 transition-colors ${
-                            chartSelectionMode
-                              ? 'bg-blue-500 hover:bg-blue-600 text-white'
-                              : 'bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300'
-                          }`}
-                          title={chartSelectionMode ? '已开启：点击两次即可框选' : '开启：无需按 Shift 框选区域'}
-                        >
-                          <MousePointer2 size={14} />
-                          选区模式
-                        </button>
-                      </div>
-
-                      {tablePayload ? (
-                        <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                          {chartSelectionMode
-                            ? '选区模式：第一次点击设定起点；第二次点击设定终点。'
-                            : '普通模式：点击设定起点；Shift+点击设定终点。'} 会按上面的“方向”自动约束为 2 行或 2 列。
-                        </div>
-                      ) : (
-                        <div className="text-[11px] text-zinc-500 dark:text-zinc-400">先选择一个表格。</div>
-                      )}
-
-                      {tablePayload ? (
-                        <div className="overflow-auto border border-zinc-200 dark:border-zinc-700 rounded max-h-72">
-                          <table className="w-full text-xs border-collapse">
-                            <tbody>
-                              {Array.from({ length: rows }, (_, r) => (
-                                <tr key={r}>
-                                  {Array.from({ length: cols }, (_, c) => {
-                                    const active = isInRect(r, c, sel);
-                                    return (
-                                      <td
-                                        key={c}
-                                        onMouseDown={(e) => pickCell(e, r, c)}
-                                        className={`border border-zinc-200 dark:border-zinc-700 px-2 py-1 select-none cursor-pointer ${
-                                          active ? 'bg-blue-100 dark:bg-blue-900/25' : 'bg-white dark:bg-zinc-950'
-                                        }`}
-                                        title={`R${r + 1}C${c + 1}`}
-                                      >
-                                        {getCellPlain(tablePayload, r, c)}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                };
-
-                return (
-                  <div className="flex flex-col gap-3">
-                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                      每个系列可独立选择手动或表格导入。
-                    </div>
-
-                    {anyManual ? (
-                      <div className="flex flex-col gap-2">
-                        <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                          手动系列会使用下面这一行 X（分类，支持文本）；Y 必须是数值。
-                        </div>
-                        {renderXRow()}
-                      </div>
-                    ) : (
-                      <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                        表格系列：每个系列需要选一个 2 行/2 列区域：X 标签 + Y 数值。
-                      </div>
-                    )}
-
-                    {safeSeries.map((s, idx) => (
-                      <div key={idx} className="border border-zinc-200 dark:border-zinc-700 rounded p-2 flex flex-col gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-zinc-600 dark:text-zinc-400">系列 {idx + 1}</span>
-                          <input
-                            type="text"
-                            value={s.name}
-                            onChange={(e) => upsert(idx, { name: e.target.value })}
-                            className="flex-1 px-2 py-1 text-xs border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800"
-                            placeholder="系列名称（可选）"
-                          />
-
-                          <label className="text-xs flex items-center gap-1">
-                            <input
-                              type="radio"
-                              name={`bar-series-source-${block.id}-${idx}`}
-                              checked={(s.source ?? 'manual') === 'manual'}
-                              onChange={() => upsert(idx, { source: 'manual' })}
-                            />
-                            手动
-                          </label>
-                          <label className="text-xs flex items-center gap-1">
-                            <input
-                              type="radio"
-                              name={`bar-series-source-${block.id}-${idx}`}
-                              checked={(s.source ?? 'manual') === 'table'}
-                              onChange={() => {
-                                const existing = s.tableSelection;
-                                const fallbackTableId = availableTables[0]?.id ?? '';
-                                const nextSelection = existing?.blockId
-                                  ? existing
-                                  : (fallbackTableId
-                                    ? { blockId: fallbackTableId, r1: 0, r2: 9, c1: 0, c2: 1 }
-                                    : undefined);
-                                upsert(idx, { source: 'table', tableSelection: nextSelection });
-                              }}
-                            />
-                            表格
-                          </label>
-                          {safeSeries.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeSeries(idx)}
-                              className="px-2 py-1 text-xs rounded border border-zinc-300 dark:border-zinc-600"
-                              title="删除该系列"
-                            >
-                              删除
-                            </button>
-                          )}
-                        </div>
-
-                        {(s.source ?? 'manual') === 'manual' ? renderYRow(s, idx) : renderTableSelector(s, idx)}
-                      </div>
-                    ))}
-
-                    <div className="flex">
-                      <button
-                        type="button"
-                        onClick={addSeries}
-                        className="px-2 py-1 text-xs rounded border border-zinc-300 dark:border-zinc-600"
-                      >
-                        + 添加系列
-                      </button>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {(() => {
-                const rows0 = ((chart?.pieRows ?? []) as PieRow[]);
-                const minRows = Math.max(8, rows0.length + 2);
-                const rows: PieRow[] = Array.from({ length: minRows }, (_, i) => rows0[i] ?? { label: '', value: '' });
-
-                const setRowCell = (r: number, k: keyof PieRow, val: string) => {
-                  const next = rows.map((x) => ({ ...x }));
-                  next[r][k] = val;
-                  updateChart({ pieRows: next } as Partial<NonNullable<typeof chart>>);
-                };
-
-                const handlePaste = (e: ReactClipboardEvent<HTMLInputElement>, r0: number, c0: number) => {
-                  const text = e.clipboardData.getData('text/plain');
-                  if (!text) return;
-                  if (!/\t|\n|\r/.test(text)) return;
-                  e.preventDefault();
-                  const pasteRows = text.replace(/\r/g, '').split('\n').map((l) => l.split('\t'));
-                  const next = rows.map((x) => ({ ...x }));
-                  for (let dr = 0; dr < pasteRows.length; dr++) {
-                    const rr = r0 + dr;
-                    if (rr >= next.length) continue;
-                    const row = pasteRows[dr];
-                    const label = row[c0] ?? '';
-                    const value = row[c0 + 1] ?? '';
-                    next[rr].label = label;
-                    next[rr].value = value;
+                const constrainToVector = (
+                  anchor: { r: number; c: number },
+                  r: number,
+                  c: number,
+                  rowsN: number,
+                  colsN: number,
+                ) => {
+                  const dr = Math.abs(r - anchor.r);
+                  const dc = Math.abs(c - anchor.c);
+                  const clampR = (x: number) => Math.max(0, Math.min(rowsN - 1, x));
+                  const clampC = (x: number) => Math.max(0, Math.min(colsN - 1, x));
+                  if (dr >= dc) {
+                    const top = clampR(Math.min(anchor.r, r));
+                    const bottom = clampR(Math.max(anchor.r, r));
+                    const col = clampC(anchor.c);
+                    return { r1: top, r2: bottom, c1: col, c2: col };
                   }
-                  updateChart({ pieRows: next } as Partial<NonNullable<typeof chart>>);
+                  const left = clampC(Math.min(anchor.c, c));
+                  const right = clampC(Math.max(anchor.c, c));
+                  const row = clampR(anchor.r);
+                  return { r1: row, r2: row, c1: left, c2: right };
                 };
 
-                const isInRect = (r: number, c: number, sel: { r1: number; c1: number; r2: number; c2: number } | undefined) => {
-                  if (!sel) return false;
-                  const top = Math.min(sel.r1, sel.r2);
-                  const bottom = Math.max(sel.r1, sel.r2);
-                  const left = Math.min(sel.c1, sel.c2);
-                  const right = Math.max(sel.c1, sel.c2);
-                  return r >= top && r <= bottom && c >= left && c <= right;
-                };
-
-                const renderPieTableSelector = () => {
-                  const blockId = chart?.pieTableSelection?.blockId ?? '';
+                const renderVectorTableSelector = (args: {
+                  axisLabel: string;
+                  selection: TableSelection | undefined;
+                  onSelectionChange: (sel: TableSelection | undefined) => void;
+                  onApplyLastSelection: () => void;
+                  pickKey: string;
+                }) => {
+                  const blockId = args.selection?.blockId ?? '';
                   const tablePayload = blockId ? getTablePayloadById(blockId) : null;
                   const rowsN = tablePayload?.rows ?? 0;
                   const colsN = tablePayload?.cols ?? 0;
-                  const sel = chart?.pieTableSelection;
-                  const axisMode: TableAxisMode = chart?.pieAxisMode === 'rows' ? 'rows' : 'cols';
-                  const pickKey = `pie-${block.id}`;
-
-                  const constrainTo2Axis = (
-                    rect: { r1: number; c1: number; r2: number; c2: number },
-                  ) => {
-                    const top = Math.min(rect.r1, rect.r2);
-                    const bottom = Math.max(rect.r1, rect.r2);
-                    const left = Math.min(rect.c1, rect.c2);
-                    const right = Math.max(rect.c1, rect.c2);
-                    if (axisMode === 'rows') {
-                      const r1 = Math.max(0, Math.min(rowsN - 1, top));
-                      const r2 = Math.max(0, Math.min(rowsN - 1, r1 + 1));
-                      return { r1, r2, c1: left, c2: right };
-                    }
-                    const c1 = Math.max(0, Math.min(colsN - 1, left));
-                    const c2 = Math.max(0, Math.min(colsN - 1, c1 + 1));
-                    return { r1: top, r2: bottom, c1, c2 };
-                  };
+                  const sel = args.selection;
 
                   const pickCell = (e: ReactMouseEvent, r: number, c: number) => {
                     e.preventDefault();
-                    if (!blockId) return;
-                    const anchor = chartPickAnchor && chartPickAnchor.key === pickKey ? chartPickAnchor : null;
+                    if (!blockId || !tablePayload) return;
+
+                    const anchor = chartPickAnchor && chartPickAnchor.key === args.pickKey ? chartPickAnchor : null;
 
                     if (chartSelectionMode) {
                       if (!sel || sel.r1 !== sel.r2 || sel.c1 !== sel.c2) {
-                        setChartPickAnchor({ key: pickKey, r, c });
-                        updateChart({ pieTableSelection: { blockId, r1: r, c1: c, r2: r, c2: c } } as Partial<NonNullable<typeof chart>>);
+                        setChartPickAnchor({ key: args.pickKey, r, c });
+                        args.onSelectionChange({ blockId, r1: r, c1: c, r2: r, c2: c });
                         return;
                       }
+
                       setChartPickAnchor(null);
-                      const constrained = constrainTo2Axis({ r1: sel.r1, c1: sel.c1, r2: r, c2: c });
-                      updateChart({ pieTableSelection: { blockId, ...constrained } } as Partial<NonNullable<typeof chart>>);
+                      const constrained = constrainToVector({ r: sel.r1, c: sel.c1 }, r, c, rowsN, colsN);
+                      args.onSelectionChange({ blockId, ...constrained });
                       return;
                     }
 
                     if (e.shiftKey && anchor) {
-                      const constrained = constrainTo2Axis({ r1: anchor.r, c1: anchor.c, r2: r, c2: c });
-                      updateChart({ pieTableSelection: { blockId, ...constrained } } as Partial<NonNullable<typeof chart>>);
+                      const constrained = constrainToVector({ r: anchor.r, c: anchor.c }, r, c, rowsN, colsN);
+                      args.onSelectionChange({ blockId, ...constrained });
                       return;
                     }
 
-                    setChartPickAnchor({ key: pickKey, r, c });
-                    updateChart({ pieTableSelection: { blockId, r1: r, c1: c, r2: r, c2: c } } as Partial<NonNullable<typeof chart>>);
+                    setChartPickAnchor({ key: args.pickKey, r, c });
+                    args.onSelectionChange({ blockId, r1: r, c1: c, r2: r, c2: c });
                   };
 
                   return (
@@ -2448,10 +2226,11 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
                           onChange={(e) => {
                             const nextId = e.target.value;
                             if (!nextId) {
-                              updateChart({ pieTableSelection: undefined } as Partial<NonNullable<typeof chart>>);
+                              args.onSelectionChange(undefined);
                               return;
                             }
-                            updateChart({ pieTableSelection: { blockId: nextId, r1: 0, r2: 9, c1: 0, c2: 1 } } as Partial<NonNullable<typeof chart>>);
+                            // Default selection: first row, 10 columns.
+                            args.onSelectionChange({ blockId: nextId, r1: 0, r2: 0, c1: 0, c2: 9 });
                           }}
                           className="text-xs px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
                         >
@@ -2461,43 +2240,9 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
                           ))}
                         </select>
 
-                        <label className="text-xs text-zinc-600 dark:text-zinc-400 ml-2">名称/数值 方向</label>
-                        <label className="text-xs flex items-center gap-1">
-                          <input
-                            type="radio"
-                            name={`pie-axis-${block.id}`}
-                            checked={axisMode === 'cols'}
-                            onChange={() => {
-                              const cur = chart?.pieTableSelection;
-                              updateChart({ pieAxisMode: 'cols' } as Partial<NonNullable<typeof chart>>);
-                              if (cur?.blockId) {
-                                const left = Math.min(cur.c1, cur.c2);
-                                updateChart({ pieTableSelection: { ...cur, c1: left, c2: left + 1 } } as Partial<NonNullable<typeof chart>>);
-                              }
-                            }}
-                          />
-                          按列（左=名称，右=数值）
-                        </label>
-                        <label className="text-xs flex items-center gap-1">
-                          <input
-                            type="radio"
-                            name={`pie-axis-${block.id}`}
-                            checked={axisMode === 'rows'}
-                            onChange={() => {
-                              const cur = chart?.pieTableSelection;
-                              updateChart({ pieAxisMode: 'rows' } as Partial<NonNullable<typeof chart>>);
-                              if (cur?.blockId) {
-                                const top = Math.min(cur.r1, cur.r2);
-                                updateChart({ pieTableSelection: { ...cur, r1: top, r2: top + 1 } } as Partial<NonNullable<typeof chart>>);
-                              }
-                            }}
-                          />
-                          按行（上=名称，下=数值）
-                        </label>
-
                         <button
                           type="button"
-                          onClick={() => applyLastTableSelectionToPie()}
+                          onClick={args.onApplyLastSelection}
                           disabled={!lastTableSelection}
                           className="ml-auto px-2 py-1 text-xs rounded border border-zinc-300 dark:border-zinc-600 disabled:opacity-40"
                           title={lastTableSelection ? '使用最近一次在表格块中框选的区域' : '请先在任意表格块中框选一块区域'}
@@ -2522,9 +2267,9 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
 
                       {tablePayload ? (
                         <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                          {chartSelectionMode
+                          {args.axisLabel}：{chartSelectionMode
                             ? '选区模式：第一次点击设定起点；第二次点击设定终点。'
-                            : '普通模式：点击设定起点；Shift+点击设定终点。'} 会按上面的“方向”自动约束为 2 行或 2 列。
+                            : '普通模式：点击设定起点；Shift+点击设定终点。'} 会自动约束为 1 行或 1 列（按拖动方向）。
                         </div>
                       ) : (
                         <div className="text-[11px] text-zinc-500 dark:text-zinc-400">先选择一个表格。</div>
@@ -2562,56 +2307,450 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
                 };
 
                 return (
-                  <>
-                    {(chart?.dataSource ?? 'manual') === 'manual' ? (
-                      <div className="flex flex-col gap-2">
-                        <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                          饼图：输入“名称”和“数值”。支持粘贴两列 TSV（Excel 复制）。
+                  <div className="flex flex-col gap-3">
+                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400">X 与每个系列的 Y 都可以独立选择：手动 / 表格。</div>
+
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="text-xs text-zinc-600 dark:text-zinc-400">X</span>
+                        <label className="text-xs flex items-center gap-1">
+                          <input
+                            type="radio"
+                            name={`bar-x-source-${block.id}`}
+                            checked={barXSource === 'manual'}
+                            onChange={() => updateChart({ barXSource: 'manual' } as Partial<NonNullable<typeof chart>>)}
+                          />
+                          手动
+                        </label>
+                        <label className="text-xs flex items-center gap-1">
+                          <input
+                            type="radio"
+                            name={`bar-x-source-${block.id}`}
+                            checked={barXSource === 'table'}
+                            onChange={() => {
+                              const existing = barXTableSelection;
+                              const fallbackTableId = availableTables[0]?.id ?? '';
+                              const nextSel = existing?.blockId
+                                ? existing
+                                : (fallbackTableId
+                                  ? { blockId: fallbackTableId, r1: 0, r2: 0, c1: 0, c2: 9 }
+                                  : undefined);
+                              updateChart({ barXSource: 'table', barXTableSelection: nextSel } as Partial<NonNullable<typeof chart>>);
+                            }}
+                          />
+                          表格
+                        </label>
+                      </div>
+
+                      {barXSource === 'manual'
+                        ? renderXRow()
+                        : renderVectorTableSelector({
+                          axisLabel: 'X',
+                          selection: barXTableSelection,
+                          onSelectionChange: (sel) => updateChart({ barXSource: 'table', barXTableSelection: sel } as Partial<NonNullable<typeof chart>>),
+                          onApplyLastSelection: applyLastTableSelectionToBarX,
+                          pickKey: `bar-x-${block.id}`,
+                        })}
+                    </div>
+
+                    {safeSeries.map((s, idx) => (
+                      <div key={idx} className="border border-zinc-200 dark:border-zinc-700 rounded p-2 flex flex-col gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-zinc-600 dark:text-zinc-400">系列 {idx + 1}</span>
+                          <input
+                            type="text"
+                            value={s.name}
+                            onChange={(e) => upsert(idx, { name: e.target.value })}
+                            className="flex-1 px-2 py-1 text-xs border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800"
+                            placeholder="系列名称（可选）"
+                          />
+
+                          <label className="text-xs flex items-center gap-1">
+                            <input
+                              type="radio"
+                              name={`bar-y-source-${block.id}-${idx}`}
+                              checked={(s.ySource ?? 'manual') === 'manual'}
+                              onChange={() => upsert(idx, { ySource: 'manual' })}
+                            />
+                            手动
+                          </label>
+                          <label className="text-xs flex items-center gap-1">
+                            <input
+                              type="radio"
+                              name={`bar-y-source-${block.id}-${idx}`}
+                              checked={(s.ySource ?? 'manual') === 'table'}
+                              onChange={() => {
+                                const existing = s.yTableSelection;
+                                const fallbackTableId = availableTables[0]?.id ?? '';
+                                const nextSel = existing?.blockId
+                                  ? existing
+                                  : (fallbackTableId
+                                    ? { blockId: fallbackTableId, r1: 0, r2: 0, c1: 0, c2: 9 }
+                                    : undefined);
+                                upsert(idx, { ySource: 'table', yTableSelection: nextSel });
+                              }}
+                            />
+                            表格
+                          </label>
+                          {safeSeries.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeSeries(idx)}
+                              className="px-2 py-1 text-xs rounded border border-zinc-300 dark:border-zinc-600"
+                              title="删除该系列"
+                            >
+                              删除
+                            </button>
+                          )}
                         </div>
-                        <div className="overflow-auto border border-zinc-200 dark:border-zinc-700 rounded">
+
+                        {(s.ySource ?? 'manual') === 'manual'
+                          ? renderYRow(s, idx)
+                          : renderVectorTableSelector({
+                            axisLabel: `Y（系列 ${idx + 1}）`,
+                            selection: s.yTableSelection,
+                            onSelectionChange: (sel) => upsert(idx, { ySource: 'table', yTableSelection: sel }),
+                            onApplyLastSelection: () => applyLastTableSelectionToBarSeriesY(idx),
+                            pickKey: `bar-y-${block.id}-${idx}`,
+                          })}
+                      </div>
+                    ))}
+
+                    <div className="flex">
+                      <button
+                        type="button"
+                        onClick={addSeries}
+                        className="px-2 py-1 text-xs rounded border border-zinc-300 dark:border-zinc-600"
+                      >
+                        + 添加系列
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {(() => {
+                // Keep legacy `pieRows` around in the saved payload for backwards compatibility/migration only.
+
+                const parseRow = (row: string | undefined) => (row ?? '').split('\t');
+                const toRow = (cells: string[]) => {
+                  let end = cells.length - 1;
+                  while (end >= 0 && (cells[end] ?? '').trim() === '') end--;
+                  const trimmed = cells.slice(0, Math.max(0, end + 1));
+                  return trimmed.join('\t');
+                };
+
+                const isInRect = (r: number, c: number, sel: { r1: number; c1: number; r2: number; c2: number } | undefined) => {
+                  if (!sel) return false;
+                  const top = Math.min(sel.r1, sel.r2);
+                  const bottom = Math.max(sel.r1, sel.r2);
+                  const left = Math.min(sel.c1, sel.c2);
+                  const right = Math.max(sel.c1, sel.c2);
+                  return r >= top && r <= bottom && c >= left && c <= right;
+                };
+
+                const constrainToVector = (
+                  anchor: { r: number; c: number },
+                  r: number,
+                  c: number,
+                  rowsN: number,
+                  colsN: number,
+                ) => {
+                  const dr = Math.abs(r - anchor.r);
+                  const dc = Math.abs(c - anchor.c);
+                  const clampR = (x: number) => Math.max(0, Math.min(rowsN - 1, x));
+                  const clampC = (x: number) => Math.max(0, Math.min(colsN - 1, x));
+                  if (dr >= dc) {
+                    const top = clampR(Math.min(anchor.r, r));
+                    const bottom = clampR(Math.max(anchor.r, r));
+                    const col = clampC(anchor.c);
+                    return { r1: top, r2: bottom, c1: col, c2: col };
+                  }
+                  const left = clampC(Math.min(anchor.c, c));
+                  const right = clampC(Math.max(anchor.c, c));
+                  const row = clampR(anchor.r);
+                  return { r1: row, r2: row, c1: left, c2: right };
+                };
+
+                const renderVectorTableSelector = (args: {
+                  axisLabel: string;
+                  selection: TableSelection | undefined;
+                  onSelectionChange: (sel: TableSelection | undefined) => void;
+                  onApplyLastSelection: () => void;
+                  pickKey: string;
+                }) => {
+                  const blockId = args.selection?.blockId ?? '';
+                  const tablePayload = blockId ? getTablePayloadById(blockId) : null;
+                  const rowsN = tablePayload?.rows ?? 0;
+                  const colsN = tablePayload?.cols ?? 0;
+                  const sel = args.selection;
+
+                  const pickCell = (e: ReactMouseEvent, r: number, c: number) => {
+                    e.preventDefault();
+                    if (!blockId || !tablePayload) return;
+
+                    const anchor = chartPickAnchor && chartPickAnchor.key === args.pickKey ? chartPickAnchor : null;
+
+                    if (chartSelectionMode) {
+                      if (!sel || sel.r1 !== sel.r2 || sel.c1 !== sel.c2) {
+                        setChartPickAnchor({ key: args.pickKey, r, c });
+                        args.onSelectionChange({ blockId, r1: r, c1: c, r2: r, c2: c });
+                        return;
+                      }
+                      setChartPickAnchor(null);
+                      const constrained = constrainToVector({ r: sel.r1, c: sel.c1 }, r, c, rowsN, colsN);
+                      args.onSelectionChange({ blockId, ...constrained });
+                      return;
+                    }
+
+                    if (e.shiftKey && anchor) {
+                      const constrained = constrainToVector({ r: anchor.r, c: anchor.c }, r, c, rowsN, colsN);
+                      args.onSelectionChange({ blockId, ...constrained });
+                      return;
+                    }
+
+                    setChartPickAnchor({ key: args.pickKey, r, c });
+                    args.onSelectionChange({ blockId, r1: r, c1: c, r2: r, c2: c });
+                  };
+
+                  return (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <label className="text-xs text-zinc-600 dark:text-zinc-400">表格</label>
+                        <select
+                          value={blockId}
+                          onChange={(e) => {
+                            const nextId = e.target.value;
+                            if (!nextId) {
+                              args.onSelectionChange(undefined);
+                              return;
+                            }
+                            args.onSelectionChange({ blockId: nextId, r1: 0, r2: 0, c1: 0, c2: 9 });
+                          }}
+                          className="text-xs px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+                        >
+                          <option value="">请选择表格</option>
+                          {availableTables.map((t) => (
+                            <option key={t.id} value={t.id}>{t.label}</option>
+                          ))}
+                        </select>
+
+                        <button
+                          type="button"
+                          onClick={args.onApplyLastSelection}
+                          disabled={!lastTableSelection}
+                          className="ml-auto px-2 py-1 text-xs rounded border border-zinc-300 dark:border-zinc-600 disabled:opacity-40"
+                          title={lastTableSelection ? '使用最近一次在表格块中框选的区域' : '请先在任意表格块中框选一块区域'}
+                        >
+                          使用最近选区
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setChartSelectionMode((v) => !v)}
+                          className={`px-2 py-1 text-xs rounded flex items-center gap-1 border border-zinc-300 dark:border-zinc-600 transition-colors ${
+                            chartSelectionMode
+                              ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                              : 'bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300'
+                          }`}
+                          title={chartSelectionMode ? '已开启：点击两次即可框选' : '开启：无需按 Shift 框选区域'}
+                        >
+                          <MousePointer2 size={14} />
+                          选区模式
+                        </button>
+                      </div>
+
+                      {tablePayload ? (
+                        <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                          {args.axisLabel}：{chartSelectionMode
+                            ? '选区模式：第一次点击设定起点；第二次点击设定终点。'
+                            : '普通模式：点击设定起点；Shift+点击设定终点。'} 会自动约束为 1 行或 1 列（按拖动方向）。
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-zinc-500 dark:text-zinc-400">先选择一个表格。</div>
+                      )}
+
+                      {tablePayload ? (
+                        <div className="overflow-auto border border-zinc-200 dark:border-zinc-700 rounded max-h-72">
                           <table className="w-full text-xs border-collapse">
-                            <thead>
-                              <tr>
-                                <th className="text-left px-2 py-1 border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300">名称</th>
-                                <th className="text-left px-2 py-1 border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300">数值</th>
-                              </tr>
-                            </thead>
                             <tbody>
-                              {rows.map((row, r) => (
+                              {Array.from({ length: rowsN }, (_, r) => (
                                 <tr key={r}>
-                                  <td className="border border-zinc-200 dark:border-zinc-700 p-0">
-                                    <input
-                                      type="text"
-                                      value={row.label}
-                                      onChange={(e) => setRowCell(r, 'label', e.target.value)}
-                                      onPaste={(e) => handlePaste(e, r, 0)}
-                                      className="w-full px-2 py-1 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 outline-none"
-                                    />
-                                  </td>
-                                  <td className="border border-zinc-200 dark:border-zinc-700 p-0">
-                                    <input
-                                      type="text"
-                                      value={row.value}
-                                      onChange={(e) => setRowCell(r, 'value', e.target.value)}
-                                      onPaste={(e) => handlePaste(e, r, 0)}
-                                      className="w-full px-2 py-1 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 outline-none"
-                                    />
-                                  </td>
+                                  {Array.from({ length: colsN }, (_, c) => {
+                                    const active = isInRect(r, c, sel);
+                                    return (
+                                      <td
+                                        key={c}
+                                        onMouseDown={(e) => pickCell(e, r, c)}
+                                        className={`border border-zinc-200 dark:border-zinc-700 px-2 py-1 select-none cursor-pointer ${
+                                          active ? 'bg-blue-100 dark:bg-blue-900/25' : 'bg-white dark:bg-zinc-950'
+                                        }`}
+                                        title={`R${r + 1}C${c + 1}`}
+                                      >
+                                        {getCellPlain(tablePayload, r, c)}
+                                      </td>
+                                    );
+                                  })}
                                 </tr>
                               ))}
                             </tbody>
                           </table>
                         </div>
+                      ) : null}
+                    </div>
+                  );
+                };
+
+                const renderManualAxisRow = (axis: 'label' | 'value') => {
+                  const rowText = axis === 'label' ? chart?.pieLabelRow : chart?.pieValueRow;
+                  const cells0 = parseRow(rowText);
+                  const cols = Math.max(10, cells0.length + 2);
+                  const cells = Array.from({ length: cols }, (_, i) => cells0[i] ?? '');
+
+                  const setCell = (c: number, val: string) => {
+                    const next = cells.slice();
+                    next[c] = val;
+                    if (axis === 'label') updateChart({ pieLabelRow: toRow(next) } as Partial<NonNullable<typeof chart>>);
+                    else updateChart({ pieValueRow: toRow(next) } as Partial<NonNullable<typeof chart>>);
+                  };
+
+                  const handlePasteRow = (e: ReactClipboardEvent<HTMLInputElement>, c0: number) => {
+                    const text = e.clipboardData.getData('text/plain');
+                    if (!text) return;
+                    if (!/\t|\n|\r/.test(text)) return;
+                    e.preventDefault();
+                    const pasteRows = text.replace(/\r/g, '').split('\n').map((l) => l.split('\t'));
+                    const next = cells.slice();
+                    for (let dc = 0; dc < (pasteRows[0]?.length ?? 0); dc++) {
+                      const cc = c0 + dc;
+                      if (cc >= cols) continue;
+                      next[cc] = pasteRows[0][dc] ?? '';
+                    }
+                    if (axis === 'label') updateChart({ pieLabelRow: toRow(next) } as Partial<NonNullable<typeof chart>>);
+                    else updateChart({ pieValueRow: toRow(next) } as Partial<NonNullable<typeof chart>>);
+                  };
+
+                  return (
+                    <div className="overflow-auto border border-zinc-200 dark:border-zinc-700 rounded">
+                      <table className="w-full text-xs border-collapse">
+                        <tbody>
+                          <tr>
+                            <td className="border border-zinc-200 dark:border-zinc-700 px-2 py-1 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 w-16">
+                              {axis === 'label' ? '名称' : '数值'}
+                            </td>
+                            {cells.map((cell, c) => (
+                              <td key={c} className="border border-zinc-200 dark:border-zinc-700 p-0">
+                                <input
+                                  type="text"
+                                  value={cell}
+                                  onChange={(e) => setCell(c, e.target.value)}
+                                  onPaste={(e) => handlePasteRow(e, c)}
+                                  className="w-full px-2 py-1 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 outline-none"
+                                />
+                              </td>
+                            ))}
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                };
+
+                const labelSource: ChartDataSource = (chart?.pieLabelSource ?? 'manual') as ChartDataSource;
+                const valueSource: ChartDataSource = (chart?.pieValueSource ?? 'manual') as ChartDataSource;
+
+                return (
+                  <div className="flex flex-col gap-3">
+                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400">名称与数值可分别选择：手动 / 表格。</div>
+
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="text-xs text-zinc-600 dark:text-zinc-400">名称</span>
+                        <label className="text-xs flex items-center gap-1">
+                          <input
+                            type="radio"
+                            name={`pie-label-source-${block.id}`}
+                            checked={labelSource === 'manual'}
+                            onChange={() => updateChart({ pieLabelSource: 'manual' } as Partial<NonNullable<typeof chart>>)}
+                          />
+                          手动
+                        </label>
+                        <label className="text-xs flex items-center gap-1">
+                          <input
+                            type="radio"
+                            name={`pie-label-source-${block.id}`}
+                            checked={labelSource === 'table'}
+                            onChange={() => {
+                              const existing = chart?.pieLabelTableSelection;
+                              const fallbackTableId = availableTables[0]?.id ?? '';
+                              const nextSel = existing?.blockId
+                                ? existing
+                                : (fallbackTableId
+                                  ? { blockId: fallbackTableId, r1: 0, r2: 0, c1: 0, c2: 9 }
+                                  : undefined);
+                              updateChart({ pieLabelSource: 'table', pieLabelTableSelection: nextSel } as Partial<NonNullable<typeof chart>>);
+                            }}
+                          />
+                          表格
+                        </label>
                       </div>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                          从表格导入：选一个 2 行/2 列区域（名称 + 数值）。
-                        </div>
-                        {renderPieTableSelector()}
+
+                      {labelSource === 'manual'
+                        ? renderManualAxisRow('label')
+                        : renderVectorTableSelector({
+                          axisLabel: '名称',
+                          selection: chart?.pieLabelTableSelection,
+                          onSelectionChange: (sel) => updateChart({ pieLabelSource: 'table', pieLabelTableSelection: sel } as Partial<NonNullable<typeof chart>>),
+                          onApplyLastSelection: () => applyLastTableSelectionToPieAxis('label'),
+                          pickKey: `pie-label-${block.id}`,
+                        })}
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="text-xs text-zinc-600 dark:text-zinc-400">数值</span>
+                        <label className="text-xs flex items-center gap-1">
+                          <input
+                            type="radio"
+                            name={`pie-value-source-${block.id}`}
+                            checked={valueSource === 'manual'}
+                            onChange={() => updateChart({ pieValueSource: 'manual' } as Partial<NonNullable<typeof chart>>)}
+                          />
+                          手动
+                        </label>
+                        <label className="text-xs flex items-center gap-1">
+                          <input
+                            type="radio"
+                            name={`pie-value-source-${block.id}`}
+                            checked={valueSource === 'table'}
+                            onChange={() => {
+                              const existing = chart?.pieValueTableSelection;
+                              const fallbackTableId = availableTables[0]?.id ?? '';
+                              const nextSel = existing?.blockId
+                                ? existing
+                                : (fallbackTableId
+                                  ? { blockId: fallbackTableId, r1: 0, r2: 0, c1: 0, c2: 9 }
+                                  : undefined);
+                              updateChart({ pieValueSource: 'table', pieValueTableSelection: nextSel } as Partial<NonNullable<typeof chart>>);
+                            }}
+                          />
+                          表格
+                        </label>
                       </div>
-                    )}
-                  </>
+
+                      {valueSource === 'manual'
+                        ? renderManualAxisRow('value')
+                        : renderVectorTableSelector({
+                          axisLabel: '数值',
+                          selection: chart?.pieValueTableSelection,
+                          onSelectionChange: (sel) => updateChart({ pieValueSource: 'table', pieValueTableSelection: sel } as Partial<NonNullable<typeof chart>>),
+                          onApplyLastSelection: () => applyLastTableSelectionToPieAxis('value'),
+                          pickKey: `pie-value-${block.id}`,
+                        })}
+                    </div>
+                  </div>
                 );
               })()}
             </div>

@@ -121,58 +121,102 @@ function SvgPage({
     const markerIdx = allElements.indexOf(marker);
     const nextMarkerIdx = nextMarker ? allElements.indexOf(nextMarker) : allElements.length;
 
-    let union: { left: number; top: number; right: number; bottom: number } | null = null;
+    if (markerIdx < 0) return;
 
-    // Process all elements between the two markers
-    for (let i = markerIdx + 1; i < nextMarkerIdx && i < allElements.length; i++) {
-      const el = allElements[i];
-      if (isSkippable(el)) continue;
-
+    const isSvgGraphicsElement = (el: Element): el is SVGGraphicsElement => {
       const g = el as unknown as SVGGraphicsElement;
-      if (typeof (g as any).getBBox !== 'function') continue;
-      const rect = getScreenRect(g);
-      if (!rect) continue;
+      return typeof g.getBBox === 'function' && typeof g.getScreenCTM === 'function';
+    };
 
-      union = union
-        ? {
-            left: Math.min(union.left, rect.left),
-            top: Math.min(union.top, rect.top),
-            right: Math.max(union.right, rect.right),
-            bottom: Math.max(union.bottom, rect.bottom),
-          }
-        : rect;
-    }
+    const computeUnion = () => {
+      let union: { left: number; top: number; right: number; bottom: number } | null = null;
+      for (let i = markerIdx + 1; i < nextMarkerIdx && i < allElements.length; i++) {
+        const el = allElements[i];
+        if (isSkippable(el)) continue;
+        if (!isSvgGraphicsElement(el)) continue;
+        const rect = getScreenRect(el);
+        if (!rect) continue;
 
-    if (!union) return;
+        union = union
+          ? {
+              left: Math.min(union.left, rect.left),
+              top: Math.min(union.top, rect.top),
+              right: Math.max(union.right, rect.right),
+              bottom: Math.max(union.bottom, rect.bottom),
+            }
+          : rect;
+      }
+      return union;
+    };
 
-    const left = union.left;
-    const top = union.top;
-    const width = Math.max(0, union.right - union.left);
-    const height = Math.max(0, union.bottom - union.top);
+    const hasSvgImagesInRange = () => {
+      for (let i = markerIdx + 1; i < nextMarkerIdx && i < allElements.length; i++) {
+        const el = allElements[i];
+        if (el.tagName?.toLowerCase() === 'image') return true;
+      }
+      return false;
+    };
 
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const overlayLeft = left - containerRect.left;
-    const overlayTop = top - containerRect.top;
+    const showHighlight = (union: { left: number; top: number; right: number; bottom: number }) => {
+      const left = union.left;
+      const top = union.top;
+      const width = Math.max(0, union.right - union.left);
+      const height = Math.max(0, union.bottom - union.top);
 
-    const highlight = document.createElement('div');
-    highlight.style.position = 'absolute';
-    highlight.style.left = `${Math.max(0, overlayLeft)}px`;
-    highlight.style.top = `${Math.max(0, overlayTop)}px`;
-    highlight.style.width = `${Math.max(0, width)}px`;
-    highlight.style.height = `${Math.max(0, height)}px`;
-    highlight.style.backgroundColor = 'rgba(59, 130, 246, 0.18)';
-    highlight.style.border = '2px solid rgba(59, 130, 246, 0.55)';
-    highlight.style.borderRadius = '4px';
-    highlight.style.pointerEvents = 'none';
-    highlight.style.zIndex = '20';
-    highlight.style.animation = 'pulse 1s ease-in-out 2';
+      const containerRect = containerRef.current!.getBoundingClientRect();
+      const overlayLeft = left - containerRect.left;
+      const overlayTop = top - containerRect.top;
 
-    containerRef.current.appendChild(highlight);
-    setTimeout(() => {
-      highlight.style.transition = 'opacity 0.35s';
-      highlight.style.opacity = '0';
-      setTimeout(() => highlight.remove(), 350);
-    }, 1200);
+      const highlight = document.createElement('div');
+      highlight.style.position = 'absolute';
+      highlight.style.left = `${Math.max(0, overlayLeft)}px`;
+      highlight.style.top = `${Math.max(0, overlayTop)}px`;
+      highlight.style.width = `${Math.max(0, width)}px`;
+      highlight.style.height = `${Math.max(0, height)}px`;
+      highlight.style.backgroundColor = 'rgba(59, 130, 246, 0.18)';
+      highlight.style.border = '2px solid rgba(59, 130, 246, 0.55)';
+      highlight.style.borderRadius = '4px';
+      highlight.style.pointerEvents = 'none';
+      highlight.style.zIndex = '20';
+      highlight.style.animation = 'pulse 1s ease-in-out 2';
+
+      containerRef.current!.appendChild(highlight);
+      setTimeout(() => {
+        highlight.style.transition = 'opacity 0.35s';
+        highlight.style.opacity = '0';
+        setTimeout(() => highlight.remove(), 350);
+      }, 1200);
+    };
+
+    const containsImages = hasSvgImagesInRange();
+
+    // When the block renders an embedded SVG <image> (e.g. chart preview), the first layout tick
+    // can report a tiny/zero bbox. Retry a few times to get a stable union.
+    let cancelled = false;
+    const attempt = (triesLeft: number) => {
+      if (cancelled) return;
+      const union = computeUnion();
+      if (union) {
+        const w = Math.max(0, union.right - union.left);
+        const h = Math.max(0, union.bottom - union.top);
+        const looksTooSmall = w < 8 || h < 8;
+        if (containsImages && looksTooSmall && triesLeft > 0) {
+          requestAnimationFrame(() => attempt(triesLeft - 1));
+          return;
+        }
+        showHighlight(union);
+        return;
+      }
+      if (containsImages && triesLeft > 0) {
+        requestAnimationFrame(() => attempt(triesLeft - 1));
+      }
+    };
+
+    attempt(6);
+
+    return () => {
+      cancelled = true;
+    };
   }, [isVisible, activeLocalIndex]);
 
   return (
@@ -234,9 +278,13 @@ export default function ProjectEditorPage() {
     // Keep saved `code` clean. Only inject markers into the code sent to renderer.
     if (mode !== 'visual') return code;
     const markerLine = '#place(dx: -50cm, rect(width: 1pt, height: 1pt, fill: rgb("000001")))';
-    return blocks
-      .map((b) => `${markerLine}\n${blocksToTypst([b], { settings: docSettings })}`)
-      .join('\n\n');
+    // Add a trailing sentinel marker to properly bound the last block for highlight.
+    return (
+      blocks
+        .map((b) => `${markerLine}\n${blocksToTypst([b], { settings: docSettings })}`)
+        .join('\n\n') +
+      `\n\n${markerLine}`
+    );
   }, [blocks, code, docSettings, mode]);
 
   // auth guard
@@ -320,19 +368,36 @@ export default function ProjectEditorPage() {
   const handleBlockClick = useCallback((index: number) => {
     if (!previewRef.current || svgPages.length === 0) return;
 
-    // Map global block index -> (pageIndex, localIndex) by counting markers per page
-    let remaining = index;
+    // Map global block index -> (pageIndex, localIndex) by counting markers per page.
+    // NOTE: We inject a trailing sentinel marker after the last block; it must be ignored here.
+    const markerCounts = svgPages.map((p) => (p.match(/fill="#000001"/g) || []).length);
+    const totalMarkers = markerCounts.reduce((a, b) => a + b, 0);
+    const totalBlocks = Math.max(0, totalMarkers - 1);
+    if (totalBlocks === 0) return;
+
+    const safeIndex = Math.max(0, Math.min(index, totalBlocks - 1));
+
+    // Sentinel is always the last marker, so it lives on the last page that has any markers.
+    let sentinelPage = -1;
+    for (let i = markerCounts.length - 1; i >= 0; i--) {
+      if (markerCounts[i] > 0) {
+        sentinelPage = i;
+        break;
+      }
+    }
+
+    let remaining = safeIndex;
     let pageIndex = 0;
     let localIndex = 0;
     for (let i = 0; i < svgPages.length; i++) {
-      const matches = svgPages[i].match(/fill="#000001"/g);
-      const count = matches ? matches.length : 0;
-      if (remaining < count) {
+      const rawCount = markerCounts[i] || 0;
+      const usableCount = i === sentinelPage ? Math.max(0, rawCount - 1) : rawCount;
+      if (remaining < usableCount) {
         pageIndex = i;
         localIndex = remaining;
         break;
       }
-      remaining -= count;
+      remaining -= usableCount;
     }
 
     setActiveAnchor({ pageIndex, localIndex });
