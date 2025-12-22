@@ -1,29 +1,11 @@
 'use client';
 
-import { TypstBlock, BlockType } from '@/lib/typst';
-import { latexToTypstMath, typstToLatexMath } from '@/lib/math-convert';
+import { TypstBlock } from '@/lib/typst';
 import { getToken } from '@/lib/auth';
-import { Trash2, Plus, ChevronUp, ChevronDown, Bold, Italic, Strikethrough, Palette, Sigma, MousePointer2 } from 'lucide-react';
-import { useRef, useState, useEffect, useCallback, type MouseEvent as ReactMouseEvent, type ClipboardEvent as ReactClipboardEvent } from 'react';
-import Image from 'next/image';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import BlockItem from './BlockItem';
 
-// Import types and utilities from separated modules
-import type { InlineMathFormat, InlineMathState, TableStyle, TablePayload } from './BlockEditor-utils/types';
-import {
-  typstInlineToHtml,
-  htmlToTypstInline,
-  generateInlineMathId,
-  typstInlineToPlainText,
-} from './BlockEditor-utils/utils';
-import {
-  defaultTablePayload,
-  parseTablePayload,
-  normalizeTablePayload,
-  flattenTableMerges,
-  mergeTableRect,
-  unmergeTableCell,
-} from './BlockEditor-utils/table-utils';
+import { parseTablePayload } from './BlockEditor-utils/table-utils';
 
 interface BlockEditorProps {
   blocks: TypstBlock[];

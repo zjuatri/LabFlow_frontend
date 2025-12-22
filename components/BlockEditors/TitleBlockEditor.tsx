@@ -11,7 +11,6 @@ import {
   typstInlineToHtml,
   htmlToTypstInline,
   generateInlineMathId,
-  typstInlineToPlainText,
 } from '../BlockEditor-utils/utils';
 
 interface TitleBlockEditorProps {

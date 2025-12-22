@@ -442,6 +442,7 @@ export default function ProjectEditorPage() {
     }
   }, [blocks, docSettings, pushHistory, syncSource]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     // changing docSettings should be undoable too, but only in visual sync
     if (syncSource !== 'blocks') return;
@@ -463,7 +464,7 @@ export default function ProjectEditorPage() {
     setMode(newMode);
   };
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     try {
       setSaveStatus('saving');
       const saveCode = injectDocumentSettings(code, docSettings);
@@ -474,7 +475,7 @@ export default function ProjectEditorPage() {
       setSaveStatus(null);
       setError(err instanceof Error ? err.message : '保存失败');
     }
-  };
+  }, [code, docSettings, projectId, title]);
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;

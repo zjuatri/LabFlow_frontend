@@ -1,11 +1,9 @@
 'use client';
 
-import { TypstBlock, BlockType } from '@/lib/typst';
+import { TypstBlock } from '@/lib/typst';
 import { latexToTypstMath, typstToLatexMath } from '@/lib/math-convert';
-import { getToken } from '@/lib/auth';
-import { Trash2, Plus, ChevronUp, ChevronDown, Bold, Italic, Strikethrough, Palette, Sigma, MousePointer2 } from 'lucide-react';
-import { useRef, useState, useEffect, useCallback, type MouseEvent as ReactMouseEvent, type ClipboardEvent as ReactClipboardEvent } from 'react';
-import Image from 'next/image';
+import { Bold, Italic, Strikethrough, Palette, Sigma, MousePointer2 } from 'lucide-react';
+import { useRef, useState, useEffect, useCallback, type MouseEvent as ReactMouseEvent } from 'react';
 
 // Import types and utilities from separated modules
 import type { InlineMathFormat, InlineMathState, TableStyle, TablePayload } from '../BlockEditor-utils/types';
@@ -13,7 +11,6 @@ import {
   typstInlineToHtml,
   htmlToTypstInline,
   generateInlineMathId,
-  typstInlineToPlainText,
 } from '../BlockEditor-utils/utils';
 import {
   defaultTablePayload,
@@ -574,7 +571,7 @@ export default function TableBlockEditor({ block, onUpdate, onTableSelectionSnap
       )}
 
       <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-        说明：先选中单元格。默认可用 Shift+点击框选矩形区域后点"合并"。也可开启"选区模式"：点击一次设起点，再点击一次设终点完成框选；再次点击将重新开始框选。三线表为无竖线样式。
+        说明：先选中单元格。默认可用 Shift+点击框选矩形区域后点&quot;合并&quot;。也可开启&quot;选区模式&quot;：点击一次设起点，再点击一次设终点完成框选；再次点击将重新开始框选。三线表为无竖线样式。
       </div>
     </div>
   );
