@@ -9,6 +9,7 @@ import Image from 'next/image';
 import TitleBlockEditor from './BlockEditors/TitleBlockEditor';
 import TextBlockEditor from './BlockEditors/TextBlockEditor';
 import CodeBlockEditor from './BlockEditors/CodeBlockEditor';
+import ImageBlockEditor from './BlockEditors/ImageBlockEditor';
 
 // Import types and utilities from separated modules
 import type { InlineMathFormat, InlineMathState, TableStyle, TablePayload } from './BlockEditor-utils/types';
@@ -2387,77 +2388,7 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
           </div>
         </div>
       ) : block.type === 'image' ? (
-        <div className="flex flex-col gap-3">
-          {block.content ? (
-            <div className="flex items-center gap-3">
-              <Image
-                src={block.content}
-                alt="图片预览"
-                width={400}
-                height={300}
-                className="max-h-40 max-w-full h-auto w-auto object-contain rounded border border-zinc-200 dark:border-zinc-700"
-                unoptimized
-              />
-              <button
-                onClick={() => onUpdate({ content: '' })}
-                className="px-2 py-1 text-xs rounded bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/40"
-              >删除图片</button>
-            </div>
-          ) : null}
-
-          <div>
-            <input
-              type="text"
-              value={block.caption ?? ''}
-              onChange={(e) => onUpdate({ caption: e.target.value })}
-              className="w-full p-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              placeholder="例如：实验装置示意图"
-            />
-          </div>
-
-          <label className="inline-block px-4 py-2 rounded bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium cursor-pointer transition-colors">
-            <input
-              type="file"
-              accept="image/*"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  try {
-                    await onUploadImage(file);
-                  } catch (err) {
-                    alert(err instanceof Error ? err.message : '上传失败');
-                  }
-                }
-              }}
-              className="hidden"
-            />
-            {block.content ? '更换图片' : '选择图片'}
-          </label>
-          {block.content && (
-            <div>
-              <label className="text-xs text-zinc-600 dark:text-zinc-400 block mb-2">
-                宽度: {(() => {
-                  const w = block.width || '100%';
-                  return parseFloat(w) || 100;
-                })()}%
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={(() => {
-                  const w = block.width || '100%';
-                  return parseFloat(w) || 100;
-                })()}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  onUpdate({ width: `${val}%` });
-                }}
-                className="w-full h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
-              />
-            </div>
-          )}
-        </div>
+        <ImageBlockEditor block={block} onUpdate={onUpdate} onUploadImage={onUploadImage} />
       ) : block.type === 'math' ? (
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
