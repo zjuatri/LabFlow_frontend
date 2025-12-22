@@ -10,6 +10,7 @@ import TitleBlockEditor from './BlockEditors/TitleBlockEditor';
 import TextBlockEditor from './BlockEditors/TextBlockEditor';
 import CodeBlockEditor from './BlockEditors/CodeBlockEditor';
 import ImageBlockEditor from './BlockEditors/ImageBlockEditor';
+import TableBlockEditor from './BlockEditors/TableBlockEditor';
 
 // Import types and utilities from separated modules
 import type { InlineMathFormat, InlineMathState, TableStyle, TablePayload } from './BlockEditor-utils/types';
@@ -64,20 +65,10 @@ interface BlockItemProps {
 
 function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdate, onDelete, onAddAfter, onMove, onUploadImage, onTableSelectionSnapshot, lastTableSelection, onRenderChart, onClick }: BlockItemProps) {
   const paragraphEditorRef = useRef<HTMLDivElement>(null);
-  const tableCellEditorRef = useRef<HTMLDivElement>(null);
   const colorPickerRef = useRef<HTMLDivElement>(null);
-  const tableColorPickerRef = useRef<HTMLDivElement>(null);
   const [showColorPicker, setShowColorPicker] = useState(false);
-  const [showTableColorPicker, setShowTableColorPicker] = useState(false);
   const [isEditingParagraph, setIsEditingParagraph] = useState(false);
-  const [isEditingTableCell, setIsEditingTableCell] = useState(false);
   const [activeInlineMath, setActiveInlineMath] = useState<InlineMathState | null>(null);
-
-  const [activeTableCell, setActiveTableCell] = useState<{ r: number; c: number } | null>(null);
-  const [tableSelection, setTableSelection] = useState<{ r1: number; c1: number; r2: number; c2: number } | null>(null);
-  const [tableSelectionMode, setTableSelectionMode] = useState(false);
-  const tableRowsInputRef = useRef<HTMLInputElement>(null);
-  const tableColsInputRef = useRef<HTMLInputElement>(null);
 
   // Chart editor table-pick helpers (used by scatter/bar/hbar/pie table import previews)
   const [chartSelectionMode, setChartSelectionMode] = useState(false);
@@ -89,24 +80,6 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
     const next = htmlToTypstInline(el);
     onUpdate({ content: next });
   }, [onUpdate]);
-
-  const syncTableCellFromDom = useCallback(() => {
-    if (block.type !== 'table') return;
-    const pos = activeTableCell;
-    const el = tableCellEditorRef.current;
-    if (!pos || !el) return;
-    const payload = normalizeTablePayload(parseTablePayload(block.content));
-    const cell = payload.cells[pos.r]?.[pos.c];
-    if (!cell || cell.hidden) return;
-    payload.cells[pos.r][pos.c] = { ...cell, content: htmlToTypstInline(el) };
-    onUpdate({ content: JSON.stringify(payload) });
-  }, [activeTableCell, block.content, block.type, onUpdate]);
-
-  useEffect(() => {
-    if (block.type !== 'table') return;
-    if (!tableSelection) return;
-    onTableSelectionSnapshot({ blockId: block.id, ...tableSelection });
-  }, [block.id, block.type, tableSelection, onTableSelectionSnapshot]);
 
   type TableAxisMode = 'cols' | 'rows';
   type TableSelection = { blockId: string; r1: number; c1: number; r2: number; c2: number };
@@ -760,31 +733,28 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
       if (colorPickerRef.current && !colorPickerRef.current.contains(event.target as Node)) {
         setShowColorPicker(false);
       }
-      if (tableColorPickerRef.current && !tableColorPickerRef.current.contains(event.target as Node)) {
-        setShowTableColorPicker(false);
-      }
       // Close inline math editor if clicking outside
       if (
         activeInlineMath &&
+        activeInlineMath.scope === 'main' &&
         !(event.target as HTMLElement).closest('.inline-math-editor') &&
         !(event.target as HTMLElement).closest('.inline-math-pill')
       ) {
         // Ensure the latest pill contents are persisted to block content
-        if (activeInlineMath.scope === 'main') syncParagraphFromDom();
-        else syncTableCellFromDom();
+        syncParagraphFromDom();
         setActiveInlineMath(null);
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showColorPicker, activeInlineMath, syncParagraphFromDom, syncTableCellFromDom]);
+  }, [showColorPicker, activeInlineMath, syncParagraphFromDom]);
 
-  const getInlineMathRoot = (scope: 'main' | 'table'): HTMLDivElement | null => {
-    return scope === 'main' ? paragraphEditorRef.current : tableCellEditorRef.current;
+  const getInlineMathRoot = (scope: 'main'): HTMLDivElement | null => {
+    return paragraphEditorRef.current;
   };
 
-  const getInlineMathPill = (scope: 'main' | 'table', id: string): HTMLElement | null => {
+  const getInlineMathPill = (scope: 'main', id: string): HTMLElement | null => {
     const root = getInlineMathRoot(scope);
     if (!root) return null;
     return root.querySelector(`[data-inline-math-id="${id}"]`) as HTMLElement | null;
@@ -798,7 +768,7 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
     pill.setAttribute('data-typst', state.typst);
   };
 
-  const insertInlineMath = (scope: 'main' | 'table') => {
+  const insertInlineMath = (scope: 'main') => {
     const editor = getInlineMathRoot(scope);
     if (!editor) return;
     editor.focus();
@@ -827,12 +797,11 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
     range.insertNode(space);
     range.collapse(false);
 
-    if (scope === 'main') syncParagraphFromDom();
-    else syncTableCellFromDom();
+    syncParagraphFromDom();
     setActiveInlineMath({ scope, id, format: 'latex', latex: '', typst: '' });
   };
 
-  const handleRichEditorClick = (scope: 'main' | 'table', e: ReactMouseEvent<HTMLDivElement>) => {
+  const handleRichEditorClick = (scope: 'main', e: ReactMouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     const pill = target.closest('.inline-math-pill') as HTMLElement | null;
     if (pill) {
@@ -874,32 +843,6 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
     editor.focus();
     document.execCommand(kind === 'ordered' ? 'insertOrderedList' : 'insertUnorderedList');
     syncParagraphFromDom();
-  };
-
-  const applyFormatToTableCell = (format: 'bold' | 'italic' | 'strike' | 'color', color?: string) => {
-    const editor = tableCellEditorRef.current;
-    if (!editor) return;
-    editor.focus();
-
-    if (format === 'bold') {
-      document.execCommand('bold');
-    } else if (format === 'italic') {
-      document.execCommand('italic');
-    } else if (format === 'strike') {
-      document.execCommand('strikeThrough');
-    } else if (format === 'color') {
-      document.execCommand('foreColor', false, color ?? '#000000');
-    }
-
-    syncTableCellFromDom();
-  };
-
-  const applyListToTableCell = (kind: 'ordered' | 'bullet') => {
-    const editor = tableCellEditorRef.current;
-    if (!editor) return;
-    editor.focus();
-    document.execCommand(kind === 'ordered' ? 'insertOrderedList' : 'insertUnorderedList');
-    syncTableCellFromDom();
   };
 
   const isSelectionInside = (root: HTMLElement, selector: string): HTMLElement | null => {
@@ -946,8 +889,8 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
     return div;
   };
 
-  const handleEmptyListItemExit = (scope: 'main' | 'table', li: HTMLElement, list: HTMLElement) => {
-    const editor = scope === 'main' ? paragraphEditorRef.current : tableCellEditorRef.current;
+  const handleEmptyListItemExit = (scope: 'main', li: HTMLElement, list: HTMLElement) => {
+    const editor = paragraphEditorRef.current;
     if (!editor) return;
 
     // Remove current empty list item and convert it into a normal empty line (<div><br/></div>)
@@ -1003,13 +946,12 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
       }
     }
 
-    if (scope === 'main') syncParagraphFromDom();
-    else syncTableCellFromDom();
+    syncParagraphFromDom();
   };
 
-  const handleListBackspaceKey = (scope: 'main' | 'table', e: React.KeyboardEvent<HTMLDivElement>) => {
+  const handleListBackspaceKey = (scope: 'main', e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'Backspace' || e.shiftKey || e.altKey || e.metaKey) return;
-    const editor = scope === 'main' ? paragraphEditorRef.current : tableCellEditorRef.current;
+    const editor = paragraphEditorRef.current;
     if (!editor) return;
 
     const sel = window.getSelection();
@@ -1031,9 +973,9 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
     handleEmptyListItemExit(scope, li, list);
   };
 
-  const handleListEnterKey = (scope: 'main' | 'table', e: React.KeyboardEvent<HTMLDivElement>) => {
+  const handleListEnterKey = (scope: 'main', e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'Enter' || e.shiftKey) return;
-    const editor = scope === 'main' ? paragraphEditorRef.current : tableCellEditorRef.current;
+    const editor = paragraphEditorRef.current;
     if (!editor) return;
 
     const li = isSelectionInside(editor, 'li');
@@ -1065,8 +1007,7 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
       } else {
         insertDivAfter(lineEl, `${Math.max(1, n + 1)}. `);
       }
-      if (scope === 'main') syncParagraphFromDom();
-      else syncTableCellFromDom();
+      syncParagraphFromDom();
       return;
     }
 
@@ -1078,13 +1019,12 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
       } else {
         insertDivAfter(lineEl, '- ');
       }
-      if (scope === 'main') syncParagraphFromDom();
-      else syncTableCellFromDom();
+      syncParagraphFromDom();
       return;
     }
   };
 
-  const handleListKeyDown = (scope: 'main' | 'table', e: React.KeyboardEvent<HTMLDivElement>) => {
+  const handleListKeyDown = (scope: 'main', e: React.KeyboardEvent<HTMLDivElement>) => {
     handleListBackspaceKey(scope, e);
     handleListEnterKey(scope, e);
   };
@@ -1099,22 +1039,6 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
     if (!paragraphEditorRef.current) return;
     paragraphEditorRef.current.innerHTML = typstInlineToHtml(block.content ?? '');
   }, [block.content, block.type, isEditingParagraph, activeInlineMath]);
-
-  useEffect(() => {
-    if (block.type !== 'table') return;
-    const payload = normalizeTablePayload(parseTablePayload(block.content));
-    if (tableRowsInputRef.current) tableRowsInputRef.current.value = String(payload.rows);
-    if (tableColsInputRef.current) tableColsInputRef.current.value = String(payload.cols);
-
-    if (!activeTableCell) return;
-    if (isEditingTableCell) return;
-    if (activeInlineMath?.scope === 'table') return;
-    const el = tableCellEditorRef.current;
-    if (!el) return;
-    const cell = payload.cells[activeTableCell.r]?.[activeTableCell.c];
-    if (!cell || cell.hidden) return;
-    el.innerHTML = typstInlineToHtml(cell.content ?? '');
-  }, [block.content, block.type, activeTableCell, isEditingTableCell, activeInlineMath]);
 
   return (
     <div
@@ -2562,412 +2486,20 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
           </div>
         </div>
       ) : block.type === 'table' ? (
-        (() => {
-          const payload = normalizeTablePayload(parseTablePayload(block.content));
-          const style = payload.style ?? 'normal';
-
-          const setPayload = (next: TablePayload) => {
-            onUpdate({ content: JSON.stringify(normalizeTablePayload(next)) });
-          };
-
-          const applyResize = () => {
-            const nextRows = Math.max(1, parseInt(tableRowsInputRef.current?.value || '1', 10) || 1);
-            const nextCols = Math.max(1, parseInt(tableColsInputRef.current?.value || '1', 10) || 1);
-            const flat = flattenTableMerges(payload);
-            const resized = defaultTablePayload(nextRows, nextCols);
-            resized.caption = flat.caption;
-            resized.style = flat.style;
-            for (let r = 0; r < Math.min(nextRows, flat.rows); r++) {
-              for (let c = 0; c < Math.min(nextCols, flat.cols); c++) {
-                resized.cells[r][c].content = flat.cells[r][c].content;
-              }
-            }
-            setPayload(resized);
-            setActiveTableCell({ r: 0, c: 0 });
-            setTableSelection({ r1: 0, c1: 0, r2: 0, c2: 0 });
-          };
-
-          const sel = tableSelection;
-          const inSel = (r: number, c: number) => {
-            if (!sel) return false;
-            const top = Math.min(sel.r1, sel.r2);
-            const left = Math.min(sel.c1, sel.c2);
-            const bottom = Math.max(sel.r1, sel.r2);
-            const right = Math.max(sel.c1, sel.c2);
-            return r >= top && r <= bottom && c >= left && c <= right;
-          };
-
-          const activeCell = activeTableCell;
-          const active = activeCell ? payload.cells[activeCell.r]?.[activeCell.c] : null;
-
-          return (
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-zinc-600 dark:text-zinc-400">表格标题</span>
-                <input
-                  type="text"
-                  value={payload.caption ?? ''}
-                  onChange={(e) => setPayload({ ...payload, caption: e.target.value })}
-                  className="flex-1 p-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-                  placeholder="（可选）标题显示在表格上方"
-                />
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-zinc-600 dark:text-zinc-400">行</span>
-                <input
-                  type="number"
-                  min={1}
-                  ref={tableRowsInputRef}
-                  defaultValue={payload.rows}
-                  className="w-20 p-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-                />
-                <span className="text-xs text-zinc-600 dark:text-zinc-400">列</span>
-                <input
-                  type="number"
-                  min={1}
-                  ref={tableColsInputRef}
-                  defaultValue={payload.cols}
-                  className="w-20 p-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-                />
-                <button
-                  type="button"
-                  onClick={applyResize}
-                  className="px-3 py-2 text-xs rounded bg-blue-500 hover:bg-blue-600 text-white"
-                >
-                  应用
-                </button>
-
-                <span className="text-xs text-zinc-600 dark:text-zinc-400 ml-2">样式</span>
-                <select
-                  value={style}
-                  onChange={(e) => setPayload({ ...payload, style: (e.target.value as TableStyle) })}
-                  className="text-xs px-2 py-2 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
-                >
-                  <option value="normal">普通表格</option>
-                  <option value="three-line">三线表</option>
-                </select>
-
-                <button
-                  type="button"
-                  onClick={() => setTableSelectionMode(v => !v)}
-                  className={`px-3 py-2 text-xs rounded flex items-center gap-1 transition-colors ${
-                    tableSelectionMode
-                      ? 'bg-blue-500 hover:bg-blue-600 text-white'
-                      : 'bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300'
-                  }`}
-                  title={tableSelectionMode ? '已开启：点击两次即可框选' : '开启：无需按 Shift 框选区域'}
-                >
-                  <MousePointer2 size={14} />
-                  选区模式
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!tableSelection) return;
-                    const top = Math.min(tableSelection.r1, tableSelection.r2);
-                    const left = Math.min(tableSelection.c1, tableSelection.c2);
-                    const bottom = Math.max(tableSelection.r1, tableSelection.r2);
-                    const right = Math.max(tableSelection.c1, tableSelection.c2);
-                    if (top === bottom && left === right) return;
-                    setPayload(mergeTableRect(payload, top, left, bottom, right));
-                  }}
-                  className="px-3 py-2 text-xs rounded bg-blue-500 hover:bg-blue-600 text-white"
-                  title="合并所选单元格"
-                >
-                  合并
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!activeTableCell) return;
-                    setPayload(unmergeTableCell(payload, activeTableCell.r, activeTableCell.c));
-                  }}
-                  className="px-3 py-2 text-xs rounded bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300"
-                  title="取消合并"
-                >
-                  取消合并
-                </button>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table
-                  className={`mx-auto ${
-                    style === 'three-line'
-                      ? 'border-t border-b border-zinc-300 dark:border-zinc-600'
-                      : 'border border-zinc-200 dark:border-zinc-700'
-                  }`}
-                >
-                  <tbody>
-                    {Array.from({ length: payload.rows }, (_, r) => (
-                      <tr
-                        key={r}
-                        className={
-                          style === 'three-line' && r === 0
-                            ? 'border-b border-zinc-300 dark:border-zinc-600'
-                            : style === 'normal'
-                              ? 'border-b border-zinc-200 dark:border-zinc-700 last:border-b-0'
-                              : ''
-                        }
-                      >
-                        {Array.from({ length: payload.cols }, (_, c) => {
-                          const cell = payload.cells[r][c];
-                          if (cell.hidden) return null;
-                          const rs = Math.max(1, Number(cell.rowspan || 1));
-                          const cs = Math.max(1, Number(cell.colspan || 1));
-                          const selected = inSel(r, c);
-                          const activeNow = activeTableCell?.r === r && activeTableCell?.c === c;
-                          return (
-                            <td
-                              key={c}
-                              rowSpan={rs}
-                              colSpan={cs}
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                if (tableSelectionMode) {
-                                  // 选区模式：第一次点击设定起点；第二次点击设定终点形成矩形。
-                                  if (!tableSelection || (tableSelection.r1 !== tableSelection.r2 || tableSelection.c1 !== tableSelection.c2)) {
-                                    setActiveTableCell({ r, c });
-                                    setTableSelection({ r1: r, c1: c, r2: r, c2: c });
-                                  } else {
-                                    setActiveTableCell({ r: tableSelection.r1, c: tableSelection.c1 });
-                                    setTableSelection({ r1: tableSelection.r1, c1: tableSelection.c1, r2: r, c2: c });
-                                  }
-                                  setIsEditingTableCell(false);
-                                  return;
-                                }
-
-                                if (e.shiftKey && activeTableCell) {
-                                  setTableSelection({ r1: activeTableCell.r, c1: activeTableCell.c, r2: r, c2: c });
-                                } else {
-                                  setActiveTableCell({ r, c });
-                                  setTableSelection({ r1: r, c1: c, r2: r, c2: c });
-                                  setIsEditingTableCell(false);
-                                }
-                              }}
-                              className={`${
-                                style === 'normal'
-                                  ? 'border-r border-zinc-200 dark:border-zinc-700 last:border-r-0'
-                                  : ''
-                              } p-2 align-top min-w-[120px] ${
-                                activeNow
-                                  ? 'outline outline-2 outline-blue-400'
-                                  : selected
-                                    ? 'bg-blue-50 dark:bg-blue-900/10'
-                                    : ''
-                              } cursor-pointer`}
-                            >
-                              <div
-                                className="text-sm whitespace-pre-wrap [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-0 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-0 [&_li]:my-0"
-                                dangerouslySetInnerHTML={{ __html: typstInlineToHtml(cell.content ?? '') }}
-                              />
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {activeCell && active && !active.hidden && (
-                <div className="mt-2">
-                  <div className="flex gap-1 mb-2 pb-2 border-b border-zinc-200 dark:border-zinc-700">
-                    <button
-                      onMouseDown={(e) => { e.preventDefault(); applyFormatToTableCell('bold'); }}
-                      className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
-                      title="加粗"
-                    >
-                      <Bold size={16} />
-                    </button>
-                    <button
-                      onMouseDown={(e) => { e.preventDefault(); applyListToTableCell('ordered'); }}
-                      className="px-2 py-1.5 text-xs hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
-                      title="有序列表"
-                    >
-                      1.
-                    </button>
-                    <button
-                      onMouseDown={(e) => { e.preventDefault(); applyListToTableCell('bullet'); }}
-                      className="px-2 py-1.5 text-xs hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
-                      title="无序列表"
-                    >
-                      •
-                    </button>
-                    <button
-                      onMouseDown={(e) => { e.preventDefault(); applyFormatToTableCell('italic'); }}
-                      className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
-                      title="斜体"
-                    >
-                      <Italic size={16} />
-                    </button>
-                    <button
-                      onMouseDown={(e) => { e.preventDefault(); applyFormatToTableCell('strike'); }}
-                      className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
-                      title="删除线"
-                    >
-                      <Strikethrough size={16} />
-                    </button>
-                    <button
-                      onMouseDown={(e) => { e.preventDefault(); insertInlineMath('table'); }}
-                      className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
-                      title="插入行内公式"
-                    >
-                      <Sigma size={16} />
-                    </button>
-                    <div className="relative" ref={tableColorPickerRef}>
-                      <button
-                        onMouseDown={(e) => { e.preventDefault(); setShowTableColorPicker(!showTableColorPicker); }}
-                        className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
-                        title="文字颜色"
-                      >
-                        <Palette size={16} />
-                      </button>
-                      {showTableColorPicker && (
-                        <div className="absolute top-full left-0 mt-1 p-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded shadow-lg z-50 w-max">
-                          <div className="grid grid-cols-5 gap-2">
-                            {['#000000', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF', '#FFA500', '#800080', '#008000'].map(color => (
-                              <button
-                                key={color}
-                                onMouseDown={(e) => {
-                                  e.preventDefault();
-                                  applyFormatToTableCell('color', color);
-                                  setShowTableColorPicker(false);
-                                }}
-                                className="w-7 h-7 rounded border border-zinc-300 dark:border-zinc-600 hover:scale-110 transition-transform"
-                                style={{ backgroundColor: color }}
-                                title={color}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div
-                    ref={tableCellEditorRef}
-                    contentEditable
-                    suppressContentEditableWarning
-                    onFocus={() => setIsEditingTableCell(true)}
-                    onBlur={() => {
-                      setIsEditingTableCell(false);
-                      syncTableCellFromDom();
-                    }}
-                    onInput={() => syncTableCellFromDom()}
-                    onClick={(e) => handleRichEditorClick('table', e)}
-                    onKeyDown={(e) => {
-                      handleListKeyDown('table', e);
-                    }}
-                    className="w-full min-h-[40px] p-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 whitespace-pre-wrap outline-none [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-0 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-0 [&_li]:my-0"
-                    data-placeholder="编辑当前单元格内容..."
-                  />
-
-                  {activeInlineMath?.scope === 'table' && (
-                    <div className="inline-math-editor mt-2 p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-zinc-500">编辑行内公式</span>
-                        <button
-                          onClick={() => {
-                            syncTableCellFromDom();
-                            setActiveInlineMath(null);
-                          }}
-                          className="text-xs text-zinc-400 hover:text-zinc-600"
-                        >
-                          关闭
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs text-zinc-600 dark:text-zinc-400">公式格式</span>
-                        <div className="flex bg-white dark:bg-zinc-900 rounded border border-zinc-300 dark:border-zinc-600 overflow-hidden">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const nextState = { ...activeInlineMath, format: 'latex' as InlineMathFormat };
-                              setActiveInlineMath(nextState);
-                              updateInlineMathPillAttrs(nextState);
-                            }}
-                            className={`px-2 py-1 text-xs transition-colors ${
-                              activeInlineMath.format === 'latex'
-                                ? 'bg-blue-500 text-white'
-                                : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                            }`}
-                          >
-                            LaTeX
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const nextState = { ...activeInlineMath, format: 'typst' as InlineMathFormat };
-                              setActiveInlineMath(nextState);
-                              updateInlineMathPillAttrs(nextState);
-                            }}
-                            className={`px-2 py-1 text-xs transition-colors ${
-                              activeInlineMath.format === 'typst'
-                                ? 'bg-blue-500 text-white'
-                                : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                            }`}
-                          >
-                            Typst
-                          </button>
-                        </div>
-                      </div>
-
-                      <textarea
-                        value={activeInlineMath.format === 'latex' ? activeInlineMath.latex : activeInlineMath.typst}
-                        onChange={(e) => {
-                          const nextVal = e.target.value;
-                          if (activeInlineMath.format === 'latex') {
-                            const nextLatex = nextVal;
-                            const nextTypst = latexToTypstMath(nextLatex);
-                            const nextState = { ...activeInlineMath, latex: nextLatex, typst: nextTypst };
-                            setActiveInlineMath(nextState);
-                            updateInlineMathPillAttrs(nextState);
-                            syncTableCellFromDom();
-                          } else {
-                            const nextTypst = nextVal;
-                            const nextLatex = typstToLatexMath(nextTypst);
-                            const nextState = { ...activeInlineMath, typst: nextTypst, latex: nextLatex };
-                            setActiveInlineMath(nextState);
-                            updateInlineMathPillAttrs(nextState);
-                            syncTableCellFromDom();
-                          }
-                        }}
-                        className="w-full p-2 font-mono text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 resize-none"
-                        rows={3}
-                        placeholder={activeInlineMath.format === 'latex' ? '输入 LaTeX，例如: \\frac{1}{2}' : '输入 Typst math，例如: frac(1, 2)'}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                说明：先选中单元格。默认可用 Shift+点击框选矩形区域后点“合并”。也可开启“选区模式”：点击一次设起点，再点击一次设终点完成框选；再次点击将重新开始框选。三线表为无竖线样式。
-              </div>
-            </div>
-          );
-        })()
+            <TableBlockEditor block={block} onUpdate={onUpdate} onTableSelectionSnapshot={onTableSelectionSnapshot} />
+      ) : block.type === 'heading' ? (
+        <TitleBlockEditor block={block} onUpdate={onUpdate} />
+      ) : block.type === 'paragraph' ? (
+        <TextBlockEditor block={block} onUpdate={onUpdate} />
       ) : (
-        <div className="relative">
-          {block.type === 'heading' ? (
-            <TitleBlockEditor block={block} onUpdate={onUpdate} />
-          ) : block.type === 'paragraph' ? (
-            <TextBlockEditor block={block} onUpdate={onUpdate} />
-          ) : (
-            <input
-              type="text"
-              value={block.content}
-              onChange={(e) => onUpdate({ content: e.target.value })}
-              className="w-full p-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              placeholder={`输入${getTypeName(block.type)}内容...`}
-            />
-          )}
-        </div>
+        <input
+          type="text"
+          value={block.content}
+          onChange={(e) => onUpdate({ content: e.target.value })}
+          className="w-full p-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+          placeholder={`输入${getTypeName(block.type)}内容...`}
+        />
       )}
-
       {/* 添加按钮 */}
       <button
         onClick={onAddAfter}
