@@ -5,6 +5,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import ScatterEditor from './ChartBlockEditors/ScatterEditor';
 import BarEditor from './ChartBlockEditors/BarEditor';
+import HBarEditor from './ChartBlockEditors/HBarEditor';
 import PieEditor from './ChartBlockEditors/PieEditor';
 import {
   ChartType,
@@ -13,6 +14,7 @@ import {
   BarSeries,
   PieRow,
   TableAxisMode,
+  TableSelection,
   getTablePayloadById,
   getCellPlain,
 } from './ChartBlockEditors/shared';
@@ -127,6 +129,8 @@ export function safeParseChartContent(content: string): ChartData {
     }
 
     const barXRow = typeof parsed['barXRow'] === 'string' ? (parsed['barXRow'] as string) : '';
+    const barXSource: 'manual' | 'table' = parsed['barXSource'] === 'table' ? 'table' : 'manual';
+    const barXTableSelection = readSelection(parsed['barXTableSelection']);
 
     const pieAxisMode: TableAxisMode = parsed['pieAxisMode'] === 'rows' ? 'rows' : 'cols';
     const pieTableSelection = readSelection(parsed['pieTableSelection']);
@@ -231,7 +235,9 @@ export function safeParseChartContent(content: string): ChartData {
       manualText,
       tableSelection: legacySelection,
       scatterSeries,
+      barXSource,
       barXRow,
+      barXTableSelection,
       barSeries,
       pieRows,
       pieAxisMode,
@@ -249,7 +255,9 @@ export function safeParseChartContent(content: string): ChartData {
       manualText: '',
       tableSelection: undefined,
       scatterSeries: [{ name: '系列1', xSource: 'manual', ySource: 'manual', xRow: '', yRow: '', xTableSelection: undefined, yTableSelection: undefined }],
+      barXSource: 'manual',
       barXRow: '',
+      barXTableSelection: undefined,
       barSeries: [{ name: '系列1', source: 'manual', axisMode: 'cols', yRow: '', tableSelection: undefined }],
       pieRows: [{ label: '', value: '' }],
       pieAxisMode: 'cols',
@@ -280,6 +288,31 @@ export default function ChartBlockEditor({
   const handleRenderChartClick = async () => {
     try {
       const data: Array<Record<string, unknown>> = [];
+
+      const readVectorFromTableSelection = (sel: TableSelection): string[] => {
+        const payload = getTablePayloadById(sel.blockId, allBlocks);
+        if (!payload) return [];
+        const top = Math.min(sel.r1, sel.r2);
+        const bottom = Math.max(sel.r1, sel.r2);
+        const left = Math.min(sel.c1, sel.c2);
+        const right = Math.max(sel.c1, sel.c2);
+
+        const height = bottom - top;
+        const width = right - left;
+        const asRow = top === bottom || width >= height;
+
+        if (asRow) {
+          const rr = Math.max(0, Math.min((payload.rows ?? 1) - 1, top));
+          const out: string[] = [];
+          for (let c = left; c <= right; c++) out.push(getCellPlain(payload, rr, c));
+          return out;
+        }
+
+        const cc = Math.max(0, Math.min((payload.cols ?? 1) - 1, left));
+        const out: string[] = [];
+        for (let r = top; r <= bottom; r++) out.push(getCellPlain(payload, r, cc));
+        return out;
+      };
 
       // 根据图表类型转换数据
       if (chart.chartType === 'scatter') {
@@ -343,9 +376,21 @@ export default function ChartBlockEditor({
         }
       } else if (chart.chartType === 'bar' || chart.chartType === 'hbar') {
         // 柱形图/条形图数据转换
-        const xLabels: string[] = [];
+        const labelsOrder: string[] = [];
         const barSeries = chart.barSeries ?? [];
-        const xRow = chart.barXRow ?? '';
+
+        const ensureLabel = (label: string) => {
+          const t = (label ?? '').trim();
+          if (!t) return;
+          if (!labelsOrder.includes(t)) labelsOrder.push(t);
+        };
+
+        const xSource = chart.barXSource ?? 'manual';
+        const sharedXLabels = xSource === 'table' && chart.barXTableSelection
+          ? readVectorFromTableSelection(chart.barXTableSelection)
+          : (chart.barXRow ?? '').split('\t');
+
+        for (const lab of sharedXLabels) ensureLabel(lab);
 
         // 收集所有系列的数据
         const seriesData = new Map<string, Map<string, number>>();
@@ -356,14 +401,14 @@ export default function ChartBlockEditor({
 
           if (s.source === 'manual') {
             // 手动输入：使用共享的 X 行和系列的 Y 行
-            const xCells = xRow.split('\t').map((x) => x.trim()).filter(Boolean);
-            const yCells = (s.yRow ?? '').split('\t').map((x) => x.trim()).filter(Boolean);
+            const xCells = sharedXLabels.map((x) => (x ?? '').trim());
+            const yCells = (s.yRow ?? '').split('\t').map((x) => (x ?? '').trim());
             const len = Math.min(xCells.length, yCells.length);
             for (let i = 0; i < len; i++) {
               const label = xCells[i];
               const val = parseFloat(yCells[i]);
               if (label && Number.isFinite(val)) {
-                if (!xLabels.includes(label)) xLabels.push(label);
+                ensureLabel(label);
                 seriesMap.set(label, val);
               }
             }
@@ -385,7 +430,7 @@ export default function ChartBlockEditor({
                   const label = getCellPlain(payload, xRow, c);
                   const val = parseFloat(getCellPlain(payload, yRow, c));
                   if (label && Number.isFinite(val)) {
-                    if (!xLabels.includes(label)) xLabels.push(label);
+                    ensureLabel(label);
                     seriesMap.set(label, val);
                   }
                 }
@@ -397,7 +442,7 @@ export default function ChartBlockEditor({
                   const label = getCellPlain(payload, r, xCol);
                   const val = parseFloat(getCellPlain(payload, r, yCol));
                   if (label && Number.isFinite(val)) {
-                    if (!xLabels.includes(label)) xLabels.push(label);
+                    ensureLabel(label);
                     seriesMap.set(label, val);
                   }
                 }
@@ -409,7 +454,7 @@ export default function ChartBlockEditor({
         }
 
         // 构建数据数组
-        for (const label of xLabels) {
+        for (const label of labelsOrder) {
           for (const [seriesName, seriesMap] of seriesData) {
             const val = seriesMap.get(label);
             if (val !== undefined) {
@@ -599,8 +644,23 @@ export default function ChartBlockEditor({
         />
       )}
 
-      {(chart.chartType === 'bar' || chart.chartType === 'hbar') && (
+      {chart.chartType === 'bar' && (
         <BarEditor
+          chart={chart}
+          block={block}
+          allBlocks={allBlocks}
+          availableTables={availableTables}
+          updateChart={updateChart}
+          lastTableSelection={lastTableSelection}
+          chartSelectionMode={chartSelectionMode}
+          setChartSelectionMode={setChartSelectionMode}
+          chartPickAnchor={chartPickAnchor}
+          setChartPickAnchor={setChartPickAnchor}
+        />
+      )}
+
+      {chart.chartType === 'hbar' && (
+        <HBarEditor
           chart={chart}
           block={block}
           allBlocks={allBlocks}

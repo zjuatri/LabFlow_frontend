@@ -7,6 +7,7 @@ import {
   ChartData,
   BarSeries,
   TableAxisMode,
+  TableSelection,
   parseRow,
   toRow,
   isInRect,
@@ -90,6 +91,28 @@ export default function BarEditor({
 
   const anyManual = safeSeries.some((s) => (s.source ?? 'manual') === 'manual');
 
+  const xSource: 'manual' | 'table' = (chart.barXSource ?? 'manual') === 'table' ? 'table' : 'manual';
+  const xSel = chart.barXTableSelection;
+
+  const normalizeToVector = (snap: { blockId: string; r1: number; c1: number; r2: number; c2: number }): TableSelection => {
+    const top = Math.min(snap.r1, snap.r2);
+    const bottom = Math.max(snap.r1, snap.r2);
+    const left = Math.min(snap.c1, snap.c2);
+    const right = Math.max(snap.c1, snap.c2);
+    const height = bottom - top;
+    const width = right - left;
+    const asRow = height === 0 || width >= height;
+    return asRow
+      ? { blockId: snap.blockId, r1: top, r2: top, c1: left, c2: right }
+      : { blockId: snap.blockId, r1: top, r2: bottom, c1: left, c2: left };
+  };
+
+  const applyLastTableSelectionToBarX = () => {
+    const snap = lastTableSelection;
+    if (!snap) return;
+    updateChart({ barXSource: 'table', barXTableSelection: normalizeToVector(snap) });
+  };
+
   const renderXRow = () => {
     const xCells0 = parseRow(chart.barXRow);
     const cols = Math.max(10, xCells0.length + 2);
@@ -135,6 +158,147 @@ export default function BarEditor({
             </tr>
           </tbody>
         </table>
+      </div>
+    );
+  };
+
+  const renderXTableSelector = () => {
+    const blockId = xSel?.blockId ?? '';
+    const tablePayload = blockId ? getTablePayloadById(blockId, allBlocks) : null;
+    const rows = tablePayload?.rows ?? 0;
+    const cols = tablePayload?.cols ?? 0;
+    const sel = xSel;
+    const pickKey = `bar-x-${block.id}`;
+
+    const constrainToVector = (anchor: { r: number; c: number }, r: number, c: number) => {
+      const dr = Math.abs(r - anchor.r);
+      const dc = Math.abs(c - anchor.c);
+      if (dc >= dr) {
+        const left = Math.min(anchor.c, c);
+        const right = Math.max(anchor.c, c);
+        const rr = Math.max(0, Math.min(rows - 1, anchor.r));
+        return { r1: rr, r2: rr, c1: Math.max(0, Math.min(cols - 1, left)), c2: Math.max(0, Math.min(cols - 1, right)) };
+      }
+      const top = Math.min(anchor.r, r);
+      const bottom = Math.max(anchor.r, r);
+      const cc = Math.max(0, Math.min(cols - 1, anchor.c));
+      return { r1: Math.max(0, Math.min(rows - 1, top)), r2: Math.max(0, Math.min(rows - 1, bottom)), c1: cc, c2: cc };
+    };
+
+    const pickCell = (e: ReactMouseEvent, r: number, c: number) => {
+      e.preventDefault();
+      if (!blockId) return;
+
+      const anchor = chartPickAnchor && chartPickAnchor.key === pickKey ? chartPickAnchor : null;
+      const curSel = sel;
+
+      if (chartSelectionMode) {
+        if (!curSel || (curSel.r1 === curSel.r2 && curSel.c1 === curSel.c2) === false) {
+          setChartPickAnchor({ key: pickKey, r, c });
+          updateChart({ barXSource: 'table', barXTableSelection: { blockId, r1: r, r2: r, c1: c, c2: c } });
+          return;
+        }
+        setChartPickAnchor(null);
+        const a = { r: curSel.r1, c: curSel.c1 };
+        const constrained = constrainToVector(a, r, c);
+        updateChart({ barXSource: 'table', barXTableSelection: { blockId, ...constrained } });
+        return;
+      }
+
+      if (e.shiftKey && anchor) {
+        const constrained = constrainToVector({ r: anchor.r, c: anchor.c }, r, c);
+        updateChart({ barXSource: 'table', barXTableSelection: { blockId, ...constrained } });
+        return;
+      }
+
+      setChartPickAnchor({ key: pickKey, r, c });
+      updateChart({ barXSource: 'table', barXTableSelection: { blockId, r1: r, r2: r, c1: c, c2: c } });
+    };
+
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-xs text-zinc-600 dark:text-zinc-400">表格</label>
+          <select
+            value={blockId}
+            onChange={(e) => {
+              const nextId = e.target.value;
+              if (!nextId) {
+                updateChart({ barXTableSelection: undefined });
+                return;
+              }
+              updateChart({ barXSource: 'table', barXTableSelection: { blockId: nextId, r1: 0, r2: 0, c1: 0, c2: 9 } });
+            }}
+            className="text-xs px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+          >
+            <option value="">请选择表格</option>
+            {availableTables.map((t) => (
+              <option key={t.id} value={t.id}>{t.label}</option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            onClick={applyLastTableSelectionToBarX}
+            disabled={!lastTableSelection}
+            className="ml-auto px-2 py-1 text-xs rounded border border-zinc-300 dark:border-zinc-600 disabled:opacity-40"
+            title={lastTableSelection ? '使用最近一次在表格块中框选的区域' : '请先在任意表格块中框选一块区域'}
+          >
+            使用最近选区
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setChartSelectionMode((v) => !v)}
+            className={`px-2 py-1 text-xs rounded flex items-center gap-1 border border-zinc-300 dark:border-zinc-600 transition-colors ${
+              chartSelectionMode
+                ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                : 'bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300'
+            }`}
+            title={chartSelectionMode ? '已开启：点击两次即可框选' : '开启：无需按 Shift 框选区域'}
+          >
+            <MousePointer2 size={14} />
+            选区模式
+          </button>
+        </div>
+
+        {tablePayload ? (
+          <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
+            {chartSelectionMode
+              ? '选区模式：第一次点击设定起点；第二次点击设定终点。'
+              : '普通模式：点击设定起点；Shift+点击设定终点。'} 会自动约束为 1 行或 1 列（按拖动方向）。
+          </div>
+        ) : (
+          <div className="text-[11px] text-zinc-500 dark:text-zinc-400">先选择一个表格。</div>
+        )}
+
+        {tablePayload ? (
+          <div className="overflow-auto border border-zinc-200 dark:border-zinc-700 rounded max-h-72">
+            <table className="w-full text-xs border-collapse">
+              <tbody>
+                {Array.from({ length: rows }, (_, r) => (
+                  <tr key={r}>
+                    {Array.from({ length: cols }, (_, c) => {
+                      const active = isInRect(r, c, sel);
+                      return (
+                        <td
+                          key={c}
+                          onMouseDown={(e) => pickCell(e, r, c)}
+                          className={`border border-zinc-200 dark:border-zinc-700 px-2 py-1 select-none cursor-pointer ${
+                            active ? 'bg-blue-100 dark:bg-blue-900/25' : 'bg-white dark:bg-zinc-950'
+                          }`}
+                          title={`R${r + 1}C${c + 1}`}
+                        >
+                          {getCellPlain(tablePayload, r, c)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
       </div>
     );
   };
@@ -377,7 +541,38 @@ export default function BarEditor({
           <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
             手动系列会使用下面这一行 X（分类，支持文本）；Y 必须是数值。
           </div>
-          {renderXRow()}
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-xs text-zinc-600 dark:text-zinc-400">X</span>
+            <label className="text-xs flex items-center gap-1">
+              <input
+                type="radio"
+                name={`bar-x-source-${block.id}`}
+                checked={xSource === 'manual'}
+                onChange={() => updateChart({ barXSource: 'manual' })}
+              />
+              手动
+            </label>
+            <label className="text-xs flex items-center gap-1">
+              <input
+                type="radio"
+                name={`bar-x-source-${block.id}`}
+                checked={xSource === 'table'}
+                onChange={() => {
+                  const existing = chart.barXTableSelection;
+                  const fallbackTableId = availableTables[0]?.id ?? '';
+                  const nextSel = existing?.blockId
+                    ? existing
+                    : (fallbackTableId
+                      ? { blockId: fallbackTableId, r1: 0, r2: 0, c1: 0, c2: 9 }
+                      : undefined);
+                  updateChart({ barXSource: 'table', barXTableSelection: nextSel });
+                }}
+              />
+              表格
+            </label>
+          </div>
+
+          {xSource === 'manual' ? renderXRow() : renderXTableSelector()}
         </div>
       ) : (
         <div className="text-[11px] text-zinc-500 dark:text-zinc-400">

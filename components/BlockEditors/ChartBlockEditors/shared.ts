@@ -40,7 +40,9 @@ export interface ChartData {
   manualText: string;
   tableSelection?: TableSelection;
   scatterSeries: ScatterSeries[];
+  barXSource?: 'manual' | 'table';
   barXRow: string;
+  barXTableSelection?: TableSelection;
   barSeries: BarSeries[];
   pieRows: PieRow[];
   pieAxisMode: TableAxisMode;

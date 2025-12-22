@@ -432,33 +432,38 @@ export function typstToBlocks(code: string): TypstBlock[] {
       continue;
     }
 
+    // 图表块（带图片或未生成）
+    const chartMarker = trimmed.match(/\/\*LF_CHART:([A-Za-z0-9+/=]+)\*\//);
+    if (chartMarker) {
+      try {
+        const decoded: unknown = JSON.parse(base64DecodeUtf8(chartMarker[1]));
+        const payload = (decoded && typeof decoded === 'object') ? (decoded as Record<string, unknown>) : {};
+        
+        // 提取图片 URL（如果有）
+        const match = trimmed.match(/#align\(center,\s*image\("([^"]+)"/);
+        const imageUrl = match?.[1] ?? '';
+        
+        const merged = {
+          ...(payload && typeof payload === 'object' ? payload : {}),
+          imageUrl: (typeof payload['imageUrl'] === 'string' ? (payload['imageUrl'] as string) : imageUrl) || imageUrl,
+        };
+
+        blocks.push({
+          id: generateId(),
+          type: 'chart',
+          content: JSON.stringify(merged),
+        });
+
+        // Skip the next title/caption line if present (we store title in the payload).
+        skipNextCaptionBecausePreviousImage = true;
+        continue;
+      } catch {
+        // fall through
+      }
+    }
+
     // 图片
     if (trimmed.startsWith('#align(center, image(')) {
-      const chartMarker = trimmed.match(/\/\*LF_CHART:([A-Za-z0-9+/=]+)\*\//);
-      if (chartMarker) {
-        try {
-          const decoded: unknown = JSON.parse(base64DecodeUtf8(chartMarker[1]));
-          const payload = (decoded && typeof decoded === 'object') ? (decoded as Record<string, unknown>) : {};
-          const match = trimmed.match(/#align\(center,\s*image\("([^"]+)"/);
-          const imageUrl = match?.[1] ?? '';
-          const merged = {
-            ...(payload && typeof payload === 'object' ? payload : {}),
-            imageUrl: (typeof payload['imageUrl'] === 'string' ? (payload['imageUrl'] as string) : imageUrl) || imageUrl,
-          };
-
-          blocks.push({
-            id: generateId(),
-            type: 'chart',
-            content: JSON.stringify(merged),
-          });
-
-          // Skip the next title/caption line if present (we store title in the payload).
-          skipNextCaptionBecausePreviousImage = true;
-          continue;
-        } catch {
-          // fall through
-        }
-      }
 
       // If a caption line is directly above the image (position=above), skip it.
       if (i > 0) {

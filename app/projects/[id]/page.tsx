@@ -82,25 +82,39 @@ function SvgPage({
     };
 
     const getScreenRect = (g: SVGGraphicsElement) => {
+      // Prefer getBBox+CTM when available, but SVG <image> can report a tiny bbox
+      // on the first tick (especially at page boundaries). Fall back to DOM rect.
+      const rectFromClient = () => {
+        try {
+          const r = g.getBoundingClientRect();
+          if (!(r.width > 0.5 && r.height > 0.5)) return null;
+          if (!Number.isFinite(r.left) || !Number.isFinite(r.top) || !Number.isFinite(r.right) || !Number.isFinite(r.bottom)) return null;
+          return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+        } catch {
+          return null;
+        }
+      };
+
       const ctm = g.getScreenCTM();
-      if (!ctm) return null;
-      let bbox: DOMRect;
+      if (!ctm) return rectFromClient();
+
       try {
         const bb = g.getBBox();
-        if (!(bb.width > 0.5 && bb.height > 0.5)) return null;
-        // DOMRect-like
-        bbox = bb as unknown as DOMRect;
+        if (!(bb.width > 0.5 && bb.height > 0.5)) return rectFromClient();
+        const p1 = new DOMPoint(bb.x, bb.y).matrixTransform(ctm);
+        const p2 = new DOMPoint(bb.x + bb.width, bb.y + bb.height).matrixTransform(ctm);
+        const left = Math.min(p1.x, p2.x);
+        const top = Math.min(p1.y, p2.y);
+        const right = Math.max(p1.x, p2.x);
+        const bottom = Math.max(p1.y, p2.y);
+        if (!Number.isFinite(left) || !Number.isFinite(top) || !Number.isFinite(right) || !Number.isFinite(bottom)) return rectFromClient();
+        const w = Math.max(0, right - left);
+        const h = Math.max(0, bottom - top);
+        if (w < 1 || h < 1) return rectFromClient();
+        return { left, top, right, bottom };
       } catch {
-        return null;
+        return rectFromClient();
       }
-      const p1 = new DOMPoint(bbox.x, bbox.y).matrixTransform(ctm);
-      const p2 = new DOMPoint(bbox.x + bbox.width, bbox.y + bbox.height).matrixTransform(ctm);
-      const left = Math.min(p1.x, p2.x);
-      const top = Math.min(p1.y, p2.y);
-      const right = Math.max(p1.x, p2.x);
-      const bottom = Math.max(p1.y, p2.y);
-      if (!Number.isFinite(left) || !Number.isFinite(top) || !Number.isFinite(right) || !Number.isFinite(bottom)) return null;
-      return { left, top, right, bottom };
     };
 
     const nextMarker = markers.item(activeLocalIndex + 1);
@@ -128,11 +142,24 @@ function SvgPage({
       return typeof g.getBBox === 'function' && typeof g.getScreenCTM === 'function';
     };
 
+    // Find all ancestors of nextMarker - we need to exclude them from union calculation
+    // because they might contain the next block's content too
+    const nextMarkerAncestors = new Set<Element>();
+    if (nextMarker) {
+      let p = nextMarker.parentElement;
+      while (p && p !== svgElement) {
+        nextMarkerAncestors.add(p);
+        p = p.parentElement;
+      }
+    }
+
     const computeUnion = () => {
       let union: { left: number; top: number; right: number; bottom: number } | null = null;
       for (let i = markerIdx + 1; i < nextMarkerIdx && i < allElements.length; i++) {
         const el = allElements[i];
         if (isSkippable(el)) continue;
+        // Skip ancestors of nextMarker - they contain the next block's content
+        if (nextMarkerAncestors.has(el)) continue;
         if (!isSvgGraphicsElement(el)) continue;
         const rect = getScreenRect(el);
         if (!rect) continue;
@@ -167,6 +194,25 @@ function SvgPage({
       const overlayLeft = left - containerRect.left;
       const overlayTop = top - containerRect.top;
 
+      // 如果计算出的位置看起来异常（负数或超出容器很多），说明内容可能跨页或被推到其他位置
+      // 检查 union 的实际位置是否在当前容器的可见范围内
+      const visibleTop = containerRect.top;
+      const visibleBottom = containerRect.bottom;
+      const visibleLeft = containerRect.left;
+      const visibleRight = containerRect.right;
+
+      // 如果 union 的中心点不在当前容器的可见区域内，跳过高亮（避免显示在错误的位置）
+      const centerX = (union.left + union.right) / 2;
+      const centerY = (union.top + union.bottom) / 2;
+      
+      const isOutOfBounds = centerX < visibleLeft - 100 || centerX > visibleRight + 100 ||
+                           centerY < visibleTop - 100 || centerY > visibleBottom + 100;
+      
+      if (isOutOfBounds) {
+        // 内容不在当前容器范围内，可能在另一页，不显示高亮
+        return;
+      }
+
       const highlight = document.createElement('div');
       highlight.style.position = 'absolute';
       highlight.style.left = `${Math.max(0, overlayLeft)}px`;
@@ -200,10 +246,16 @@ function SvgPage({
         const w = Math.max(0, union.right - union.left);
         const h = Math.max(0, union.bottom - union.top);
         const looksTooSmall = w < 8 || h < 8;
+        
+        // For images, retry if the bbox is too small and we have retries left
         if (containsImages && looksTooSmall && triesLeft > 0) {
           requestAnimationFrame(() => attempt(triesLeft - 1));
           return;
         }
+        
+        // Even if it looks small, try to show it (the isOutOfBounds check will filter bad cases)
+        // Don't skip highlighting just because of size - the new #block wrapper should keep
+        // marker and content together, so small size likely means genuinely small content.
         showHighlight(union);
         return;
       }
@@ -212,7 +264,7 @@ function SvgPage({
       }
     };
 
-    attempt(6);
+    attempt(24);
 
     return () => {
       cancelled = true;
@@ -277,11 +329,35 @@ export default function ProjectEditorPage() {
   const buildRenderCodeForPreview = useCallback(() => {
     // Keep saved `code` clean. Only inject markers into the code sent to renderer.
     if (mode !== 'visual') return code;
+    // Use a box with baseline to keep marker and content together during page breaks.
+    // The marker is placed at the start of the block content using place() inside the box.
+    const wrapWithMarker = (content: string) => {
+      // We use a stack/block approach: first output the marker, then the content.
+      // To ensure they stay together on page breaks, we check if content is an image/figure.
+      // For images and figures, wrap in a box so marker + content move together.
+      const trimmed = content.trim();
+      const isImage = trimmed.startsWith('#image(') || trimmed.startsWith('#align(center, image(') || trimmed.startsWith('#align(center)[(未生成图表)]') || trimmed.includes('LF_CHART:') || trimmed.includes('LF_IMAGE:');
+      const isFigure = trimmed.startsWith('#figure(');
+      
+      const markerCode = '#place(dx: -50cm, rect(width: 1pt, height: 1pt, fill: rgb("000001")))';
+      
+      if (isImage || isFigure) {
+        // Wrap in a block that keeps marker and content together
+        // Using #block with breakable: false would prevent breaks, but we want to allow breaks
+        // between blocks. Instead, we place the marker AFTER the content starts rendering,
+        // by putting it inside a box at the very beginning.
+        return `#block[${markerCode}${content}]`;
+      }
+      
+      // For other content (paragraphs, headings, etc.), the simple approach works
+      return `${markerCode}\n${content}`;
+    };
+    
     const markerLine = '#place(dx: -50cm, rect(width: 1pt, height: 1pt, fill: rgb("000001")))';
     // Add a trailing sentinel marker to properly bound the last block for highlight.
     return (
       blocks
-        .map((b) => `${markerLine}\n${blocksToTypst([b], { settings: docSettings })}`)
+        .map((b) => wrapWithMarker(blocksToTypst([b], { settings: docSettings })))
         .join('\n\n') +
       `\n\n${markerLine}`
     );

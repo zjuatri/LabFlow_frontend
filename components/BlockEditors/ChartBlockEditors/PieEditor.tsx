@@ -37,6 +37,18 @@ export default function PieEditor({
   chartPickAnchor,
   setChartPickAnchor,
 }: PieEditorProps) {
+  const trimPieRows = (rows: PieRow[]) => {
+    let end = rows.length - 1;
+    while (end >= 0) {
+      const r = rows[end];
+      const a = (r?.label ?? '').trim();
+      const b = (r?.value ?? '').trim();
+      if (a !== '' || b !== '') break;
+      end--;
+    }
+    return rows.slice(0, Math.max(0, end + 1));
+  };
+
   const applyLastTableSelectionToPie = () => {
     const snap = lastTableSelection;
     if (!snap) return;
@@ -53,13 +65,18 @@ export default function PieEditor({
   };
 
   const rows0 = ((chart.pieRows ?? []) as PieRow[]);
-  const minRows = 15;
+  const minRows = Math.max(5, rows0.length);
   const rows: PieRow[] = Array.from({ length: minRows }, (_, i) => rows0[i] ?? { label: '', value: '' });
+
+  const addRow = () => {
+    const base = trimPieRows(rows0.map((x) => ({ ...x })));
+    updateChart({ pieRows: [...base, { label: '', value: '' }] });
+  };
 
   const setRowCell = (r: number, k: keyof PieRow, val: string) => {
     const next = rows.map((x) => ({ ...x }));
     next[r][k] = val;
-    updateChart({ pieRows: next });
+    updateChart({ pieRows: trimPieRows(next) });
   };
 
   const handlePaste = (e: ReactClipboardEvent<HTMLInputElement>, r0: number, c0: number) => {
@@ -77,7 +94,7 @@ export default function PieEditor({
       next[rr].label = label;
       next[rr].value = value;
     }
-    updateChart({ pieRows: next });
+    updateChart({ pieRows: trimPieRows(next) });
   };
 
   const renderPieTableSelector = () => {
@@ -295,6 +312,16 @@ export default function PieEditor({
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="flex">
+            <button
+              type="button"
+              onClick={addRow}
+              className="px-2 py-1 text-xs rounded border border-zinc-300 dark:border-zinc-600"
+            >
+              + 添加一行
+            </button>
           </div>
         </div>
       ) : (
