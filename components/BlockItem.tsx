@@ -8,6 +8,7 @@ import { useRef, useState, useEffect, useCallback, type MouseEvent as ReactMouse
 import Image from 'next/image';
 import TitleBlockEditor from './BlockEditors/TitleBlockEditor';
 import TextBlockEditor from './BlockEditors/TextBlockEditor';
+import CodeBlockEditor from './BlockEditors/CodeBlockEditor';
 
 // Import types and utilities from separated modules
 import type { InlineMathFormat, InlineMathState, TableStyle, TablePayload } from './BlockEditor-utils/types';
@@ -1155,16 +1156,6 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
           <option value="chart">图表</option>
         </select>
 
-        {block.type === 'code' && (
-          <input
-            type="text"
-            value={block.language || 'python'}
-            onChange={(e) => onUpdate({ language: e.target.value })}
-            placeholder="语言"
-            className="text-xs px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 w-24"
-          />
-        )}
-
         <div className="ml-auto flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={() => onMove('up')}
@@ -1194,13 +1185,7 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
 
       {/* 内容编辑 */}
       {block.type === 'code' ? (
-        <textarea
-          value={block.content}
-          onChange={(e) => onUpdate({ content: e.target.value })}
-          className="w-full p-2 font-mono text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 resize-none"
-          rows={Math.max(3, block.content.split('\n').length)}
-          placeholder="输入代码..."
-        />
+        <CodeBlockEditor block={block} onUpdate={onUpdate} />
       ) : block.type === 'chart' ? (
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-2 items-center">
