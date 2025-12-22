@@ -120,8 +120,29 @@ function SvgPage({
     const nextMarker = markers.item(activeLocalIndex + 1);
 
     // Compute a union bbox for everything rendered by this block.
-    // Strategy: collect ALL top-level elements between the marker's position and next marker's position.
-    // Build a flat list of all elements in document order.
+    // Strategy: For blocks wrapped in #block[marker content], find the marker's parent container
+    // and only compute union within that container. This prevents including elements from other blocks.
+    
+    // Find marker's block container - walk up until we find a <g> that's a direct child of a larger group
+    // or until we find a container that has both the marker and content
+    const findMarkerContainer = (): Element | null => {
+      let container = marker.parentElement;
+      // Walk up to find a reasonable container (typically a <g> from #block)
+      // The container should be large enough to contain the block content
+      while (container && container !== svgElement) {
+        // If this container has more children besides just structural groups, it's likely our block container
+        const childCount = container.children.length;
+        if (childCount > 1) {
+          return container;
+        }
+        container = container.parentElement;
+      }
+      return null;
+    };
+
+    const markerContainer = findMarkerContainer();
+
+    // Build a flat list of all elements in document order
     const allElements: Element[] = [];
     const collectAll = (el: Element) => {
       allElements.push(el);
@@ -129,11 +150,26 @@ function SvgPage({
         collectAll(el.children[i]);
       }
     };
-    collectAll(svgElement);
+    
+    // If we found a container, only collect elements within it; otherwise use whole SVG
+    if (markerContainer) {
+      collectAll(markerContainer);
+    } else {
+      collectAll(svgElement);
+    }
 
     // Find indices of markers in this flat list
     const markerIdx = allElements.indexOf(marker);
-    const nextMarkerIdx = nextMarker ? allElements.indexOf(nextMarker) : allElements.length;
+    
+    // For nextMarkerIdx: if we're using a container, the boundary is the container end
+    // If nextMarker exists and is within our element list, use it; otherwise use list length
+    let nextMarkerIdx = allElements.length;
+    if (nextMarker) {
+      const idx = allElements.indexOf(nextMarker);
+      if (idx > markerIdx) {
+        nextMarkerIdx = idx;
+      }
+    }
 
     if (markerIdx < 0) return;
 
@@ -145,9 +181,9 @@ function SvgPage({
     // Find all ancestors of nextMarker - we need to exclude them from union calculation
     // because they might contain the next block's content too
     const nextMarkerAncestors = new Set<Element>();
-    if (nextMarker) {
+    if (nextMarker && allElements.includes(nextMarker)) {
       let p = nextMarker.parentElement;
-      while (p && p !== svgElement) {
+      while (p && p !== svgElement && p !== markerContainer) {
         nextMarkerAncestors.add(p);
         p = p.parentElement;
       }
