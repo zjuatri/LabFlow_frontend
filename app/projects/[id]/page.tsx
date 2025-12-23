@@ -43,6 +43,8 @@ export default function ProjectEditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
   const [activeAnchor, setActiveAnchor] = useState<{ pageIndex: number; localIndex: number } | null>(null);
+  const [highlightNonce, setHighlightNonce] = useState(0);
+  const [clickAnchor, setClickAnchor] = useState<{ pageIndex: number; localIndex: number } | null>(null);
   
   const [history, setHistory] = useState<Array<{ blocks: TypstBlock[]; settings: DocumentSettings }>>([]);
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -222,13 +224,10 @@ export default function ProjectEditorPage() {
       remaining -= usableCount;
     }
 
-    setActiveAnchor({ pageIndex, localIndex });
-
-    // Scroll the page container into view (works even if SVG hasn't been injected yet)
-    const pageEl = pageRefs.current[pageIndex];
-    pageEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-    setTimeout(() => setActiveAnchor(null), 1500);
+    // Highlight should happen only on explicit block click (not on scroll-sync anchor updates).
+    setHighlightNonce((n) => n + 1);
+    setClickAnchor({ pageIndex, localIndex });
+    setTimeout(() => setClickAnchor(null), 1500);
   }, [svgPages]);
 
   const cloneState = useCallback((b: TypstBlock[], s: DocumentSettings) => {
@@ -501,7 +500,8 @@ export default function ProjectEditorPage() {
                   svgContent={svgContent}
                   pageIndex={index}
                   forceVisible={activeAnchor?.pageIndex === index}
-                  activeLocalIndex={activeAnchor?.pageIndex === index ? activeAnchor.localIndex : null}
+                  activeLocalIndex={clickAnchor?.pageIndex === index ? clickAnchor.localIndex : null}
+                  highlightNonce={highlightNonce}
                   registerPageRef={registerPageRef}
                 />
               ))}

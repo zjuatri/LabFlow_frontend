@@ -7,6 +7,7 @@ type SvgPageProps = {
   pageIndex: number;
   forceVisible: boolean;
   activeLocalIndex: number | null;
+  highlightNonce: number;
   registerPageRef: (pageIndex: number, el: HTMLDivElement | null) => void;
 };
 
@@ -16,11 +17,13 @@ export function SvgPage({
   pageIndex,
   forceVisible,
   activeLocalIndex,
+  highlightNonce,
   registerPageRef,
 }: SvgPageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [observedVisible, setObservedVisible] = useState(false);
   const isVisible = forceVisible || observedVisible;
+  const lastHighlightNonceRef = useRef(0);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -43,7 +46,12 @@ export function SvgPage({
 
   // Handle scrolling to active block marker
   useEffect(() => {
+    // Only show highlight when explicitly triggered by a click (highlightNonce bumps).
+    if (highlightNonce <= lastHighlightNonceRef.current) return;
     if (!isVisible || activeLocalIndex === null || !containerRef.current) return;
+
+    // Consume this highlight trigger only once we are ready to compute the union/highlight.
+    lastHighlightNonceRef.current = highlightNonce;
 
     const svgElement = containerRef.current.querySelector('svg');
     if (!svgElement) return;
@@ -290,7 +298,7 @@ export function SvgPage({
     return () => {
       cancelled = true;
     };
-  }, [isVisible, activeLocalIndex]);
+  }, [highlightNonce, isVisible, activeLocalIndex]);
 
   return (
     <div
