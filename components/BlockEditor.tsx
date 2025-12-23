@@ -173,6 +173,7 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
       {blocks.map((block, index) => (
         <div
           key={block.id}
+           data-block-index={index}
           draggable
           onMouseDownCapture={(e) => {
             const target = e.target as HTMLElement | null;
