@@ -372,17 +372,21 @@ export default function ProjectEditorPage() {
       // To ensure they stay together on page breaks, we check if content is an image/figure.
       // For images and figures, wrap in a box so marker + content move together.
       const trimmed = content.trim();
-      const isImage = trimmed.startsWith('#image(') || trimmed.startsWith('#align(center, image(') || trimmed.startsWith('#align(center)[(未生成图表)]') || trimmed.includes('LF_CHART:') || trimmed.includes('LF_IMAGE:');
+      const isImage =
+        trimmed.startsWith('#image(') ||
+        /^#align\(\s*(?:left|center|right)\s*,\s*image\(/.test(trimmed) ||
+        trimmed.startsWith('#align(center)[(未生成图表)]') ||
+        trimmed.includes('LF_CHART:') ||
+        trimmed.includes('LF_IMAGE:');
       const isFigure = trimmed.startsWith('#figure(');
       
       const markerCode = '#place(dx: -50cm, rect(width: 1pt, height: 1pt, fill: rgb("000001")))';
       
       if (isImage || isFigure) {
-        // Wrap in a block that keeps marker and content together
-        // Using #block with breakable: false would prevent breaks, but we want to allow breaks
-        // between blocks. Instead, we place the marker AFTER the content starts rendering,
-        // by putting it inside a box at the very beginning.
-        return `#block[${markerCode}${content}]`;
+        // Wrap in a block that keeps marker and content together.
+        // We use width: 100% to ensure the block spans the page, allowing internal #align to work.
+        // Without explicit width, #block might shrink-wrap or behave differently.
+        return `#block(width: 100%)[${markerCode}${content}]`;
       }
       
       // For other content (paragraphs, headings, etc.), the simple approach works

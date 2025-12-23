@@ -37,6 +37,7 @@ export interface TypstBlock {
   language?: string; // 用于代码块语言
   width?: string; // 图片宽度 (e.g., "100%", "8cm")
   height?: string; // 图片高度 (e.g., "auto", "5cm")
+  align?: 'left' | 'center' | 'right'; // 图片对齐方式
 
   // Paragraph line spacing multiplier (e.g. 1, 1.2, 1.5, 2).
   // We store it as a multiplier because Typst's `par(leading:)` uses a length (default 0.65em),

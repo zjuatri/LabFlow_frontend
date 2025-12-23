@@ -1,6 +1,6 @@
 import { TypstBlock, PersistedMathPayload, PersistedTablePayload } from './types';
 import {
-  LF_MATH_MARKER, LF_TABLE_MARKER, LF_IMAGE_MARKER, LF_CHART_MARKER, LF_DOC_MARKER,
+  LF_TABLE_MARKER, LF_IMAGE_MARKER, LF_CHART_MARKER, LF_DOC_MARKER,
   base64DecodeUtf8, generateId,
   defaultParagraphLeadingEm, inferLineSpacingMultiplier,
 } from './utils';
@@ -147,8 +147,8 @@ export function typstToBlocks(code: string): TypstBlock[] {
       }
     }
 
-    // 图片
-    if (trimmed.startsWith('#align(center, image(')) {
+    // 图片 - 支持 #align(left|center|right, image(...))
+    if (/^#align\(\s*(left|center|right)\s*,\s*image\(/.test(trimmed)) {
       const imageBlock = parseImageBlock(trimmed);
       if (imageBlock) {
         blocks.push(imageBlock);
@@ -372,8 +372,9 @@ function parseChartBlock(trimmed: string, markerB64: string): TypstBlock | null 
     const decoded: unknown = JSON.parse(base64DecodeUtf8(markerB64));
     const payload = (decoded && typeof decoded === 'object') ? (decoded as Record<string, unknown>) : {};
     
-    const match = trimmed.match(/#align\(center,\s*image\("([^"]+)"/);
-    const imageUrl = match?.[1] ?? '';
+    const match = trimmed.match(/#align\(\s*(left|center|right)\s*,\s*image\("([^"]+)"/);
+    const align = (match?.[1] as 'left' | 'center' | 'right' | undefined) ?? 'center';
+    const imageUrl = match?.[2] ?? '';
     
     const merged = {
       ...(payload && typeof payload === 'object' ? payload : {}),
@@ -384,6 +385,7 @@ function parseChartBlock(trimmed: string, markerB64: string): TypstBlock | null 
       id: generateId(),
       type: 'chart',
       content: JSON.stringify(merged),
+      align,
     };
   } catch {
     return null;
@@ -395,13 +397,14 @@ function parseImageBlock(trimmed: string): TypstBlock | null {
   if (imgMarker) {
     try {
       const payload = JSON.parse(base64DecodeUtf8(imgMarker[1])) as { caption?: string; width?: string; height?: string };
-      const match = trimmed.match(/#align\(center,\s*image\("([^"]+)"(?:,\s*width:\s*([^,}]+))?(?:,\s*height:\s*([^)]+))?\)\)/);
+      const match = trimmed.match(/#align\(\s*(left|center|right)\s*,\s*image\("([^"]+)"(?:,\s*width:\s*([^,}]+))?(?:,\s*height:\s*([^)]+))?\)\)/);
       if (match) {
         return {
           id: generateId(),
           type: 'image',
-          content: match[1],
-          width: (payload.width ?? match[2]?.trim() ?? '100%'),
+          content: match[2],
+          align: (match[1] as 'left' | 'center' | 'right') ?? 'center',
+          width: (payload.width ?? match[3]?.trim() ?? '100%'),
           height: 'auto',
           caption: (payload.caption ?? '').toString(),
         };
@@ -411,13 +414,14 @@ function parseImageBlock(trimmed: string): TypstBlock | null {
     }
   }
 
-  const match = trimmed.match(/#align\(center,\s*image\("([^"]+)"(?:,\s*width:\s*([^,}]+))?(?:,\s*height:\s*([^)]+))?\)\)/);
+  const match = trimmed.match(/#align\(\s*(left|center|right)\s*,\s*image\("([^"]+)"(?:,\s*width:\s*([^,}]+))?(?:,\s*height:\s*([^)]+))?\)\)/);
   if (match) {
     return {
       id: generateId(),
       type: 'image',
-      content: match[1],
-      width: match[2]?.trim() || '100%',
+      content: match[2],
+      align: (match[1] as 'left' | 'center' | 'right') ?? 'center',
+      width: match[3]?.trim() || '100%',
       height: 'auto',
     };
   }

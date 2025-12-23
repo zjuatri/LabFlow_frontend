@@ -84,30 +84,6 @@ export default function ChartBlockEditor({
         />
       </div>
 
-      {/* 宽度滑块 */}
-      <div>
-        <label className="text-xs text-zinc-600 dark:text-zinc-400 block mb-2">
-          宽度: {(() => {
-            const w = block.width || '100%';
-            return parseFloat(w) || 100;
-          })()}%
-        </label>
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={(() => {
-            const w = block.width || '100%';
-            return parseFloat(w) || 100;
-          })()}
-          onChange={(e) => {
-            const val = e.target.value;
-            onUpdate({ width: `${val}%` });
-          }}
-          className="w-full h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
-        />
-      </div>
-
       {/* 标题输入 */}
       <input
         type="text"
@@ -223,7 +199,10 @@ export default function ChartBlockEditor({
 
       {/* 预览图片 */}
       {(chart.imageUrl ?? '').trim() ? (
-        <div className="flex flex-col gap-2">
+        <div className={`flex ${
+          (block.align || 'center') === 'left' ? 'justify-start' :
+          (block.align || 'center') === 'right' ? 'justify-end' : 'justify-center'
+        }`}>
           <Image
             src={chart.imageUrl}
             alt="图表预览"
@@ -236,6 +215,69 @@ export default function ChartBlockEditor({
       ) : (
         <div className="text-xs text-zinc-500 dark:text-zinc-400">尚未生成预览</div>
       )}
+
+      {/* 对齐方式 */}
+      {(chart.imageUrl ?? '').trim() && (
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-zinc-600 dark:text-zinc-400">对齐：</label>
+          <div className="flex gap-1">
+            <button
+              onClick={(e) => { e.stopPropagation(); onUpdate({ align: 'left' }); }}
+              className={`px-3 py-1 text-xs rounded transition-colors ${
+                (block.align || 'center') === 'left'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'
+              }`}
+            >
+              居左
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onUpdate({ align: 'center' }); }}
+              className={`px-3 py-1 text-xs rounded transition-colors ${
+                (block.align || 'center') === 'center'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'
+              }`}
+            >
+              居中
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onUpdate({ align: 'right' }); }}
+              className={`px-3 py-1 text-xs rounded transition-colors ${
+                (block.align || 'center') === 'right'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'
+              }`}
+            >
+              居右
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 宽度滑块 */}
+      <div>
+        <label className="text-xs text-zinc-600 dark:text-zinc-400 block mb-2">
+          宽度: {(() => {
+            const w = block.width || '100%';
+            return parseFloat(w) || 100;
+          })()}%
+        </label>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          value={(() => {
+            const w = block.width || '100%';
+            return parseFloat(w) || 100;
+          })()}
+          onChange={(e) => {
+            const val = e.target.value;
+            onUpdate({ width: `${val}%` });
+          }}
+          className="w-full h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+        />
+      </div>
 
       {/* 生成按钮 */}
       <div className="flex gap-2">

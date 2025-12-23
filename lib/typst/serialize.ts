@@ -116,6 +116,7 @@ function serializeMath(block: TypstBlock): string {
 function serializeImage(block: TypstBlock, imageIndex: number, settings: DocumentSettings): string {
   const width = block.width || '100%';
   const height = 'auto';
+  const align = block.align || 'center';
   const captionRaw = (block.caption ?? '').trim();
   const label = settings.imageCaptionNumbering ? `图${imageIndex} ` : '';
   const captionText = (label + captionRaw).trim() ? (label + captionRaw) : '';
@@ -125,8 +126,9 @@ function serializeImage(block: TypstBlock, imageIndex: number, settings: Documen
     height,
   };
   const encoded = `${LF_IMAGE_MARKER}${base64EncodeUtf8(JSON.stringify(payload))}*/`;
-  const imageLine = `#align(center, image("${block.content}", width: ${width}, height: ${height}))${encoded}`;
-  const captionLine = captionText ? `#align(center)[${captionText}]` : '';
+  const alignValue = align === 'left' ? 'left' : align === 'right' ? 'right' : 'center';
+  const imageLine = `#align(${alignValue}, image("${block.content}", width: ${width}, height: ${height}))${encoded}`;
+  const captionLine = captionText ? `#align(${alignValue})[${captionText}]` : '';
 
   if (captionLine && settings.imageCaptionPosition === 'above') {
     return `${captionLine}\n${imageLine}`;
@@ -141,13 +143,15 @@ function serializeChart(block: TypstBlock): string {
   const payload = safeParseChartPayload(block.content ?? '');
   const imageUrl = (payload.imageUrl ?? '').trim();
   const encoded = `${LF_CHART_MARKER}${base64EncodeUtf8(JSON.stringify(payload))}*/`;
+  const align = block.align || 'center';
+  const alignValue = align === 'left' ? 'left' : align === 'right' ? 'right' : 'center';
 
   if (!imageUrl) {
-    return `#align(center)[(未生成图表)]${encoded}`;
+    return `#align(${alignValue})[(未生成图表)]${encoded}`;
   }
 
   const width = block.width || '100%';
-  const imageLine = `#align(center, image("${imageUrl}", width: ${width}, height: auto))${encoded}`;
+  const imageLine = `#align(${alignValue}, image("${imageUrl}", width: ${width}, height: auto))${encoded}`;
   return imageLine;
 }
 
