@@ -2,6 +2,8 @@
 
 import { TypstBlock } from '@/lib/typst';
 import Image from 'next/image';
+import { useState } from 'react';
+import ImageCropModal from '../ImageCropModal';
 
 interface ImageBlockEditorProps {
   block: TypstBlock;
@@ -10,6 +12,12 @@ interface ImageBlockEditorProps {
 }
 
 export default function ImageBlockEditor({ block, onUpdate, onUploadImage }: ImageBlockEditorProps) {
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+
+  const handleCropComplete = async (croppedImageUrl: string) => {
+    onUpdate({ content: croppedImageUrl });
+  };
+
   return (
     <div className="flex flex-col gap-3">
       {/* 图片预览 */}
@@ -24,10 +32,10 @@ export default function ImageBlockEditor({ block, onUpdate, onUploadImage }: Ima
             unoptimized
           />
           <button
-            onClick={() => onUpdate({ content: '' })}
-            className="px-2 py-1 text-xs rounded bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/40"
+            onClick={() => setIsCropModalOpen(true)}
+            className="px-2 py-1 text-xs rounded bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/40"
           >
-            删除图片
+            编辑图片
           </button>
         </div>
       ) : null}
@@ -87,6 +95,16 @@ export default function ImageBlockEditor({ block, onUpdate, onUploadImage }: Ima
             className="w-full h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
           />
         </div>
+      )}
+
+      {/* Image Crop Modal */}
+      {block.content && (
+        <ImageCropModal
+          isOpen={isCropModalOpen}
+          imageUrl={block.content}
+          onClose={() => setIsCropModalOpen(false)}
+          onCropComplete={handleCropComplete}
+        />
       )}
     </div>
   );

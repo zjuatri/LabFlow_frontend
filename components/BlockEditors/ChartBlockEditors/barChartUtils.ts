@@ -29,7 +29,7 @@ export function applyLastTableSelectionToBarSeries(
   seriesIndex: number,
   safeSeries: BarSeries[],
   lastTableSelection: { blockId: string; r1: number; c1: number; r2: number; c2: number } | null,
-  updateChart: (partial: any) => void
+  updateChart: (partial: Record<string, unknown>) => void
 ): void {
   const snap = lastTableSelection;
   if (!snap) return;
@@ -55,7 +55,7 @@ export function applyLastTableSelectionToBarSeries(
  */
 export function applyLastTableSelectionToBarX(
   lastTableSelection: { blockId: string; r1: number; c1: number; r2: number; c2: number } | null,
-  updateChart: (partial: any) => void
+  updateChart: (partial: Record<string, unknown>) => void
 ): void {
   const snap = lastTableSelection;
   if (!snap) return;
@@ -113,7 +113,7 @@ export function detectPasteAsTable(text: string): { isTable: boolean; rows: stri
   const tabCount = lines[0].split('\t').length;
   const commaCount = lines[0].split(',').length;
 
-  let delimiter = tabCount > commaCount ? '\t' : ',';
+  const delimiter = tabCount > commaCount ? '\t' : ',';
   const rows = lines.map((line) => line.split(delimiter).map((cell) => cell.trim()));
 
   // 检查是否所有行都有相同的列数
