@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Save, Undo2, Redo2 } from 'lucide-react';
+import { Save, Undo2, Redo2, Settings } from 'lucide-react';
 
 import BlockEditor from '@/components/BlockEditor';
 import {
@@ -49,6 +49,8 @@ export default function ProjectEditorPage() {
   const [history, setHistory] = useState<Array<{ blocks: TypstBlock[]; settings: DocumentSettings }>>([]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
 
   const isRestoringRef = useRef(false);
 
@@ -323,6 +325,17 @@ export default function ProjectEditorPage() {
     });
   }, [canRedo, history, historyIndex]);
 
+  // Close settings dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setShowSettings(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Ctrl+S / Cmd+S -> save, Ctrl+Z -> undo
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -355,12 +368,6 @@ export default function ProjectEditorPage() {
       <div className="flex flex-col w-1/2 border-r border-zinc-300 dark:border-zinc-700">
         <div className="flex items-center justify-between px-4 py-3 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <input
-              className="px-2 py-1 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 w-64 max-w-full"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="项目标题"
-            />
             <div className="flex bg-white dark:bg-zinc-900 rounded-lg border border-zinc-300 dark:border-zinc-600 overflow-hidden shrink-0">
               <button
                 onClick={() => handleModeSwitch('visual')}
@@ -382,41 +389,6 @@ export default function ProjectEditorPage() {
               >
                 源代码
               </button>
-            </div>
-
-            <div className="flex items-center gap-3 text-xs text-zinc-700 dark:text-zinc-300">
-              <label className="flex items-center gap-1 select-none">
-                <input
-                  type="checkbox"
-                  checked={docSettings.tableCaptionNumbering}
-                  onChange={(e) => setDocSettings((s) => ({ ...s, tableCaptionNumbering: e.target.checked }))}
-                />
-                表格排序
-              </label>
-              <label className="flex items-center gap-1 select-none">
-                <input
-                  type="checkbox"
-                  checked={docSettings.imageCaptionNumbering}
-                  onChange={(e) => setDocSettings((s) => ({ ...s, imageCaptionNumbering: e.target.checked }))}
-                />
-                图片排序
-              </label>
-              <label className="flex items-center gap-1 select-none">
-                图片标题位置
-                <select
-                  value={docSettings.imageCaptionPosition}
-                  onChange={(e) =>
-                    setDocSettings((s) => ({
-                      ...s,
-                      imageCaptionPosition: e.target.value === 'above' ? 'above' : 'below',
-                    }))
-                  }
-                  className="text-xs px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-900"
-                >
-                  <option value="above">上方</option>
-                  <option value="below">下方</option>
-                </select>
-              </label>
             </div>
           </div>
 
@@ -444,15 +416,65 @@ export default function ProjectEditorPage() {
             >
               <Save size={16} />
             </button>
-            {saveStatus === 'saving' && (
-              <span className="text-sm text-zinc-500 dark:text-zinc-400">保存中...</span>
-            )}
-            {saveStatus === 'saved' && (
-              <span className="text-sm text-green-600 dark:text-green-400">已保存</span>
-            )}
-            {isRendering && (
-              <span className="text-sm text-zinc-500 dark:text-zinc-400">Rendering...</span>
-            )}
+            <div className="relative" ref={settingsRef}>
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="p-2 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                title="设置"
+              >
+                <Settings size={16} />
+              </button>
+              {showSettings && (
+                <div className="absolute right-0 mt-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded shadow-lg z-10 min-w-max">
+                  <div className="px-4 py-3 space-y-3 text-xs text-zinc-700 dark:text-zinc-300">
+                    <div className="mb-2">
+                      <label className="block text-xs font-semibold mb-2">项目标题</label>
+                      <input
+                        type="text"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        placeholder="项目标题"
+                        className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-xs"
+                      />
+                    </div>
+                    <div className="border-t border-zinc-300 dark:border-zinc-600 pt-3">
+                      <label className="flex items-center gap-2 select-none cursor-pointer mb-2">
+                        <input
+                          type="checkbox"
+                          checked={docSettings.tableCaptionNumbering}
+                          onChange={(e) => setDocSettings((s) => ({ ...s, tableCaptionNumbering: e.target.checked }))}
+                        />
+                        表格排序
+                      </label>
+                      <label className="flex items-center gap-2 select-none cursor-pointer mb-2">
+                        <input
+                          type="checkbox"
+                          checked={docSettings.imageCaptionNumbering}
+                          onChange={(e) => setDocSettings((s) => ({ ...s, imageCaptionNumbering: e.target.checked }))}
+                        />
+                        图片排序
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <label className="select-none cursor-pointer">图片标题位置</label>
+                        <select
+                          value={docSettings.imageCaptionPosition}
+                          onChange={(e) =>
+                            setDocSettings((s) => ({
+                              ...s,
+                              imageCaptionPosition: e.target.value === 'above' ? 'above' : 'below',
+                            }))
+                          }
+                          className="text-xs px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-900"
+                        >
+                          <option value="above">上方</option>
+                          <option value="below">下方</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
