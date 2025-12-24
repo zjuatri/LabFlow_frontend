@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Save, Undo2, Redo2, Settings } from 'lucide-react';
+import { Save, Undo2, Redo2, Settings, ArrowLeft } from 'lucide-react';
 
 import BlockEditor from '@/components/BlockEditor';
 import {
@@ -368,6 +368,13 @@ export default function ProjectEditorPage() {
       <div className="flex flex-col w-1/2 border-r border-zinc-300 dark:border-zinc-700">
         <div className="flex items-center justify-between px-4 py-3 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 gap-3">
           <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => router.push('/')}
+              className="p-2 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors shrink-0"
+              title="返回主页"
+            >
+              <ArrowLeft size={16} />
+            </button>
             <div className="flex bg-white dark:bg-zinc-900 rounded-lg border border-zinc-300 dark:border-zinc-600 overflow-hidden shrink-0">
               <button
                 onClick={() => handleModeSwitch('visual')}
