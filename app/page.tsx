@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { Sparkles, ArrowRight } from 'lucide-react';
 import FileUploadWithDescription from '@/components/FileUploadWithDescription';
 import { clearToken, getToken } from '@/lib/auth';
+import { chatWithDeepSeekStream } from '@/lib/api';
 
 interface UploadedFile {
   id: string;
@@ -23,6 +24,15 @@ export default function CreateProjectPage() {
   const [detailsText, setDetailsText] = useState('');
   const [detailsFiles, setDetailsFiles] = useState<UploadedFile[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [aiResponse, setAiResponse] = useState('');
+  const [aiThought, setAiThought] = useState('');
+  const [aiUsage, setAiUsage] = useState<{ prompt_tokens?: number | null; completion_tokens?: number | null; total_tokens?: number | null } | null>(null);
+  const [aiActualModel, setAiActualModel] = useState<string>('');
+  const [error, setError] = useState('');
+  const [selectedModel, setSelectedModel] = useState<'deepseek-v3' | 'deepseek-r1-671b'>('deepseek-v3');
+  const [thinkingEnabled, setThinkingEnabled] = useState(false);
+  const [showThought, setShowThought] = useState(false);
+  const [showThoughtTouched, setShowThoughtTouched] = useState(false);
 
   useEffect(() => {
     if (!getToken()) {
@@ -30,20 +40,90 @@ export default function CreateProjectPage() {
     }
   }, [router]);
 
+  useEffect(() => {
+    // Default behavior: expand thought for R1, collapse for V3.
+    // If the user already toggled manually, respect that choice.
+    if (showThoughtTouched) return;
+    setShowThought(selectedModel === 'deepseek-r1-671b');
+  }, [selectedModel, showThoughtTouched]);
+
+  useEffect(() => {
+    // Default behavior: enable thinking for R1, disable for V3.
+    setThinkingEnabled(selectedModel === 'deepseek-r1-671b');
+  }, [selectedModel]);
+
   const handleGenerate = async () => {
     if (!outlineText.trim() && !detailsText.trim() && outlineFiles.length === 0 && detailsFiles.length === 0) {
       return;
     }
 
     setIsGenerating(true);
+    setError('');
+    setAiResponse('');
+    setAiThought('');
+    setAiUsage(null);
+    setAiActualModel('');
 
-    // TODO: 接入AI后端
-    // 这里暂时模拟生成过程
-    setTimeout(() => {
+    try {
+      // 构建发送给 AI 的消息
+      let message = '请帮我生成一份实验报告的大纲和内容建议。\n\n';
+      
+      if (outlineText.trim()) {
+        message += `文档大纲：\n${outlineText}\n\n`;
+      }
+      
+      if (detailsText.trim()) {
+        message += `细节信息：\n${detailsText}\n\n`;
+      }
+      
+      if (outlineFiles.length > 0) {
+        message += `大纲相关文件（${outlineFiles.length}个）：\n`;
+        outlineFiles.forEach(file => {
+          message += `- ${file.name}`;
+          if (file.description) {
+            message += `: ${file.description}`;
+          }
+          message += '\n';
+        });
+        message += '\n';
+      }
+      
+      if (detailsFiles.length > 0) {
+        message += `细节相关文件（${detailsFiles.length}个）：\n`;
+        detailsFiles.forEach(file => {
+          message += `- ${file.name}`;
+          if (file.description) {
+            message += `: ${file.description}`;
+          }
+          message += '\n';
+        });
+      }
+
+      // 流式调用 DeepSeek API：实时展示思考过程/正文
+      await chatWithDeepSeekStream(message, selectedModel, thinkingEnabled, (evt) => {
+        if (evt.type === 'meta') {
+          setAiActualModel(evt.model);
+          return;
+        }
+        if (evt.type === 'thought') {
+          setAiThought((prev) => prev + evt.delta);
+          return;
+        }
+        if (evt.type === 'content') {
+          setAiResponse((prev) => prev + evt.delta);
+          return;
+        }
+        if (evt.type === 'usage') {
+          setAiUsage(evt.usage ?? null);
+          return;
+        }
+      });
+      
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '生成失败，请重试');
+    } finally {
       setIsGenerating(false);
-      // 生成完成后可以跳转到项目页面
-      // router.push(`/projects/${generatedProjectId}`);
-    }, 2000);
+    }
   };
 
   const handleOutlineFilesChange = (newFiles: UploadedFile[]) => {
@@ -108,6 +188,55 @@ export default function CreateProjectPage() {
 
         <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm">
           <div className="p-6 space-y-6">
+            {/* Model Selection */}
+            <div>
+              <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+                AI 模型选择
+              </label>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setSelectedModel('deepseek-v3')}
+                  className={`flex-1 px-4 py-3 rounded-lg border transition-all ${
+                    selectedModel === 'deepseek-v3'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300'
+                      : 'border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:border-zinc-400 dark:hover:border-zinc-600'
+                  }`}
+                >
+                  <div className="font-medium">DeepSeek V3</div>
+                  <div className="text-xs mt-1 opacity-75">快速响应，适合日常使用</div>
+                </button>
+                <button
+                  onClick={() => setSelectedModel('deepseek-r1-671b')}
+                  className={`flex-1 px-4 py-3 rounded-lg border transition-all ${
+                    selectedModel === 'deepseek-r1-671b'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300'
+                      : 'border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:border-zinc-400 dark:hover:border-zinc-600'
+                  }`}
+                >
+                  <div className="font-medium">DeepSeek R1 (671B)</div>
+                  <div className="text-xs mt-1 opacity-75">推理能力强，适合复杂任务</div>
+                </button>
+              </div>
+
+              <div className="mt-3 flex items-center justify-between gap-3 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
+                <div>
+                  <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">思考模式</div>
+                  <div className="text-xs text-zinc-600 dark:text-zinc-400">开启后会输出思考内容（reasoning_content / &lt;think&gt;）</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setThinkingEnabled((v) => !v)}
+                  className={`px-3 py-1.5 rounded border text-sm transition-colors ${
+                    thinkingEnabled
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300'
+                      : 'border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  {thinkingEnabled ? '已开启' : '已关闭'}
+                </button>
+              </div>
+            </div>
+
             {/* Outline Section */}
             <div>
               <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
@@ -178,6 +307,72 @@ export default function CreateProjectPage() {
             </button>
           </div>
         </div>
+
+        {/* AI Response Section */}
+        {(isGenerating || aiResponse || aiThought || aiUsage || error) && (
+          <div className="mt-6 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                AI 生成结果
+                <span className="text-xs font-normal text-zinc-500 dark:text-zinc-500">
+                  （选择：{selectedModel}{aiActualModel ? ` | 实际：${aiActualModel}` : ''}）
+                </span>
+              </h3>
+              {error && (
+                <div className="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300">
+                  {error}
+                </div>
+              )}
+
+              <div className="space-y-3">
+                {aiUsage && (
+                  <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                    <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">用量 (tokens)</div>
+                    <div className="text-xs text-zinc-700 dark:text-zinc-300">
+                      prompt: {aiUsage.prompt_tokens ?? '-'} | completion: {aiUsage.completion_tokens ?? '-'} | total: {aiUsage.total_tokens ?? '-'}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">思考过程</div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowThoughtTouched(true);
+                          setShowThought((v) => !v);
+                        }}
+                        className="text-xs px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                      >
+                        {showThought ? '折叠' : '展开'}
+                      </button>
+                    </div>
+                    {showThought && (
+                      <div className="text-xs text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap max-h-60 overflow-auto">
+                        {aiThought || (isGenerating ? '思考中…' : '（无）')}
+                      </div>
+                    )}
+                    {!showThought && aiThought && (
+                      <div className="text-xs text-zinc-500 dark:text-zinc-500">
+                        （已折叠，仍在实时生成）
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                    <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">正文</div>
+                    <div className="text-sm text-zinc-900 dark:text-zinc-100 whitespace-pre-wrap max-h-60 overflow-auto">
+                      {aiResponse || (isGenerating ? '生成中…' : '（无）')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Tips Section */}
         <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">

@@ -4,6 +4,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import ReactCrop, { type Crop, type PixelCrop } from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
 
 export type CropResult = {
   cropPixels: { x: number; y: number; width: number; height: number };
@@ -27,7 +28,7 @@ export default function ImageCropper(props: {
 }) {
   const { imageUrl, onChange } = props;
 
-  const [crop, setCrop] = useState<Crop>();
+  const [crop, setCrop] = useState<Crop>(makeInitialCrop());
   const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const [displaySize, setDisplaySize] = useState<{ width: number; height: number } | null>(null);
@@ -71,10 +72,21 @@ export default function ImageCropper(props: {
           className="max-h-[55vh] w-auto max-w-full object-contain"
           onLoad={(e) => {
             const img = e.currentTarget;
-            setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
-            // Rendered size (after CSS) is used to scale pixel crops back to natural pixels.
-            setDisplaySize({ width: img.width, height: img.height });
-            setCrop((prev) => prev ?? makeInitialCrop());
+            const naturalW = img.naturalWidth;
+            const naturalH = img.naturalHeight;
+            const displayW = img.width;
+            const displayH = img.height;
+            setImageSize({ width: naturalW, height: naturalH });
+            setDisplaySize({ width: displayW, height: displayH });
+            // Initialize completedCrop to cover the entire displayed image
+            // so that the "confirm" button is enabled immediately
+            setCompletedCrop({
+              unit: 'px',
+              x: 0,
+              y: 0,
+              width: displayW,
+              height: displayH,
+            });
           }}
         />
       </ReactCrop>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Save, Undo2, Redo2, Settings, ArrowLeft } from 'lucide-react';
+import { Save, Undo2, Redo2, Settings, ArrowLeft, Download } from 'lucide-react';
 
 import BlockEditor from '@/components/BlockEditor';
 import {
@@ -182,6 +182,40 @@ export default function ProjectEditorPage() {
       setIsRendering(false);
     }
   }, []);
+
+  const downloadPdf = useCallback(async () => {
+    const typstCode = buildRenderCodeForPreview();
+    if (!typstCode.trim()) return;
+
+    try {
+      const token = getToken();
+      const response = await fetch(`${BASE_URL}/api/render-typst/pdf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ code: typstCode }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData?.detail || 'PDF 生成失败');
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${title || 'typst'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    }
+  }, [BASE_URL, buildRenderCodeForPreview, title]);
 
   // code -> blocks
   useEffect(() => {
@@ -512,8 +546,15 @@ export default function ProjectEditorPage() {
       </div>
 
       <div className="flex flex-col w-1/2">
-        <div className="px-4 py-3 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700">
+        <div className="px-4 py-3 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">Preview</h2>
+          <button
+            onClick={downloadPdf}
+            className="p-2 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            title="下载 PDF"
+          >
+            <Download size={16} />
+          </button>
         </div>
         <div className="flex-1 overflow-auto bg-zinc-200 dark:bg-zinc-900 p-4 relative" ref={previewRef}>
           {error ? (
