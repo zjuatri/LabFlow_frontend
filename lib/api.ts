@@ -32,8 +32,18 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new Error(detail);
   }
 
+  // 204 No Content (or empty body) should not be parsed as JSON.
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
+  const text = await res.text();
+  if (!text) {
+    return undefined as T;
+  }
+
   // For binary endpoints callers should not use this helper.
-  return (await res.json()) as T;
+  return JSON.parse(text) as T;
 }
 
 // 带超时的请求函数，用于可能耗时较长的 AI 请求
@@ -105,6 +115,12 @@ export async function updateProject(id: string, updates: { title?: string; typst
   return request<Project>(`/api/projects/${id}`, {
     method: 'PUT',
     body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  await request<unknown>(`/api/projects/${id}`, {
+    method: 'DELETE',
   });
 }
 

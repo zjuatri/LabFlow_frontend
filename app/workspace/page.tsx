@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { X, Plus, Home } from 'lucide-react';
+import { X, Plus, Home, Trash2 } from 'lucide-react';
 
 import { clearToken, getToken } from '@/lib/auth';
-import { createProject, listProjects, Project } from '@/lib/api';
+import { createProject, deleteProject, listProjects, Project } from '@/lib/api';
 
 export default function WorkspacePage() {
   const router = useRouter();
@@ -15,6 +15,8 @@ export default function WorkspacePage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [deleting, setDeleting] = useState<Project | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -66,6 +68,18 @@ export default function WorkspacePage() {
   const onLogout = () => {
     clearToken();
     router.push('/login');
+  };
+
+  const onConfirmDelete = async () => {
+    if (!deleting) return;
+    setDeleteError(null);
+    try {
+      await deleteProject(deleting.id);
+      setDeleting(null);
+      await load();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : '删除失败');
+    }
   };
 
   const goToHome = () => {
@@ -133,16 +147,36 @@ export default function WorkspacePage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {projects.map((p) => (
-                <button
+                <div
                   key={p.id}
-                  className="text-left p-4 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors"
-                  onClick={() => router.push(`/projects/${p.id}`)}
+                  className="p-4 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors"
                 >
-                  <div className="font-semibold text-zinc-900 dark:text-zinc-100">{p.title}</div>
-                  <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    {new Date(p.updated_at).toLocaleString()}
+                  <div className="flex items-start justify-between gap-3">
+                    <button
+                      className="text-left flex-1"
+                      onClick={() => router.push(`/projects/${p.id}`)}
+                    >
+                      <div className="font-semibold text-zinc-900 dark:text-zinc-100">{p.title}</div>
+                      <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        {new Date(p.updated_at).toLocaleString()}
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDeleteError(null);
+                        setDeleting(p);
+                      }}
+                      className="px-2 py-2 rounded border border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                      title="删除项目"
+                      aria-label="删除项目"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           )}
@@ -194,6 +228,45 @@ export default function WorkspacePage() {
                 className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 创建
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Project Modal */}
+      {deleting && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setDeleting(null)}>
+          <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+              <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">删除项目</h3>
+              <button
+                onClick={() => setDeleting(null)}
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="px-6 py-4">
+              <div className="text-zinc-800 dark:text-zinc-200">
+                确认删除项目：
+                <span className="font-semibold"> {deleting.title}</span>？
+              </div>
+              <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">该操作不可恢复（项目内容与已上传图片会一并删除）。</div>
+              {deleteError && <div className="mt-3 text-sm text-red-600 dark:text-red-400">{deleteError}</div>}
+            </div>
+            <div className="px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 flex justify-end gap-3">
+              <button
+                onClick={() => setDeleting(null)}
+                className="px-4 py-2 rounded border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={onConfirmDelete}
+                className="px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white transition-colors"
+              >
+                删除
               </button>
             </div>
           </div>
