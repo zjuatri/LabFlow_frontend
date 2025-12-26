@@ -44,7 +44,10 @@ export default function ImageCropModal({
         imageSize: cropResult.imageSize,
       });
 
-      await onCropComplete(data.url);
+      // Force refresh by adding timestamp
+      const baseUrl = data.url.split('?')[0];
+      const newUrl = `${baseUrl}?t=${Date.now()}`;
+      await onCropComplete(newUrl);
       onClose();
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Failed to crop image');

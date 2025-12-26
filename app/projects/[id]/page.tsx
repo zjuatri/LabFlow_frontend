@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Save, Undo2, Redo2 } from 'lucide-react';
+import { Save, Undo2, Redo2, Settings, ArrowLeft, Download } from 'lucide-react';
 
 import BlockEditor from '@/components/BlockEditor';
 import {
@@ -26,6 +26,16 @@ const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
 
 type EditorMode = 'source' | 'visual';
 
+function extractAiDebug(typst_code: string): { debugText: string | null; rest: string } {
+  const start = typst_code.indexOf('/* LF_AI_DEBUG v1');
+  if (start < 0) return { debugText: null, rest: typst_code };
+  const end = typst_code.indexOf('*/', start);
+  if (end < 0) return { debugText: typst_code.slice(start), rest: '' };
+  const debugText = typst_code.slice(start, end + 2);
+  const rest = (typst_code.slice(0, start) + typst_code.slice(end + 2)).trimStart();
+  return { debugText, rest };
+}
+
 export default function ProjectEditorPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
@@ -39,6 +49,9 @@ export default function ProjectEditorPage() {
 
   const [docSettings, setDocSettings] = useState<DocumentSettings>({ ...defaultDocumentSettings });
 
+  const [aiDebug, setAiDebug] = useState<string | null>(null);
+  const [showAiDebug, setShowAiDebug] = useState(false);
+
   const [svgPages, setSvgPages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
@@ -49,6 +62,8 @@ export default function ProjectEditorPage() {
   const [history, setHistory] = useState<Array<{ blocks: TypstBlock[]; settings: DocumentSettings }>>([]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
 
   const isRestoringRef = useRef(false);
 
@@ -123,7 +138,12 @@ export default function ProjectEditorPage() {
     (async () => {
       try {
         const p = await getProject(projectId);
-        const raw = (p.typst_code ?? '').trim() ? (p.typst_code ?? '') : DEFAULT_TYPST_CODE;
+        const rawCode = (p.typst_code ?? '').trim() ? (p.typst_code ?? '') : DEFAULT_TYPST_CODE;
+
+        const { debugText, rest } = extractAiDebug(rawCode);
+        setAiDebug(debugText);
+
+        const raw = rest;
         const { code: initialCode, settings } = stripDocumentSettings(raw);
         setTitle(p.title);
         setCode(initialCode);
@@ -180,6 +200,40 @@ export default function ProjectEditorPage() {
       setIsRendering(false);
     }
   }, []);
+
+  const downloadPdf = useCallback(async () => {
+    const typstCode = buildRenderCodeForPreview();
+    if (!typstCode.trim()) return;
+
+    try {
+      const token = getToken();
+      const response = await fetch(`${BASE_URL}/api/render-typst/pdf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ code: typstCode }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData?.detail || 'PDF 生成失败');
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${title || 'typst'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    }
+  }, [BASE_URL, buildRenderCodeForPreview, title]);
 
   // code -> blocks
   useEffect(() => {
@@ -323,6 +377,17 @@ export default function ProjectEditorPage() {
     });
   }, [canRedo, history, historyIndex]);
 
+  // Close settings dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setShowSettings(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Ctrl+S / Cmd+S -> save, Ctrl+Z -> undo
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -355,12 +420,13 @@ export default function ProjectEditorPage() {
       <div className="flex flex-col w-1/2 border-r border-zinc-300 dark:border-zinc-700">
         <div className="flex items-center justify-between px-4 py-3 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <input
-              className="px-2 py-1 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 w-64 max-w-full"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="项目标题"
-            />
+            <button
+              onClick={() => router.push('/')}
+              className="p-2 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors shrink-0"
+              title="返回主页"
+            >
+              <ArrowLeft size={16} />
+            </button>
             <div className="flex bg-white dark:bg-zinc-900 rounded-lg border border-zinc-300 dark:border-zinc-600 overflow-hidden shrink-0">
               <button
                 onClick={() => handleModeSwitch('visual')}
@@ -382,41 +448,6 @@ export default function ProjectEditorPage() {
               >
                 源代码
               </button>
-            </div>
-
-            <div className="flex items-center gap-3 text-xs text-zinc-700 dark:text-zinc-300">
-              <label className="flex items-center gap-1 select-none">
-                <input
-                  type="checkbox"
-                  checked={docSettings.tableCaptionNumbering}
-                  onChange={(e) => setDocSettings((s) => ({ ...s, tableCaptionNumbering: e.target.checked }))}
-                />
-                表格排序
-              </label>
-              <label className="flex items-center gap-1 select-none">
-                <input
-                  type="checkbox"
-                  checked={docSettings.imageCaptionNumbering}
-                  onChange={(e) => setDocSettings((s) => ({ ...s, imageCaptionNumbering: e.target.checked }))}
-                />
-                图片排序
-              </label>
-              <label className="flex items-center gap-1 select-none">
-                图片标题位置
-                <select
-                  value={docSettings.imageCaptionPosition}
-                  onChange={(e) =>
-                    setDocSettings((s) => ({
-                      ...s,
-                      imageCaptionPosition: e.target.value === 'above' ? 'above' : 'below',
-                    }))
-                  }
-                  className="text-xs px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-900"
-                >
-                  <option value="above">上方</option>
-                  <option value="below">下方</option>
-                </select>
-              </label>
             </div>
           </div>
 
@@ -444,15 +475,65 @@ export default function ProjectEditorPage() {
             >
               <Save size={16} />
             </button>
-            {saveStatus === 'saving' && (
-              <span className="text-sm text-zinc-500 dark:text-zinc-400">保存中...</span>
-            )}
-            {saveStatus === 'saved' && (
-              <span className="text-sm text-green-600 dark:text-green-400">已保存</span>
-            )}
-            {isRendering && (
-              <span className="text-sm text-zinc-500 dark:text-zinc-400">Rendering...</span>
-            )}
+            <div className="relative" ref={settingsRef}>
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="p-2 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                title="设置"
+              >
+                <Settings size={16} />
+              </button>
+              {showSettings && (
+                <div className="absolute right-0 mt-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded shadow-lg z-10 min-w-max">
+                  <div className="px-4 py-3 space-y-3 text-xs text-zinc-700 dark:text-zinc-300">
+                    <div className="mb-2">
+                      <label className="block text-xs font-semibold mb-2">项目标题</label>
+                      <input
+                        type="text"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        placeholder="项目标题"
+                        className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-xs"
+                      />
+                    </div>
+                    <div className="border-t border-zinc-300 dark:border-zinc-600 pt-3">
+                      <label className="flex items-center gap-2 select-none cursor-pointer mb-2">
+                        <input
+                          type="checkbox"
+                          checked={docSettings.tableCaptionNumbering}
+                          onChange={(e) => setDocSettings((s) => ({ ...s, tableCaptionNumbering: e.target.checked }))}
+                        />
+                        表格排序
+                      </label>
+                      <label className="flex items-center gap-2 select-none cursor-pointer mb-2">
+                        <input
+                          type="checkbox"
+                          checked={docSettings.imageCaptionNumbering}
+                          onChange={(e) => setDocSettings((s) => ({ ...s, imageCaptionNumbering: e.target.checked }))}
+                        />
+                        图片排序
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <label className="select-none cursor-pointer">图片标题位置</label>
+                        <select
+                          value={docSettings.imageCaptionPosition}
+                          onChange={(e) =>
+                            setDocSettings((s) => ({
+                              ...s,
+                              imageCaptionPosition: e.target.value === 'above' ? 'above' : 'below',
+                            }))
+                          }
+                          className="text-xs px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-900"
+                        >
+                          <option value="above">上方</option>
+                          <option value="below">下方</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -482,9 +563,35 @@ export default function ProjectEditorPage() {
         )}
       </div>
 
+      {aiDebug ? (
+        <div className="absolute left-3 bottom-3 z-20 max-w-[48%]">
+          <div className="bg-white/95 dark:bg-zinc-950/95 border border-zinc-300 dark:border-zinc-700 rounded shadow-sm">
+            <button
+              onClick={() => setShowAiDebug((v) => !v)}
+              className="w-full px-3 py-2 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              title="显示/隐藏 AI 原始输出（调试）"
+            >
+              {showAiDebug ? '隐藏 AI 调试信息' : '显示 AI 调试信息'}
+            </button>
+            {showAiDebug && (
+              <pre className="max-h-[40vh] overflow-auto px-3 pb-3 text-[11px] text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">
+                {aiDebug}
+              </pre>
+            )}
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex flex-col w-1/2">
-        <div className="px-4 py-3 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700">
+        <div className="px-4 py-3 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">Preview</h2>
+          <button
+            onClick={downloadPdf}
+            className="p-2 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            title="下载 PDF"
+          >
+            <Download size={16} />
+          </button>
         </div>
         <div className="flex-1 overflow-auto bg-zinc-200 dark:bg-zinc-900 p-4 relative" ref={previewRef}>
           {error ? (

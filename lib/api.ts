@@ -1,4 +1,5 @@
 import { getToken } from './auth';
+import { streamChat, type AiStreamEvent } from './stream';
 
 // In production/Docker we typically proxy /api/* through the same origin.
 // For local dev, set NEXT_PUBLIC_BACKEND_URL=http://localhost:8000.
@@ -31,8 +32,43 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new Error(detail);
   }
 
+  // 204 No Content (or empty body) should not be parsed as JSON.
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
+  const text = await res.text();
+  if (!text) {
+    return undefined as T;
+  }
+
   // For binary endpoints callers should not use this helper.
-  return (await res.json()) as T;
+  return JSON.parse(text) as T;
+}
+
+// 带超时的请求函数，用于可能耗时较长的 AI 请求
+async function requestWithTimeout<T>(
+  path: string,
+  init: RequestInit = {},
+  timeoutMs: number = 120000 // 默认 120 秒
+): Promise<T> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const result = await request<T>(path, {
+      ...init,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return result;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('请求超时，请稍后重试');
+    }
+    throw error;
+  }
 }
 
 export type TokenResponse = { access_token: string; token_type: 'bearer' };
@@ -43,6 +79,8 @@ export type Project = {
   created_at: string;
   updated_at: string;
 };
+
+export type PromptResponse = { ai_prompt: string; updated_at?: string | null };
 
 export async function register(email: string, password: string): Promise<TokenResponse> {
   return request<TokenResponse>('/api/auth/register', {
@@ -77,5 +115,69 @@ export async function updateProject(id: string, updates: { title?: string; typst
   return request<Project>(`/api/projects/${id}`, {
     method: 'PUT',
     body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  await request<unknown>(`/api/projects/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export type DeepSeekChatResponse = {
+  response: string;
+  model: string;
+  thought?: string | null;
+  usage?: {
+    prompt_tokens?: number | null;
+    completion_tokens?: number | null;
+    total_tokens?: number | null;
+  } | null;
+};
+
+export async function chatWithDeepSeek(
+  message: string,
+  model: string = 'deepseek-v3',
+  thinking: boolean = false
+): Promise<DeepSeekChatResponse> {
+  // 使用带超时的请求，AI 请求可能需要较长时间
+  // 这里走 Next Route Handler（app/api/ai/chat/route.ts），避免 rewrites 代理导致的 ECONNRESET
+  return requestWithTimeout<DeepSeekChatResponse>('/api/ai/chat', {
+    method: 'POST',
+    body: JSON.stringify({ message, model, thinking }),
+  }, 120000); // 120 秒超时
+}
+
+export async function chatWithDeepSeekStream(
+  message: string,
+  model: string,
+  thinking: boolean,
+  onEvent: (evt: AiStreamEvent) => void
+): Promise<void> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  await streamChat(
+    '/api/ai/chat',
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ message, model, thinking, stream: true }),
+    },
+    onEvent
+  );
+}
+
+export async function getManagePrompt(): Promise<PromptResponse> {
+  return request<PromptResponse>('/api/manage/prompt');
+}
+
+export async function updateManagePrompt(ai_prompt: string): Promise<PromptResponse> {
+  return request<PromptResponse>('/api/manage/prompt', {
+    method: 'PUT',
+    body: JSON.stringify({ ai_prompt }),
   });
 }

@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "react-image-crop/dist/ReactCrop.css";
 
 :root {
   --background: #ffffff;
