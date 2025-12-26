@@ -139,8 +139,8 @@ export default function ImageBlockEditor({ block, onUpdate, onUploadImage }: Ima
         <div>
           <label className="text-xs text-zinc-600 dark:text-zinc-400 block mb-2">
             宽度: {(() => {
-              const w = block.width || '100%';
-              return parseFloat(w) || 100;
+              const w = block.width || '50%';
+              return parseFloat(w) || 50;
             })()}%
           </label>
           <input
@@ -148,13 +148,14 @@ export default function ImageBlockEditor({ block, onUpdate, onUploadImage }: Ima
             min="0"
             max="100"
             value={(() => {
-              const w = block.width || '100%';
-              return parseFloat(w) || 100;
+              const w = block.width || '50%';
+              return parseFloat(w) || 50;
             })()}
             onChange={(e) => {
               const val = e.target.value;
               onUpdate({ width: `${val}%` });
             }}
+            onMouseDown={(e) => e.stopPropagation()}
             className="w-full h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
           />
         </div>

@@ -162,7 +162,7 @@ export function typstToBlocks(code: string): TypstBlock[] {
           id: generateId(),
           type: 'image',
           content: match[1],
-          width: '100%',
+          width: '50%',
           height: 'auto',
         });
         continue;
@@ -180,7 +180,11 @@ export function typstToBlocks(code: string): TypstBlock[] {
 
     // 检测多行表格表达式的开始
     if (
-      (trimmed.startsWith('#align(center, table(') || trimmed.startsWith('#table(')) &&
+      (trimmed.startsWith('#align(center)[#block(width:') ||
+       trimmed.startsWith('#align(center, block(width:') ||
+       trimmed.startsWith('#align(center)[#table(') ||
+       trimmed.startsWith('#align(center, table(') ||
+       trimmed.startsWith('#table(')) &&
       !trimmed.includes(LF_TABLE_MARKER)
     ) {
       skippingTableUntilMarker = true;
@@ -375,6 +379,9 @@ function parseChartBlock(trimmed: string, markerB64: string): TypstBlock | null 
     const match = trimmed.match(/#align\(\s*(left|center|right)\s*,\s*image\("([^"]+)"/);
     const align = (match?.[1] as 'left' | 'center' | 'right' | undefined) ?? 'center';
     const imageUrl = match?.[2] ?? '';
+
+    const widthMatch = trimmed.match(/\bwidth\s*:\s*([^,\)\]]+)/);
+    const widthFromCode = widthMatch?.[1]?.trim();
     
     const merged = {
       ...(payload && typeof payload === 'object' ? payload : {}),
@@ -386,6 +393,7 @@ function parseChartBlock(trimmed: string, markerB64: string): TypstBlock | null 
       type: 'chart',
       content: JSON.stringify(merged),
       align,
+      width: widthFromCode || '50%',
     };
   } catch {
     return null;
@@ -404,7 +412,7 @@ function parseImageBlock(trimmed: string): TypstBlock | null {
           type: 'image',
           content: match[2],
           align: (match[1] as 'left' | 'center' | 'right') ?? 'center',
-          width: (payload.width ?? match[3]?.trim() ?? '100%'),
+          width: (payload.width ?? match[3]?.trim() ?? '50%'),
           height: 'auto',
           caption: (payload.caption ?? '').toString(),
         };
@@ -421,7 +429,7 @@ function parseImageBlock(trimmed: string): TypstBlock | null {
       type: 'image',
       content: match[2],
       align: (match[1] as 'left' | 'center' | 'right') ?? 'center',
-      width: match[3]?.trim() || '100%',
+      width: match[3]?.trim() || '50%',
       height: 'auto',
     };
   }
@@ -433,6 +441,10 @@ function parseTableFromMarker(trimmed: string): TypstBlock | null {
   const m = trimmed.match(/\/\*LF_TABLE:([A-Za-z0-9+/=]+)\*\//);
   if (!m) return null;
 
+  // Match both old format block(width: ...) and new format #block(width: ...)
+  const widthMatch = trimmed.match(/#?block\(\s*width\s*:\s*([^\)\]]+)/);
+  const widthFromCode = widthMatch?.[1]?.trim();
+
   try {
     const payload = JSON.parse(base64DecodeUtf8(m[1])) as PersistedTablePayload;
     if (payload && Array.isArray(payload.cells)) {
@@ -440,6 +452,7 @@ function parseTableFromMarker(trimmed: string): TypstBlock | null {
         id: generateId(),
         type: 'table',
         content: JSON.stringify(payload),
+        width: widthFromCode || '50%',
       };
     }
   } catch {

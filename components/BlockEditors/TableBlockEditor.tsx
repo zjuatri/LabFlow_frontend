@@ -573,6 +573,31 @@ export default function TableBlockEditor({ block, onUpdate, onTableSelectionSnap
       <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
         说明：先选中单元格。默认可用 Shift+点击框选矩形区域后点&quot;合并&quot;。也可开启&quot;选区模式&quot;：点击一次设起点，再点击一次设终点完成框选；再次点击将重新开始框选。三线表为无竖线样式。
       </div>
+
+      {/* 宽度滑块（放在最下方） */}
+      <div>
+        <label className="text-xs text-zinc-600 dark:text-zinc-400 block mb-2">
+          宽度: {(() => {
+            const w = block.width || '50%';
+            return parseFloat(w) || 50;
+          })()}%
+        </label>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          value={(() => {
+            const w = block.width || '50%';
+            return parseFloat(w) || 50;
+          })()}
+          onChange={(e) => {
+            const val = e.target.value;
+            onUpdate({ width: `${val}%` });
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="w-full h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+        />
+      </div>
     </div>
   );
 }

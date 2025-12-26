@@ -1,4 +1,4 @@
-import { TypstBlock, DocumentSettings, defaultDocumentSettings, PersistedMathPayload, PersistedTablePayload, PersistedTableCell } from './types';
+import { TypstBlock, DocumentSettings, defaultDocumentSettings, PersistedMathPayload, PersistedTableCell } from './types';
 import {
   LF_MATH_MARKER, LF_TABLE_MARKER, LF_IMAGE_MARKER, LF_CHART_MARKER,
   base64EncodeUtf8,
@@ -114,7 +114,7 @@ function serializeMath(block: TypstBlock): string {
 }
 
 function serializeImage(block: TypstBlock, imageIndex: number, settings: DocumentSettings): string {
-  const width = block.width || '100%';
+  const width = block.width || '50%';
   const height = 'auto';
   const align = block.align || 'center';
   const captionRaw = (block.caption ?? '').trim();
@@ -150,7 +150,7 @@ function serializeChart(block: TypstBlock): string {
     return `#align(${alignValue})[(未生成图表)]${encoded}`;
   }
 
-  const width = block.width || '100%';
+  const width = block.width || '50%';
   const imageLine = `#align(${alignValue}, image("${imageUrl}", width: ${width}, height: auto))${encoded}`;
   return imageLine;
 }
@@ -164,6 +164,10 @@ function serializeTable(block: TypstBlock, tableIndex: number, settings: Documen
   const rows = payload.rows;
   const cols = payload.cols;
   const style = payload.style ?? 'normal';
+  const width = block.width || '50%';
+
+  // Evenly distribute column widths within the table width.
+  const columns = `(${Array.from({ length: Math.max(1, cols) }, () => '1fr').join(', ')})`;
 
   const stroke = style === 'three-line'
     ? `stroke: (x: 0pt, y: 0pt), table.hline(y: 0, stroke: 1.6pt), table.hline(y: 1, stroke: 0.8pt), table.hline(y: ${rows}, stroke: 1.6pt)`
@@ -197,6 +201,8 @@ function serializeTable(block: TypstBlock, tableIndex: number, settings: Documen
   const label = settings.tableCaptionNumbering ? `表${tableIndex} ` : '';
   const captionText = (label + captionRaw).trim() ? (label + captionRaw) : '';
   const captionLine = captionText ? `#align(center)[${captionText}]\n` : '';
-  const tableLine = `#align(center, table(columns: ${cols}, ${stroke}, ${flatArgs.join(', ')}))${encoded}`;
+  // Use #table directly inside #align, with width on individual columns or wrap table in a box.
+  // Correct Typst syntax: #align(center)[#block(width: ...)[#table(...)]]
+  const tableLine = `#align(center)[#block(width: ${width})[#table(columns: ${columns}, ${stroke}, ${flatArgs.join(', ')})]]${encoded}`;
   return `${captionLine}${tableLine}`;
 }

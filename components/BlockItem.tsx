@@ -25,7 +25,7 @@ interface BlockItemProps {
   onDelete: () => void;
   onAddAfter: () => void;
   onMove: (direction: 'up' | 'down') => void;
-  onUploadImage: (file: File) => void;
+  onUploadImage: (file: File) => Promise<void>;
   onTableSelectionSnapshot: (snap: { blockId: string; r1: number; c1: number; r2: number; c2: number } | null) => void;
   lastTableSelection: { blockId: string; r1: number; c1: number; r2: number; c2: number } | null;
   onRenderChart: (payload: ChartRenderRequest) => Promise<string>;
@@ -59,6 +59,23 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
               onUpdate({
                 type: nextType,
                 content: JSON.stringify(defaultTablePayload(2, 2)),
+                width: block.width ?? '50%',
+              });
+              return;
+            }
+            if (nextType === 'image' && block.type !== 'image') {
+              onUpdate({
+                type: nextType,
+                width: block.width ?? '50%',
+                align: block.align ?? 'center',
+              });
+              return;
+            }
+            if (nextType === 'chart' && block.type !== 'chart') {
+              onUpdate({
+                type: nextType,
+                width: block.width ?? '50%',
+                align: block.align ?? 'center',
               });
               return;
             }
