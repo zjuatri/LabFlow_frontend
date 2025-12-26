@@ -70,6 +70,8 @@ export type Project = {
   updated_at: string;
 };
 
+export type PromptResponse = { ai_prompt: string; updated_at?: string | null };
+
 export async function register(email: string, password: string): Promise<TokenResponse> {
   return request<TokenResponse>('/api/auth/register', {
     method: 'POST',
@@ -151,4 +153,15 @@ export async function chatWithDeepSeekStream(
     },
     onEvent
   );
+}
+
+export async function getManagePrompt(): Promise<PromptResponse> {
+  return request<PromptResponse>('/api/manage/prompt');
+}
+
+export async function updateManagePrompt(ai_prompt: string): Promise<PromptResponse> {
+  return request<PromptResponse>('/api/manage/prompt', {
+    method: 'PUT',
+    body: JSON.stringify({ ai_prompt }),
+  });
 }

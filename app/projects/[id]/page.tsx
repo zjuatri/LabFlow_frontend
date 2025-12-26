@@ -26,6 +26,16 @@ const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
 
 type EditorMode = 'source' | 'visual';
 
+function extractAiDebug(typst_code: string): { debugText: string | null; rest: string } {
+  const start = typst_code.indexOf('/* LF_AI_DEBUG v1');
+  if (start < 0) return { debugText: null, rest: typst_code };
+  const end = typst_code.indexOf('*/', start);
+  if (end < 0) return { debugText: typst_code.slice(start), rest: '' };
+  const debugText = typst_code.slice(start, end + 2);
+  const rest = (typst_code.slice(0, start) + typst_code.slice(end + 2)).trimStart();
+  return { debugText, rest };
+}
+
 export default function ProjectEditorPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
@@ -38,6 +48,9 @@ export default function ProjectEditorPage() {
   const [syncSource, setSyncSource] = useState<'code' | 'blocks'>('code');
 
   const [docSettings, setDocSettings] = useState<DocumentSettings>({ ...defaultDocumentSettings });
+
+  const [aiDebug, setAiDebug] = useState<string | null>(null);
+  const [showAiDebug, setShowAiDebug] = useState(false);
 
   const [svgPages, setSvgPages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -125,7 +138,12 @@ export default function ProjectEditorPage() {
     (async () => {
       try {
         const p = await getProject(projectId);
-        const raw = (p.typst_code ?? '').trim() ? (p.typst_code ?? '') : DEFAULT_TYPST_CODE;
+        const rawCode = (p.typst_code ?? '').trim() ? (p.typst_code ?? '') : DEFAULT_TYPST_CODE;
+
+        const { debugText, rest } = extractAiDebug(rawCode);
+        setAiDebug(debugText);
+
+        const raw = rest;
         const { code: initialCode, settings } = stripDocumentSettings(raw);
         setTitle(p.title);
         setCode(initialCode);
@@ -544,6 +562,25 @@ export default function ProjectEditorPage() {
           </div>
         )}
       </div>
+
+      {aiDebug ? (
+        <div className="absolute left-3 bottom-3 z-20 max-w-[48%]">
+          <div className="bg-white/95 dark:bg-zinc-950/95 border border-zinc-300 dark:border-zinc-700 rounded shadow-sm">
+            <button
+              onClick={() => setShowAiDebug((v) => !v)}
+              className="w-full px-3 py-2 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              title="显示/隐藏 AI 原始输出（调试）"
+            >
+              {showAiDebug ? '隐藏 AI 调试信息' : '显示 AI 调试信息'}
+            </button>
+            {showAiDebug && (
+              <pre className="max-h-[40vh] overflow-auto px-3 pb-3 text-[11px] text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">
+                {aiDebug}
+              </pre>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-col w-1/2">
         <div className="px-4 py-3 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 flex items-center justify-between gap-3">

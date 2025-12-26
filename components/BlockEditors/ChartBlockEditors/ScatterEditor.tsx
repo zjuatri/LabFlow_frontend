@@ -40,9 +40,16 @@ export default function ScatterEditor({
   setChartPickAnchor,
 }: ScatterEditorProps) {
   const series = (chart.scatterSeries ?? []) as ScatterSeries[];
-  const safeSeries: ScatterSeries[] = series.length > 0
-    ? series
-    : [{ name: '系列1', xSource: 'manual', ySource: 'manual', xRow: '', yRow: '', xTableSelection: undefined, yTableSelection: undefined }];
+  const defaultSeries: ScatterSeries = {
+    name: '系列1',
+    xSource: 'manual',
+    ySource: 'manual',
+    xRow: '',
+    yRow: '',
+    xTableSelection: undefined,
+    yTableSelection: undefined,
+  };
+  const safeSeries: ScatterSeries[] = series.length > 0 ? series : [defaultSeries];
 
   const upsertSeries = (idx: number, patch: Partial<ScatterSeries>) => {
     const next = safeSeries.slice();
@@ -56,9 +63,7 @@ export default function ScatterEditor({
   const removeSeries = (idx: number) => {
     const next = safeSeries.slice();
     next.splice(idx, 1);
-    const result = next.length > 0
-      ? next
-      : [{ name: '系列1', xSource: 'manual', ySource: 'manual', xRow: '', yRow: '', xTableSelection: undefined, yTableSelection: undefined }];
+    const result: ScatterSeries[] = next.length > 0 ? next : [defaultSeries];
     updateChart({ scatterSeries: result });
   };
 

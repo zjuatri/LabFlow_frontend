@@ -46,9 +46,8 @@ export default function HBarEditor({
 	setChartPickAnchor,
 }: HBarEditorProps) {
 	const series = (chart.barSeries ?? []) as BarSeries[];
-	const safeSeries: BarSeries[] = series.length > 0
-		? series
-		: [{ name: '系列1', source: 'manual', axisMode: 'cols', yRow: '', tableSelection: undefined }];
+	const defaultSeries: BarSeries = { name: '系列1', source: 'manual', axisMode: 'cols', yRow: '', tableSelection: undefined };
+	const safeSeries: BarSeries[] = series && series.length > 0 ? series : [defaultSeries];
 
 	const upsert = (idx: number, patch: Partial<BarSeries>) => {
 		const next = safeSeries.slice();
@@ -62,9 +61,7 @@ export default function HBarEditor({
 	const removeSeries = (idx: number) => {
 		const next = safeSeries.slice();
 		next.splice(idx, 1);
-		const result = next.length > 0
-			? next
-			: [{ name: '系列1', source: 'manual', axisMode: 'cols', yRow: '', tableSelection: undefined }];
+		const result: BarSeries[] = next.length > 0 ? next : [defaultSeries];
 		updateChart({ barSeries: result });
 	};
 

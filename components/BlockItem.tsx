@@ -25,7 +25,7 @@ interface BlockItemProps {
   onDelete: () => void;
   onAddAfter: () => void;
   onMove: (direction: 'up' | 'down') => void;
-  onUploadImage: (file: File) => void;
+  onUploadImage: (file: File) => Promise<void>;
   onTableSelectionSnapshot: (snap: { blockId: string; r1: number; c1: number; r2: number; c2: number } | null) => void;
   lastTableSelection: { blockId: string; r1: number; c1: number; r2: number; c2: number } | null;
   onRenderChart: (payload: ChartRenderRequest) => Promise<string>;

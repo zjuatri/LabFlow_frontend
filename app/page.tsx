@@ -6,7 +6,62 @@ import Image from 'next/image';
 import { Sparkles, ArrowRight } from 'lucide-react';
 import FileUploadWithDescription from '@/components/FileUploadWithDescription';
 import { clearToken, getToken } from '@/lib/auth';
-import { chatWithDeepSeekStream } from '@/lib/api';
+import { chatWithDeepSeekStream, createProject, getManagePrompt, updateProject } from '@/lib/api';
+import { blocksToTypst, injectDocumentSettings, type TypstBlock, type DocumentSettings } from '@/lib/typst';
+import { extractJsonFromModelText, normalizeAiBlocksResponse } from '@/lib/ai-blocks';
+
+function makeAiDebugHeader(payload: {
+  model: string;
+  thinkingEnabled: boolean;
+  rawText: string;
+  parsedJson: unknown;
+}): string {
+  const maxLen = 20000;
+  const rawText = payload.rawText.length > maxLen ? payload.rawText.slice(0, maxLen) + '\n...[truncated]' : payload.rawText;
+  const jsonText = JSON.stringify(payload.parsedJson, null, 2);
+  const jsonSafe = jsonText.length > maxLen ? jsonText.slice(0, maxLen) + '\n...[truncated]' : jsonText;
+  const lines = [
+    '/* LF_AI_DEBUG v1',
+    `model: ${payload.model}`,
+    `thinking: ${payload.thinkingEnabled ? 'on' : 'off'}`,
+    '--- RAW_TEXT ---',
+    rawText,
+    '--- PARSED_JSON ---',
+    jsonSafe,
+    '*/',
+    '',
+  ];
+  return lines.join('\n');
+}
+
+function buildUserInputJson(params: {
+  outlineText: string;
+  detailsText: string;
+  outlineFiles: UploadedFile[];
+  detailsFiles: UploadedFile[];
+  selectedModel: string;
+  thinkingEnabled: boolean;
+}): string {
+  const obj = {
+    user_input: {
+      outlineText: params.outlineText || '',
+      detailsText: params.detailsText || '',
+      outlineFiles: (params.outlineFiles ?? []).map((f) => ({ name: f.name, description: f.description ?? '' })),
+      detailsFiles: (params.detailsFiles ?? []).map((f) => ({ name: f.name, description: f.description ?? '' })),
+    },
+    meta: {
+      selectedModel: params.selectedModel,
+      thinkingEnabled: params.thinkingEnabled,
+    },
+  };
+  return JSON.stringify(obj, null, 2);
+}
+
+function applyPromptTemplate(template: string, vars: { USER_INPUT_JSON: string; PROJECT_ID: string }): string {
+  return template
+    .replaceAll('{{USER_INPUT_JSON}}', vars.USER_INPUT_JSON)
+    .replaceAll('{{PROJECT_ID}}', vars.PROJECT_ID);
+}
 
 interface UploadedFile {
   id: string;
@@ -65,39 +120,79 @@ export default function CreateProjectPage() {
     setAiActualModel('');
 
     try {
-      // 构建发送给 AI 的消息
-      let message = '请帮我生成一份实验报告的大纲和内容建议。\n\n';
-      
-      if (outlineText.trim()) {
-        message += `文档大纲：\n${outlineText}\n\n`;
+      // 先创建一个新项目（用于固化 project_id，并让图片路径可被替换）
+      const projectTitle = outlineText.trim().split(/\r?\n/)[0]?.trim() || 'AI 生成实验报告';
+      const created = await createProject(projectTitle.slice(0, 200));
+      const createdProjectId = created.id;
+
+      // Admin can override the full prompt TEMPLATE via /manage.
+      // Template supports placeholders:
+      // - {{USER_INPUT_JSON}}: structured user input payload
+      // - {{PROJECT_ID}}: created project id
+      let template: string | null = null;
+      try {
+        const data = await getManagePrompt();
+        template = (data.ai_prompt ?? '').trim() || null;
+      } catch {
+        // ignore (likely 403 for non-admin)
       }
+
+      const defaultTemplate =
+        '你是实验报告写作助手。你的输出会被程序解析为 JSON 并写入可视化编辑器。\n\n' +
+        '硬性要求：\n' +
+        '1) 只输出 JSON，不要输出解释、Markdown、代码围栏、注释。\n' +
+        '2) 输出必须是一个对象：{"settings": {...}, "blocks": [...]}\n' +
+        '3) blocks 中每个元素必须包含：id(string, 唯一), type, content，并可选 level/language/width/align/caption 等。\n' +
+        '4) 图片 block 的 content 必须使用 /static/projects/<project_id>/images/<filename>（不要 http 链接；不要带 ?t=）。\n' +
+        '5) 表格/图表优先使用 tablePayload/chartPayload（对象）避免转义错误。\n' +
+        '6) 不要编造用户未提供的数据；缺失部分用“待补充：...”占位。\n\n' +
+        '生成目标：产出结构完整、可编辑的实验报告 blocks。章节至少包含：摘要、原理、步骤、数据与处理、讨论、结论、参考文献。\n\n' +
+        '下面给出一个【格式示例】（只示范结构，不要照抄内容；你仍然必须输出一份完整 JSON）：\n' +
+        '{\n' +
+        '  "settings": {\n' +
+        '    "tableCaptionNumbering": true,\n' +
+        '    "imageCaptionNumbering": true,\n' +
+        '    "imageCaptionPosition": "below"\n' +
+        '  },\n' +
+        '  "blocks": [\n' +
+        '    { "id": "b1", "type": "heading", "level": 1, "content": "实验报告：..." },\n' +
+        '    { "id": "b2", "type": "paragraph", "content": "摘要：..." },\n' +
+        '    {\n' +
+        '      "id": "b3",\n' +
+        '      "type": "table",\n' +
+        '      "tablePayload": {\n' +
+        '        "caption": "原始数据",\n' +
+        '        "style": "three-line",\n' +
+        '        "rows": 2,\n' +
+        '        "cols": 2,\n' +
+        '        "cells": [[{"content":"x"},{"content":"y"}],[{"content":"1"},{"content":"2"}]]\n' +
+        '      }\n' +
+        '    }\n' +
+        '  ]\n' +
+        '}\n\n' +
+        '下面是用户提供的信息（JSON）：\n{{USER_INPUT_JSON}}\n\n' +
+        '【必须使用的 project_id】{{PROJECT_ID}}\n' +
+        '请将所有图片路径中的 <project_id> 替换为上述 project_id。\n';
+
+      const userInputJson = buildUserInputJson({
+        outlineText: outlineText.trim(),
+        detailsText: detailsText.trim(),
+        outlineFiles,
+        detailsFiles,
+        selectedModel,
+        thinkingEnabled,
+      });
+
+      const message = applyPromptTemplate(template ?? defaultTemplate, {
+        USER_INPUT_JSON: userInputJson,
+        PROJECT_ID: createdProjectId,
+      });
       
-      if (detailsText.trim()) {
-        message += `细节信息：\n${detailsText}\n\n`;
-      }
-      
-      if (outlineFiles.length > 0) {
-        message += `大纲相关文件（${outlineFiles.length}个）：\n`;
-        outlineFiles.forEach(file => {
-          message += `- ${file.name}`;
-          if (file.description) {
-            message += `: ${file.description}`;
-          }
-          message += '\n';
-        });
-        message += '\n';
-      }
-      
-      if (detailsFiles.length > 0) {
-        message += `细节相关文件（${detailsFiles.length}个）：\n`;
-        detailsFiles.forEach(file => {
-          message += `- ${file.name}`;
-          if (file.description) {
-            message += `: ${file.description}`;
-          }
-          message += '\n';
-        });
-      }
+      // 用户输入已通过 {{USER_INPUT_JSON}} 注入模板，无需再拼接文本块。
+
+      let aiText = '';
+      let parsedBlocks: TypstBlock[] | null = null;
+      let parsedSettings: DocumentSettings | null = null;
 
       // 流式调用 DeepSeek API：实时展示思考过程/正文
       await chatWithDeepSeekStream(message, selectedModel, thinkingEnabled, (evt) => {
@@ -111,6 +206,7 @@ export default function CreateProjectPage() {
         }
         if (evt.type === 'content') {
           setAiResponse((prev) => prev + evt.delta);
+          aiText += evt.delta;
           return;
         }
         if (evt.type === 'usage') {
@@ -118,6 +214,26 @@ export default function CreateProjectPage() {
           return;
         }
       });
+
+      // 解析并规范化 AI 输出 JSON -> TypstBlock[]
+      const raw = extractJsonFromModelText(aiText);
+      const normalized = normalizeAiBlocksResponse({ raw, projectId: createdProjectId });
+      parsedBlocks = normalized.blocks;
+      parsedSettings = normalized.settings;
+
+      // blocks -> typst -> 写入项目
+      const code = blocksToTypst(parsedBlocks, { settings: parsedSettings });
+      const debugHeader = makeAiDebugHeader({
+        model: aiActualModel || selectedModel,
+        thinkingEnabled,
+        rawText: aiText,
+        parsedJson: raw,
+      });
+      const saveCode = injectDocumentSettings(debugHeader + code, parsedSettings);
+      await updateProject(createdProjectId, { title: projectTitle.slice(0, 200), typst_code: saveCode });
+
+      // 跳转到编辑器
+      router.push(`/projects/${createdProjectId}`);
       
     } catch (err) {
       setError(err instanceof Error ? err.message : '生成失败，请重试');
