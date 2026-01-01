@@ -148,7 +148,17 @@ export function typstToBlocks(code: string): TypstBlock[] {
       }
     }
 
-    // 图片 - 支持 #align(left|center|right, image(...))
+    // 图片 (通过标记注释) - Catch placeholder blocks and marked images
+    if (trimmed.includes(LF_IMAGE_MARKER)) {
+      const imageBlock = parseImageBlock(trimmed);
+      if (imageBlock) {
+        blocks.push(imageBlock);
+        skipNextCaptionBecausePreviousImage = true;
+        continue;
+      }
+    }
+
+    // 图片 - (Legacy/Manual) 支持 #align(left|center|right, image(...))
     if (/^#align\(\s*(left|center|right)\s*,\s*image\(/.test(trimmed)) {
       const imageBlock = parseImageBlock(trimmed);
       if (imageBlock) {
@@ -182,10 +192,10 @@ export function typstToBlocks(code: string): TypstBlock[] {
     // 检测多行表格表达式的开始
     if (
       (trimmed.startsWith('#align(center)[#block(width:') ||
-       trimmed.startsWith('#align(center, block(width:') ||
-       trimmed.startsWith('#align(center)[#table(') ||
-       trimmed.startsWith('#align(center, table(') ||
-       trimmed.startsWith('#table(')) &&
+        trimmed.startsWith('#align(center, block(width:') ||
+        trimmed.startsWith('#align(center)[#table(') ||
+        trimmed.startsWith('#align(center, table(') ||
+        trimmed.startsWith('#table(')) &&
       !trimmed.includes(LF_TABLE_MARKER)
     ) {
       skippingTableUntilMarker = true;
@@ -199,6 +209,52 @@ export function typstToBlocks(code: string): TypstBlock[] {
         blocks.push(tableBlock);
         continue;
       }
+    }
+
+    // Answer placeholder block (serialized as multi-line #block(...))
+    // Detect when we hit the start of such a block and consume all lines until LF_ANSWER_MARKER
+    if (trimmed.startsWith('#block(') && !trimmed.includes(LF_ANSWER_MARKER)) {
+      // Check if this looks like an answer placeholder by looking ahead for the marker
+      let foundMarker = false;
+      let endIdx = i;
+      for (let peek = i; peek < Math.min(i + 20, lines.length); peek++) {
+        const peekLine = lines[peek].replace(/\r$/, '');
+        if (peekLine.includes(LF_ANSWER_MARKER)) {
+          foundMarker = true;
+          endIdx = peek;
+          break;
+        }
+      }
+      if (foundMarker) {
+        // Skip all lines up to and including the marker, emit a placeholder block
+        if (currentBlock) {
+          blocks.push(currentBlock);
+          currentBlock = null;
+        }
+        blocks.push({
+          id: generateId(),
+          type: 'paragraph',
+          content: '\u200B', // Zero-width space
+          placeholder: '在此填写答案...',
+        });
+        i = endIdx;
+        continue;
+      }
+    }
+
+    // Single-line answer placeholder with marker
+    if (trimmed.includes(LF_ANSWER_MARKER) && trimmed.includes('#block(')) {
+      if (currentBlock) {
+        blocks.push(currentBlock);
+        currentBlock = null;
+      }
+      blocks.push({
+        id: generateId(),
+        type: 'paragraph',
+        content: '\u200B',
+        placeholder: '在此填写答案...',
+      });
+      continue;
     }
 
     // 空行
@@ -220,9 +276,9 @@ export function typstToBlocks(code: string): TypstBlock[] {
     const paragraphText = paragraphLine
       .replace(LF_ANSWER_MARKER, '')
       .replace(
-      /\s*#linebreak\(\s*(?:justify\s*:\s*(?:true|false)\s*)?\)\s*/g,
-      '\n'
-    );
+        /\s*#linebreak\(\s*(?:justify\s*:\s*(?:true|false)\s*)?\)\s*/g,
+        '\n'
+      );
 
     if (currentBlock?.type === 'paragraph') {
       currentBlock.content += '\n' + paragraphText;
@@ -257,7 +313,7 @@ function parseBlockList(lines: string[], startIndex: number): { items: string[];
   const items: string[] = [];
   let j = startIndex + 1;
   let foundEnumOrListLine: string | null = null;
-  
+
   for (; j < lines.length; j++) {
     const inner = lines[j].replace(/\r$/, '');
     const innerTrim = inner.trim();
@@ -382,14 +438,14 @@ function parseChartBlock(trimmed: string, markerB64: string): TypstBlock | null 
   try {
     const decoded: unknown = JSON.parse(base64DecodeUtf8(markerB64));
     const payload = (decoded && typeof decoded === 'object') ? (decoded as Record<string, unknown>) : {};
-    
+
     const match = trimmed.match(/#align\(\s*(left|center|right)\s*,\s*image\("([^"]+)"/);
     const align = (match?.[1] as 'left' | 'center' | 'right' | undefined) ?? 'center';
     const imageUrl = match?.[2] ?? '';
 
     const widthMatch = trimmed.match(/\bwidth\s*:\s*([^,\)\]]+)/);
     const widthFromCode = widthMatch?.[1]?.trim();
-    
+
     const merged = {
       ...(payload && typeof payload === 'object' ? payload : {}),
       imageUrl: (typeof payload['imageUrl'] === 'string' ? (payload['imageUrl'] as string) : imageUrl) || imageUrl,
@@ -408,16 +464,49 @@ function parseChartBlock(trimmed: string, markerB64: string): TypstBlock | null 
 }
 
 function parseImageBlock(trimmed: string): TypstBlock | null {
+  // Handle new placeholder block format: #block(...)[...]/*LF_IMAGE:...*/
+  const placeholderMatch = trimmed.match(/^#block\(.*\)\[.*\](?:\/\*LF_IMAGE:([A-Za-z0-9+/=]+)\*\/)$/);
+  if (placeholderMatch) {
+    try {
+      const payload = JSON.parse(base64DecodeUtf8(placeholderMatch[1])) as {
+        caption?: string;
+        width?: string;
+        height?: string;
+        src?: string;
+      };
+
+      const widthMatch = trimmed.match(/width:\s*([^,)\s]+)/);
+
+      return {
+        id: generateId(),
+        type: 'image',
+        // Critical: Restore original placeholder src if available, otherwise fallback
+        content: payload.src || '[[IMAGE_PLACEHOLDER]]',
+        align: 'center',
+        width: (payload.width ?? widthMatch?.[1] ?? '50%'),
+        height: 'auto',
+        caption: (payload.caption ?? '').toString(),
+      };
+    } catch {
+      // ignore
+    }
+  }
+
   const imgMarker = trimmed.match(/\/\*LF_IMAGE:([A-Za-z0-9+/=]+)\*\//);
   if (imgMarker) {
     try {
-      const payload = JSON.parse(base64DecodeUtf8(imgMarker[1])) as { caption?: string; width?: string; height?: string };
+      const payload = JSON.parse(base64DecodeUtf8(imgMarker[1])) as {
+        caption?: string;
+        width?: string;
+        height?: string;
+        src?: string; // Support src in normal images too if present
+      };
       const match = trimmed.match(/#align\(\s*(left|center|right)\s*,\s*image\("([^"]+)"(?:,\s*width:\s*([^,}]+))?(?:,\s*height:\s*([^)]+))?\)\)/);
       if (match) {
         return {
           id: generateId(),
           type: 'image',
-          content: match[2],
+          content: payload.src || match[2],
           align: (match[1] as 'left' | 'center' | 'right') ?? 'center',
           width: (payload.width ?? match[3]?.trim() ?? '50%'),
           height: 'auto',
@@ -474,12 +563,12 @@ function shouldSkipCaptionLine(lines: string[], currentIndex: number, skipNextCa
     .filter((x) => typeof x === 'string')
     .map((x) => (x as string).replace(/\r$/, '').trim());
   const prev = lines[currentIndex - 1]?.replace(/\r$/, '').trim() ?? '';
-  
+
   if (nextFew.some((x) => x.includes(LF_TABLE_MARKER))) return true;
   if (nextFew.some((x) => x.includes(LF_IMAGE_MARKER))) return true;
   if (nextFew.some((x) => x.includes(LF_CHART_MARKER))) return true;
   if (skipNextCaption && prev.includes(LF_IMAGE_MARKER)) return true;
   if (skipNextCaption && prev.includes(LF_CHART_MARKER)) return true;
-  
+
   return false;
 }

@@ -17,6 +17,7 @@ export type AiTestDraft = {
   detailsText: string;
   detailsFiles: AiTestUploadedFile[];
   pdfFile: File | null;
+  pdfUrl: string;
   pdfPageStart: string;
   pdfPageEnd: string;
   parserMode: 'local' | 'mineru';

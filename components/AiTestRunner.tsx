@@ -14,10 +14,12 @@ import {
 import { extractJsonFromModelText, normalizeAiBlocksResponse } from '@/lib/ai-blocks';
 import { blocksToTypst, injectDocumentSettings, type DocumentSettings, type TypstBlock } from '@/lib/typst';
 import { applyPromptTemplate, buildUserInputJson, makeAiDebugHeader } from '@/lib/home-ai-utils';
-import { DEFAULT_AI_PROMPT_TEMPLATE } from '@/lib/home-default-template';
+// import { DEFAULT_AI_PROMPT_TEMPLATE } from '@/lib/home-default-template';
+const DEFAULT_AI_PROMPT_TEMPLATE = 'Error: Prompt failed to load from backend (ai_prompts.json). Please check network or backend configuration.';
+
 import { preparePdfContextWithDebug, type HomePdfContext, type PreparePdfContextDebug } from '@/lib/home-pdf-context';
 import { useAiTestStore } from './AiTestStore';
-import { JsonBlock, TextPanel } from './AiTestRunnerPanels';
+import { JsonBlock, TextPanel, PdfContextVisualizer } from './AiTestRunnerPanels';
 
 type StepState = {
   label: string;
@@ -152,12 +154,13 @@ export default function AiTestRunner() {
         return;
       }
 
-      if (draft.pdfFile) {
+      if (draft.pdfFile || (draft.parserMode === 'mineru' && draft.pdfUrl)) {
         setStep('pdfPreprocess', { status: 'running', error: undefined });
         try {
           const { context, debug } = await preparePdfContextWithDebug({
             projectId: createdId,
             pdfFile: draft.pdfFile,
+            pdfUrl: draft.pdfUrl,
             pageStart: draft.pdfPageStart,
             pageEnd: draft.pdfPageEnd,
             parserMode: draft.parserMode,
@@ -463,7 +466,7 @@ export default function AiTestRunner() {
           <div className="space-y-4">
             <JsonBlock title="Step 1 - createProject 输出" value={steps.createProject.output} />
             <JsonBlock title="Step 2 - pdf preprocess debug（ingest/table/summaries）" value={prepDebug} />
-            <JsonBlock title="Step 2 - pdf_context（注入 DeepSeek 的上下文）" value={pdfContext} />
+            <PdfContextVisualizer context={pdfContext} />
           </div>
 
           {/* Right: prompt + AI outputs (large panels) */}

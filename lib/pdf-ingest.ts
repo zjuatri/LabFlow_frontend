@@ -50,6 +50,14 @@ export async function uploadPdfAndIngest(
   if (options.parserMode) qs.set('parser_mode', options.parserMode);
   const url = `${backend}/api/projects/${encodeURIComponent(projectId)}/pdf/ingest${qs.toString() ? `?${qs.toString()}` : ''}`;
 
+  // Log MinerU debug info immediately for testing
+  if (options.parserMode === 'mineru') {
+    const publicBase = process.env.NEXT_PUBLIC_BASE_URL || backend;
+    const debugUrl = `${publicBase}/static/projects/${projectId}/files/${file.name}`;
+    console.log('🔗 MinerU will try to access:', debugUrl);
+    console.log('💡 Click the link above to test if MinerU can download your PDF');
+  }
+
   const res = await fetch(url, {
     method: 'POST',
     headers,

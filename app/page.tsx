@@ -17,6 +17,7 @@ export default function CreateProjectPage() {
   const [detailsText, setDetailsText] = useState('');
   const [detailsFiles, setDetailsFiles] = useState<AiTestUploadedFile[]>([]);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfUrl, setPdfUrl] = useState('');
   const [pdfPageStart, setPdfPageStart] = useState('');
   const [pdfPageEnd, setPdfPageEnd] = useState('');
   const [parserMode, setParserMode] = useState<'local' | 'mineru'>('local');
@@ -42,7 +43,8 @@ export default function CreateProjectPage() {
 
   const handleGenerate = async () => {
     if (!outlineText.trim() && !detailsText.trim() && outlineFiles.length === 0 && detailsFiles.length === 0) {
-      if (!pdfFile) return;
+      // Allow if user has either uploaded a file OR provided a URL for MinerU
+      if (!pdfFile && !pdfUrl.trim()) return;
     }
 
     setError('');
@@ -54,6 +56,7 @@ export default function CreateProjectPage() {
       detailsText,
       detailsFiles,
       pdfFile,
+      pdfUrl,
       pdfPageStart,
       pdfPageEnd,
       parserMode: parserMode,
@@ -81,7 +84,7 @@ export default function CreateProjectPage() {
   };
 
   const canGenerate =
-    !!pdfFile || outlineText.trim() || detailsText.trim() || outlineFiles.length > 0 || detailsFiles.length > 0;
+    !!pdfFile || !!pdfUrl.trim() || outlineText.trim() || detailsText.trim() || outlineFiles.length > 0 || detailsFiles.length > 0;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
@@ -126,61 +129,7 @@ export default function CreateProjectPage() {
 
         <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm">
           <div className="p-6 space-y-6">
-            {/* Model Selection */}
-            <div>
-              <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
-                AI 模型选择
-              </label>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <button
-                  onClick={() => setSelectedModel('deepseek-chat')}
-                  className={`px-4 py-3 rounded-lg border transition-all text-left ${selectedModel === 'deepseek-chat'
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300'
-                    : 'border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:border-zinc-400 dark:hover:border-zinc-600'
-                    }`}
-                >
-                  <div className="font-medium">DeepSeek V3 (Chat)</div>
-                  <div className="text-xs mt-1 opacity-75">V3.2 非思考模式，快速响应</div>
-                </button>
-                <button
-                  onClick={() => setSelectedModel('deepseek-reasoner')}
-                  className={`px-4 py-3 rounded-lg border transition-all text-left ${selectedModel === 'deepseek-reasoner'
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300'
-                    : 'border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:border-zinc-400 dark:hover:border-zinc-600'
-                    }`}
-                >
-                  <div className="font-medium">DeepSeek R1 (Reasoner)</div>
-                  <div className="text-xs mt-1 opacity-75">V3.2 思考模式，深度推理</div>
-                </button>
-                <button
-                  onClick={() => setSelectedModel('qwen3-max')}
-                  className={`px-4 py-3 rounded-lg border transition-all text-left ${selectedModel === 'qwen3-max'
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300'
-                    : 'border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:border-zinc-400 dark:hover:border-zinc-600'
-                    }`}
-                >
-                  <div className="font-medium">Qwen3-Max</div>
-                  <div className="text-xs mt-1 opacity-75">通义千问超强模型，综合能力优秀</div>
-                </button>
-              </div>
 
-              <div className="mt-3 flex items-center justify-between gap-3 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
-                <div>
-                  <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">思考模式</div>
-                  <div className="text-xs text-zinc-600 dark:text-zinc-400">开启后会输出思考内容（reasoning_content / &lt;think&gt;）</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setThinkingEnabled((v) => !v)}
-                  className={`px-3 py-1.5 rounded border text-sm transition-colors ${thinkingEnabled
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300'
-                    : 'border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                    }`}
-                >
-                  {thinkingEnabled ? '已开启' : '已关闭'}
-                </button>
-              </div>
-            </div>
 
             {/* Outline Section */}
             <div>
@@ -228,38 +177,100 @@ export default function CreateProjectPage() {
               <PdfUploadSingle
                 file={pdfFile}
                 onChange={setPdfFile}
+                pdfUrl={pdfUrl}
+                onPdfUrlChange={setPdfUrl}
                 pageStart={pdfPageStart}
                 pageEnd={pdfPageEnd}
                 onPageStartChange={setPdfPageStart}
                 onPageEndChange={setPdfPageEnd}
+                parserMode={parserMode}
               />
-              <div className="mt-4">
-                <label className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 block mb-2">解析引擎 (Parser Engine)</label>
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="parserMode"
-                      value="local"
-                      checked={parserMode === 'local'}
-                      onChange={(e) => setParserMode(e.target.value as any)}
-                      className="accent-blue-600"
-                    />
-                    Local (Default)
-                    <span className="text-xs text-zinc-500">- Fast, page-by-page OCR, local table logic</span>
+
+              <div className="flex flex-col md:flex-row gap-8 mt-6 p-4 rounded-lg bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800">
+                <div className="flex-1">
+                  <label className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 block mb-3">
+                    解析引擎 (Parser Engine)
                   </label>
-                  <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="parserMode"
-                      value="mineru"
-                      checked={parserMode === 'mineru'}
-                      onChange={(e) => setParserMode(e.target.value as any)}
-                      className="accent-purple-600"
-                    />
-                    MinerU (Remote)
-                    <span className="text-xs text-zinc-500">- High accuracy, returns Markdown</span>
+                  <div className="flex flex-col gap-2.5">
+                    <label className="flex items-center gap-2.5 text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="parserMode"
+                        value="local"
+                        checked={parserMode === 'local'}
+                        onChange={(e) => setParserMode(e.target.value as any)}
+                        className="accent-blue-600"
+                      />
+                      Local (Default)
+                      <span className="text-xs text-zinc-500">- Fast, local OCR</span>
+                    </label>
+                    <label className="flex items-center gap-2.5 text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="parserMode"
+                        value="mineru"
+                        checked={parserMode === 'mineru'}
+                        onChange={(e) => setParserMode(e.target.value as any)}
+                        className="accent-purple-600"
+                      />
+                      MinerU (Remote)
+                      <span className="text-xs text-zinc-500">- High accuracy, Markdown</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex-1">
+                  <label className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 block mb-3">
+                    AI 模型 (AI Model)
                   </label>
+                  <div className="flex flex-col gap-2.5">
+                    <label className="flex items-center gap-2.5 text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="aiModel"
+                        value="deepseek-chat"
+                        checked={selectedModel === 'deepseek-chat'}
+                        onChange={(e) => setSelectedModel(e.target.value as any)}
+                        className="accent-blue-600"
+                      />
+                      DeepSeek V3
+                      <span className="text-xs text-zinc-500">- Fast chat</span>
+                    </label>
+                    <label className="flex items-center gap-2.5 text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="aiModel"
+                        value="deepseek-reasoner"
+                        checked={selectedModel === 'deepseek-reasoner'}
+                        onChange={(e) => setSelectedModel(e.target.value as any)}
+                        className="accent-purple-600"
+                      />
+                      DeepSeek R1
+                      <span className="text-xs text-zinc-500">- Deep reasoning</span>
+                    </label>
+                    <label className="flex items-center gap-2.5 text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="aiModel"
+                        value="qwen3-max"
+                        checked={selectedModel === 'qwen3-max'}
+                        onChange={(e) => setSelectedModel(e.target.value as any)}
+                        className="accent-orange-600"
+                      />
+                      Qwen3-Max
+                    </label>
+                    <div className="pt-1 mt-1 border-t border-zinc-200 dark:border-zinc-800">
+                      <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400 cursor-pointer py-1">
+                        <input
+                          type="checkbox"
+                          checked={thinkingEnabled}
+                          onChange={(e) => setThinkingEnabled(e.target.checked)}
+                          className="accent-blue-600"
+                        />
+                        开启思考模式 (Thinking Mode)
+                      </label>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

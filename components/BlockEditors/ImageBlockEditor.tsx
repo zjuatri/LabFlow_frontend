@@ -34,7 +34,36 @@ export default function ImageBlockEditor({ block, onUpdate, onUploadImage }: Ima
     <div className="flex flex-col gap-3">
       {/* 图片预览 */}
       {block.content ? (
-        imageError ? (
+        block.content.startsWith('[[') ? (
+          // Placeholder UI
+          <div className="flex flex-col gap-3 p-6 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-2 border-dashed border-blue-200 dark:border-blue-800 items-center text-center">
+            <div className="text-blue-500 dark:text-blue-400 font-medium text-lg">
+              {block.content.match(/\[\[\s*IMAGE_PLACEHOLDER\s*:\s*(.*?)\s*\]\]/i)?.[1] || '点击此处上传图片'}
+            </div>
+            <div className="text-xs text-blue-400 dark:text-blue-500/70 mb-2">
+              (AI 生成的图片占位符)
+            </div>
+            <label className="px-4 py-2 text-sm rounded-full bg-blue-500 hover:bg-blue-600 text-white cursor-pointer transition-colors shadow-sm">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    try {
+                      await onUploadImage(file);
+                      setImageError(false);
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : '上传失败');
+                    }
+                  }
+                }}
+                className="hidden"
+              />
+              上传图片
+            </label>
+          </div>
+        ) : imageError ? (
           // Fallback UI for broken image
           <div className="flex flex-col gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
             <div className={`flex ${alignClass} items-center gap-2 text-red-600 dark:text-red-400`}>

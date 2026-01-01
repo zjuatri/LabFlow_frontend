@@ -27,6 +27,10 @@ const LATEX_TO_TYPST_TOKENS: Record<string, string> = {
   '\\pm': 'pm',
   '\\leq': '<=',
   '\\geq': '>=',
+  '\\le': '<=',
+  '\\ge': '>=',
+  '\\ll': '<<',
+  '\\gg': '>>',
   '\\neq': '!=',
   '\\nabla': 'nabla',
   '\\partial': 'diff',
@@ -133,7 +137,7 @@ export function latexToTypstMath(latex: string): string {
   // Handle matrix environments first (bmatrix, pmatrix, vmatrix, matrix)
   // Convert \begin{bmatrix}...\end{bmatrix} to mat(delim: "[", ...)
   s = s.replace(/\\begin\{bmatrix\}([\s\S]*?)\\end\{bmatrix\}/g, (_, content) => {
-    const rows = content.trim().split(/\\\\/g).map((row: string) => 
+    const rows = content.trim().split(/\\\\/g).map((row: string) =>
       row
         .trim()
         .split(/&/)
@@ -142,9 +146,9 @@ export function latexToTypstMath(latex: string): string {
     ).filter((row: string) => row);
     return `mat(delim: "[", ${rows.join('; ')})`;
   });
-  
+
   s = s.replace(/\\begin\{pmatrix\}([\s\S]*?)\\end\{pmatrix\}/g, (_, content) => {
-    const rows = content.trim().split(/\\\\/g).map((row: string) => 
+    const rows = content.trim().split(/\\\\/g).map((row: string) =>
       row
         .trim()
         .split(/&/)
@@ -153,9 +157,9 @@ export function latexToTypstMath(latex: string): string {
     ).filter((row: string) => row);
     return `mat(delim: "(", ${rows.join('; ')})`;
   });
-  
+
   s = s.replace(/\\begin\{vmatrix\}([\s\S]*?)\\end\{vmatrix\}/g, (_, content) => {
-    const rows = content.trim().split(/\\\\/g).map((row: string) => 
+    const rows = content.trim().split(/\\\\/g).map((row: string) =>
       row
         .trim()
         .split(/&/)
@@ -164,9 +168,9 @@ export function latexToTypstMath(latex: string): string {
     ).filter((row: string) => row);
     return `mat(delim: "|", ${rows.join('; ')})`;
   });
-  
+
   s = s.replace(/\\begin\{matrix\}([\s\S]*?)\\end\{matrix\}/g, (_, content) => {
-    const rows = content.trim().split(/\\\\/g).map((row: string) => 
+    const rows = content.trim().split(/\\\\/g).map((row: string) =>
       row
         .trim()
         .split(/&/)
@@ -179,14 +183,14 @@ export function latexToTypstMath(latex: string): string {
   // Remove other LaTeX environments (align, equation, gather, etc.)
   s = s.replace(/\\begin\{[^}]+\}/g, '');
   s = s.replace(/\\end\{[^}]+\}/g, '');
-  
+
   // Convert line breaks (\\) to single backslash for Typst
   // In Typst math, single \ is used for line breaks
   s = s.replace(/\\\\/g, ' \\ ');
-  
+
   // Handle \mathbf{X} -> bold(X) in Typst
   s = s.replace(/\\mathbf\{([^}]+)\}/g, 'bold($1)');
-  
+
   // Handle \mathrm{X} -> upright("X") in Typst when it's a plain identifier.
   // This commonly represents units like \mathrm{mm}.
   s = s.replace(/\\mathrm\{([^}]+)\}/g, (_m, inner) => {
@@ -194,7 +198,7 @@ export function latexToTypstMath(latex: string): string {
     if (/^[A-Za-z]{1,16}$/.test(v)) return `upright("${v}")`;
     return `upright(${v})`;
   });
-  
+
   // Handle \text{...} -> "..."
   s = s.replace(/\\text\{([^}]+)\}/g, '"$1"');
 
@@ -270,7 +274,7 @@ export function latexToTypstMath(latex: string): string {
   // Replace longer commands first to avoid partial matches.
   const keys = Object.keys(LATEX_TO_TYPST_TOKENS).sort((a, b) => b.length - a.length);
   for (const key of keys) {
-    s = s.split(key).join(LATEX_TO_TYPST_TOKENS[key]);
+    s = s.split(key).join(` ${LATEX_TO_TYPST_TOKENS[key]} `);
   }
 
   // In LaTeX, consecutive letters like 'aa' mean implicit multiplication (a * a).
@@ -288,7 +292,7 @@ export function latexToTypstMath(latex: string): string {
     'cont', 'double', 'triple', 'mat', 'vec', 'delim',
     'dots', 'down'
   ]);
-  
+
   const splitLetters = (text: string): string => {
     return text.replace(/[a-zA-Z]+/g, (word) => {
       if (knownWords.has(word) || word.length === 1) {
@@ -297,17 +301,17 @@ export function latexToTypstMath(latex: string): string {
       return word.split('').join(' ');
     });
   };
-  
+
   // Process subscripts and superscripts recursively
   s = s.replace(/_{([^}]+)}/g, (match, content) => {
     // Typst: multi-character scripts should use parentheses: a_(1 2)
     return `_(${splitLetters(content).trim()})`;
   });
-  
+
   s = s.replace(/\^{([^}]+)}/g, (match, content) => {
     return `^(${splitLetters(content).trim()})`;
   });
-  
+
   // Split letters in the main content
   s = splitLetters(s);
 

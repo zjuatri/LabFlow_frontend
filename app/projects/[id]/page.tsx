@@ -58,7 +58,7 @@ export default function ProjectEditorPage() {
   const [activeAnchor, setActiveAnchor] = useState<{ pageIndex: number; localIndex: number } | null>(null);
   const [highlightNonce, setHighlightNonce] = useState(0);
   const [clickAnchor, setClickAnchor] = useState<{ pageIndex: number; localIndex: number } | null>(null);
-  
+
   const [history, setHistory] = useState<Array<{ blocks: TypstBlock[]; settings: DocumentSettings }>>([]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | null>(null);
@@ -132,20 +132,20 @@ export default function ProjectEditorPage() {
         trimmed.includes('LF_CHART:') ||
         trimmed.includes('LF_IMAGE:');
       const isFigure = trimmed.startsWith('#figure(');
-      
+
       const markerCode = '#place(dx: -50cm, rect(width: 1pt, height: 1pt, fill: rgb("000001")))';
-      
+
       if (isImage || isFigure) {
         // Wrap in a block that keeps marker and content together.
         // We use width: 100% to ensure the block spans the page, allowing internal #align to work.
         // Without explicit width, #block might shrink-wrap or behave differently.
         return `#block(width: 100%)[${markerCode}${content}]`;
       }
-      
+
       // For other content (paragraphs, headings, etc.), the simple approach works
       return `${markerCode}\n${content}`;
     };
-    
+
     const markerLine = '#place(dx: -50cm, rect(width: 1pt, height: 1pt, fill: rgb("000001")))';
     // Add a trailing sentinel marker to properly bound the last block for highlight.
     return (
@@ -466,21 +466,19 @@ export default function ProjectEditorPage() {
             <div className="flex bg-white dark:bg-zinc-900 rounded-lg border border-zinc-300 dark:border-zinc-600 overflow-hidden shrink-0">
               <button
                 onClick={() => handleModeSwitch('visual')}
-                className={`px-3 py-1 text-sm transition-colors ${
-                  mode === 'visual'
+                className={`px-3 py-1 text-sm transition-colors ${mode === 'visual'
                     ? 'bg-blue-500 text-white'
                     : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                }`}
+                  }`}
               >
                 可视化
               </button>
               <button
                 onClick={() => handleModeSwitch('source')}
-                className={`px-3 py-1 text-sm transition-colors ${
-                  mode === 'source'
+                className={`px-3 py-1 text-sm transition-colors ${mode === 'source'
                     ? 'bg-blue-500 text-white'
                     : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                }`}
+                  }`}
               >
                 源代码
               </button>
@@ -620,13 +618,33 @@ export default function ProjectEditorPage() {
       {aiDebug ? (
         <div className="absolute left-3 bottom-3 z-20 max-w-[48%]">
           <div className="bg-white/95 dark:bg-zinc-950/95 border border-zinc-300 dark:border-zinc-700 rounded shadow-sm">
-            <button
-              onClick={() => setShowAiDebug((v) => !v)}
-              className="w-full px-3 py-2 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-              title="显示/隐藏 AI 原始输出（调试）"
-            >
-              {showAiDebug ? '隐藏 AI 调试信息' : '显示 AI 调试信息'}
-            </button>
+            <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-700">
+              <button
+                onClick={() => setShowAiDebug((v) => !v)}
+                className="flex-1 px-3 py-2 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                title="显示/隐藏 AI 原始输出（调试）"
+              >
+                {showAiDebug ? '隐藏 AI 调试信息' : '显示 AI 调试信息'}
+              </button>
+              {showAiDebug && (
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(aiDebug);
+                    // Provide brief visual feedback (optional: could add state for this)
+                    const btn = document.activeElement as HTMLButtonElement;
+                    if (btn) {
+                      const orig = btn.textContent;
+                      btn.textContent = '已复制!';
+                      setTimeout(() => { btn.textContent = orig; }, 1000);
+                    }
+                  }}
+                  className="px-2 py-1 mr-2 text-xs rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  title="复制调试信息到剪贴板"
+                >
+                  复制
+                </button>
+              )}
+            </div>
             {showAiDebug && (
               <pre className="max-h-[40vh] overflow-auto px-3 pb-3 text-[11px] text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">
                 {aiDebug}

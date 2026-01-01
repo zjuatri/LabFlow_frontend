@@ -163,7 +163,8 @@ export async function preparePdfContext(params: {
 
 export async function preparePdfContextWithDebug(params: {
   projectId: string;
-  pdfFile: File;
+  pdfFile: File | null;
+  pdfUrl?: string;
   pageStart: string;
   pageEnd: string;
   parserMode: 'local' | 'mineru';
@@ -176,29 +177,73 @@ export async function preparePdfContextWithDebug(params: {
   }
 
   params.onStep('PDF OCR / 解析（ocr_text_pages、images）');
-  const ingest = (await uploadPdfAndIngest(params.projectId, params.pdfFile, {
-    pageStart: start,
-    pageEnd: end,
-    ocrMath: true,
-    ocrModel: 'glm-4.6v-flash',
-    ocrScale: 2.0,
-    parserMode: params.parserMode,
-  })) as PdfIngestResult;
 
-  params.onStep('表格公式识别（table formula vision）');
-  const tableVision = await uploadPdfAndParseTableFormulasWithVision(params.projectId, params.pdfFile, {
-    pageStart: start,
-    pageEnd: end,
-  }).catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
+  let ingest: PdfIngestResult;
+
+  if (params.parserMode === 'mineru' && params.pdfUrl) {
+    // MinerU mode with URL: send URL to backend directly
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+    const { getToken } = await import('./auth');
+    const token = getToken();
+
+    const cleanedUrl = params.pdfUrl.trim();
+    const queryParams = new URLSearchParams({ url: cleanedUrl, parser_mode: 'mineru' });
+    if (start !== undefined) queryParams.set('page_start', String(start));
+    if (end !== undefined) queryParams.set('page_end', String(end));
+
+    const response = await fetch(`${backendUrl}/api/projects/${params.projectId}/pdf/ingest-url?${queryParams}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token || ''}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`MinerU URL ingest failed: ${response.statusText}`);
+    }
+
+    ingest = await response.json() as PdfIngestResult;
+  } else if (params.pdfFile) {
+    // Local mode or MinerU with file upload
+    ingest = (await uploadPdfAndIngest(params.projectId, params.pdfFile, {
+      pageStart: start,
+      pageEnd: end,
+      ocrMath: true,
+      ocrModel: 'glm-4.6v-flash',
+      ocrScale: 2.0,
+      parserMode: params.parserMode,
+    })) as PdfIngestResult;
+  } else {
+    throw new Error('Either pdfFile or pdfUrl (for MinerU) must be provided');
+  }
+
+  // Log MinerU debug URL for easy testing
+  if ((ingest as any).mineru_debug_url) {
+    console.log('🔗 MinerU PDF URL (click to test):', (ingest as any).mineru_debug_url);
+  }
+
+  // Table formula vision only for local mode (requires file upload)
+  let tableVision: any = null;
+  if (params.pdfFile) {
+    params.onStep('表格公式识别（table formula vision）');
+    tableVision = await uploadPdfAndParseTableFormulasWithVision(params.projectId, params.pdfFile, {
+      pageStart: start,
+      pageEnd: end,
+    }).catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
+  }
 
   params.onStep('图片提取（不做概括）');
   const images: PdfIngestImage[] = Array.isArray(ingest?.images) ? ingest.images : [];
-  const embeddedImages = images.filter((x) => (x?.source ?? 'embedded') === 'embedded');
+  // Include both embedded images (local mode) and mineru images (MinerU mode)
+  const relevantImages = images.filter((x) => {
+    const source = x?.source ?? 'embedded';
+    return source === 'embedded' || source === 'mineru';
+  });
 
   const context: HomePdfContext = {
     ocr_text_pages: Array.isArray(ingest?.ocr_text_pages) ? ingest.ocr_text_pages : null,
     tables: extractCompactTables(ingest),
-    images: embeddedImages.map((s) => ({
+    images: relevantImages.map((s) => ({
       filename: String(s.filename || ''),
       url: String(s.url || ''),
       page: s.page ?? null,

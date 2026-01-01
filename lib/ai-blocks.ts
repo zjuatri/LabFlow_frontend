@@ -280,16 +280,23 @@ function normalizeBlockMany(raw: unknown, getNextId: () => string, projectId: st
     const placeholderPrefix = `/static/projects/<project_id>/images/`;
 
     let url = finalContent.trim();
-    if (url.startsWith(placeholderPrefix)) {
-      url = url.replace(placeholderPrefix, expectedPrefix);
-    }
-    url = url.split('?')[0];
 
-    if (!url.startsWith(expectedPrefix)) {
-      // Reject unsafe image urls.
-      return [];
+    // Allow [[IMAGE_PLACEHOLDER...]] patterns through - these are valid placeholders
+    if (/^\[\[\s*IMAGE_PLACEHOLDER/i.test(url)) {
+      finalContent = url;
+    } else {
+      if (url.startsWith(placeholderPrefix)) {
+        url = url.replace(placeholderPrefix, expectedPrefix);
+      }
+      url = url.split('?')[0];
+
+      if (!url.startsWith(expectedPrefix)) {
+        // Reject unsafe image urls.
+        console.warn('[normalizeBlockMany] rejected image with invalid path:', url);
+        return [];
+      }
+      finalContent = url;
     }
-    finalContent = url;
   }
 
   // NOTE: No heuristics/guessing here.

@@ -173,16 +173,42 @@ function serializeImage(block: TypstBlock, imageIndex: number, settings: Documen
     return hasChineseInFilename || looksLikePlaceholder || hasIllegalChars;
   };
 
+  // Explicitly handle [[IMAGE_PLACEHOLDER...]] tags as a valid placeholder state
+  // Relaxed regex to catch various spacing or casing
+  if (/\[\[\s*IMAGE_PLACEHOLDER/i.test(imagePath)) {
+    // Extract hint text if possible, otherwise default
+    const match = imagePath.match(/\[\[\s*IMAGE_PLACEHOLDER\s*:\s*(.*?)\s*\]\]/i);
+    // For placeholders, we use a single-line block to avoid parsing issues / newline replacement loops
+    // caused by typstToBlocks treating unknown multi-line blocks as paragraphs.
+    const hint = match ? match[1] : '(点击此处上传图片)';
+    const placeholderText = hint || '图片占位符';
+    const textContent = `#text(fill: rgb("#3B82F6"), weight: "bold", size: 1.5em)[+] #text(fill: rgb("#3B82F6"), size: 0.9em)[${placeholderText}]`;
+    const blockContent = `#align(center + horizon)[${textContent}]`;
+
+    // We explicitly store the 'src' (block.content) in the payload so the parser can restore the 
+    // [[IMAGE_PLACEHOLDER]] value even though it's not in the visual Typst code (which only shows the hint).
+    const payload = {
+      caption: block.caption,
+      width: block.width,
+      height: block.height,
+      src: block.content
+    };
+    const encoded = `/*LF_IMAGE:${base64EncodeUtf8(JSON.stringify(payload))}*/`;
+
+    // Compact single-line block
+    return `#block(width: ${width}, height: 8em, fill: rgb("#EFF6FF"), stroke: rgb("#93C5FD"), radius: 4pt, inset: 12pt)[${blockContent}]${encoded}`;
+  }
+
   // If path looks hallucinated, output a styled placeholder instead
   if (isLikelyHallucinated(imagePath)) {
     const warningText = captionText || '(图片路径无效)';
     const pathDisplay = imagePath.length > 60 ? imagePath.slice(0, 60) + '...' : imagePath;
     return `#block(width: 100%, fill: rgb("#FEF2F2"), stroke: rgb("#FCA5A5"), inset: 12pt, radius: 4pt)[
-  #text(fill: rgb("#DC2626"), weight: "bold")[⚠ 图片未找到]
-  #linebreak()
-  #text(size: 0.8em, fill: rgb("#991B1B"))[路径: ${pathDisplay}]
-  #linebreak()
-  #text(size: 0.9em)[${warningText}]
+  #align(center)[
+    #text(fill: rgb("#DC2626"), weight: "bold")[图片缺失]
+    #linebreak()
+    #text(size: 0.8em, fill: rgb("#991B1B"))[路径: ${pathDisplay}]
+  ]
 ]${encoded}`;
   }
 

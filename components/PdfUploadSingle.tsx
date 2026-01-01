@@ -6,19 +6,25 @@ export default function PdfUploadSingle(props: {
   label?: string;
   file: File | null;
   onChange: (file: File | null) => void;
+  pdfUrl: string;
+  onPdfUrlChange: (url: string) => void;
   pageStart: string;
   pageEnd: string;
   onPageStartChange: (value: string) => void;
   onPageEndChange: (value: string) => void;
+  parserMode: 'local' | 'mineru';
 }) {
   const {
     label = 'PDF 文件（可选）',
     file,
     onChange,
+    pdfUrl,
+    onPdfUrlChange,
     pageStart,
     pageEnd,
     onPageStartChange,
     onPageEndChange,
+    parserMode,
   } = props;
 
   const meta = useMemo(() => {
@@ -47,24 +53,42 @@ export default function PdfUploadSingle(props: {
   return (
     <div className="space-y-2">
       <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{label}</div>
-      <div className="flex items-center gap-3">
-        <input
-          type="file"
-          accept="application/pdf,.pdf"
-          onChange={onFileChange}
-          className="block w-full text-sm text-zinc-700 dark:text-zinc-200 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 dark:file:bg-zinc-800 file:px-3 file:py-2 file:text-sm file:font-medium file:text-zinc-900 dark:file:text-zinc-100"
-        />
-        {file ? (
-          <button
-            type="button"
-            onClick={() => onChange(null)}
-            className="text-sm px-3 py-2 rounded-md border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-900"
-          >
-            清除
-          </button>
-        ) : null}
-      </div>
-      {meta ? <div className="text-xs text-zinc-500 dark:text-zinc-500">{meta}</div> : null}
+
+      {parserMode === 'local' ? (
+        <>
+          <div className="flex items-center gap-3">
+            <input
+              type="file"
+              accept="application/pdf,.pdf"
+              onChange={onFileChange}
+              className="block w-full text-sm text-zinc-700 dark:text-zinc-200 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 dark:file:bg-zinc-800 file:px-3 file:py-2 file:text-sm file:font-medium file:text-zinc-900 dark:file:text-zinc-100"
+            />
+            {file ? (
+              <button
+                type="button"
+                onClick={() => onChange(null)}
+                className="text-sm px-3 py-2 rounded-md border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-900"
+              >
+                清除
+              </button>
+            ) : null}
+          </div>
+          {meta ? <div className="text-xs text-zinc-500 dark:text-zinc-500">{meta}</div> : null}
+        </>
+      ) : (
+        <div className="space-y-2">
+          <input
+            type="url"
+            value={pdfUrl}
+            onChange={(e) => onPdfUrlChange(e.target.value)}
+            placeholder="https://example.com/your-document.pdf"
+            className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
+          <div className="text-xs text-zinc-500 dark:text-zinc-500">
+            提供一个公网可访问的 PDF 链接（MinerU 模式需要）
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
@@ -89,7 +113,9 @@ export default function PdfUploadSingle(props: {
         </div>
       </div>
       <div className="text-xs text-zinc-500 dark:text-zinc-500">
-        提示：上传 PDF 后会进行 OCR、表格公式识别、图片概括，并把结果提供给 DeepSeek。
+        {parserMode === 'local'
+          ? '提示：上传 PDF 后会进行 OCR、表格公式识别、图片概括，并把结果提供给 DeepSeek。'
+          : '提示：MinerU 远程解析，仅需要公网可访问的 PDF 链接。'}
       </div>
     </div>
   );

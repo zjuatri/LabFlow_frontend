@@ -202,6 +202,20 @@ export const typstInlineToHtml = (typst: string): string => {
         continue;
       }
 
+      // [[PLACEHOLDER]] detection
+      if (input.startsWith('[[', i)) {
+        const end = input.indexOf(']]', i);
+        if (end !== -1) {
+          const fullMatch = input.slice(i, end + 2);
+          // Only style if it looks like a known placeholder pattern
+          if (fullMatch.includes('ANSWER') || fullMatch.includes('IMAGE_PLACEHOLDER') || fullMatch.includes('PLACEHOLDER')) {
+            out += `<span class="inline-block px-2 py-0.5 mx-1 rounded text-xs font-mono bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 select-all" contenteditable="false">${escapeHtml(fullMatch)}</span>`;
+            i = end + 1;
+            continue;
+          }
+        }
+      }
+
       // #strike[...]
       if (input.startsWith('#strike[', i)) {
         const openIdx = i + '#strike'.length;
