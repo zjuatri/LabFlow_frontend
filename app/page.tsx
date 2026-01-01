@@ -19,6 +19,7 @@ export default function CreateProjectPage() {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfPageStart, setPdfPageStart] = useState('');
   const [pdfPageEnd, setPdfPageEnd] = useState('');
+  const [parserMode, setParserMode] = useState<'local' | 'mineru'>('local');
   const [error, setError] = useState('');
   const [selectedModel, setSelectedModel] = useState<'deepseek-chat' | 'deepseek-reasoner' | 'qwen3-max'>('deepseek-chat');
   const [thinkingEnabled, setThinkingEnabled] = useState(false);
@@ -55,6 +56,7 @@ export default function CreateProjectPage() {
       pdfFile,
       pdfPageStart,
       pdfPageEnd,
+      parserMode: parserMode,
       selectedModel,
       thinkingEnabled,
     });
@@ -231,6 +233,35 @@ export default function CreateProjectPage() {
                 onPageStartChange={setPdfPageStart}
                 onPageEndChange={setPdfPageEnd}
               />
+              <div className="mt-4">
+                <label className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 block mb-2">解析引擎 (Parser Engine)</label>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="parserMode"
+                      value="local"
+                      checked={parserMode === 'local'}
+                      onChange={(e) => setParserMode(e.target.value as any)}
+                      className="accent-blue-600"
+                    />
+                    Local (Default)
+                    <span className="text-xs text-zinc-500">- Fast, page-by-page OCR, local table logic</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="parserMode"
+                      value="mineru"
+                      checked={parserMode === 'mineru'}
+                      onChange={(e) => setParserMode(e.target.value as any)}
+                      className="accent-purple-600"
+                    />
+                    MinerU (Remote)
+                    <span className="text-xs text-zinc-500">- High accuracy, returns Markdown</span>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
 

@@ -19,6 +19,7 @@ export type AiTestDraft = {
   pdfFile: File | null;
   pdfPageStart: string;
   pdfPageEnd: string;
+  parserMode: 'local' | 'mineru';
   selectedModel: 'deepseek-chat' | 'deepseek-reasoner' | 'qwen3-max';
   thinkingEnabled: boolean;
 };

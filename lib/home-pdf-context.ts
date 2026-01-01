@@ -94,35 +94,35 @@ function extractCompactTables(
     const tablePayload = (tt.tablePayload && typeof tt.tablePayload === 'object') ? (tt.tablePayload as Record<string, unknown>) : null;
     const caption = typeof tablePayload?.caption === 'string' ? (tablePayload.caption as string) : undefined;
 
-     const cellsRaw = (tablePayload as any)?.cells;
-     let cells_preview: Array<Array<{ content?: string; rowspan?: number; colspan?: number; is_placeholder?: boolean }>> | undefined;
-     let has_merged_cells = false;
-     if (Array.isArray(cellsRaw)) {
-       const preview: Array<Array<{ content?: string; rowspan?: number; colspan?: number; is_placeholder?: boolean }>> = [];
-       for (const row of cellsRaw) {
-         if (!Array.isArray(row)) continue;
-         const prow: Array<{ content?: string; rowspan?: number; colspan?: number; is_placeholder?: boolean }> = [];
-         for (const cell of row) {
-           if (!cell || typeof cell !== 'object') {
-             prow.push({ content: '' });
-             continue;
-           }
-           const c = cell as Record<string, unknown>;
-           const rowspan = typeof c.rowspan === 'number' ? c.rowspan : undefined;
-           const colspan = typeof c.colspan === 'number' ? c.colspan : undefined;
-           const is_placeholder = typeof c.is_placeholder === 'boolean' ? c.is_placeholder : undefined;
-           if ((rowspan && rowspan > 1) || (colspan && colspan > 1) || is_placeholder) has_merged_cells = true;
-           prow.push({
-             content: typeof c.content === 'string' ? c.content : undefined,
-             rowspan,
-             colspan,
-             is_placeholder,
-           });
-         }
-         preview.push(prow);
-       }
-       if (preview.length) cells_preview = preview;
-     }
+    const cellsRaw = (tablePayload as any)?.cells;
+    let cells_preview: Array<Array<{ content?: string; rowspan?: number; colspan?: number; is_placeholder?: boolean }>> | undefined;
+    let has_merged_cells = false;
+    if (Array.isArray(cellsRaw)) {
+      const preview: Array<Array<{ content?: string; rowspan?: number; colspan?: number; is_placeholder?: boolean }>> = [];
+      for (const row of cellsRaw) {
+        if (!Array.isArray(row)) continue;
+        const prow: Array<{ content?: string; rowspan?: number; colspan?: number; is_placeholder?: boolean }> = [];
+        for (const cell of row) {
+          if (!cell || typeof cell !== 'object') {
+            prow.push({ content: '' });
+            continue;
+          }
+          const c = cell as Record<string, unknown>;
+          const rowspan = typeof c.rowspan === 'number' ? c.rowspan : undefined;
+          const colspan = typeof c.colspan === 'number' ? c.colspan : undefined;
+          const is_placeholder = typeof c.is_placeholder === 'boolean' ? c.is_placeholder : undefined;
+          if ((rowspan && rowspan > 1) || (colspan && colspan > 1) || is_placeholder) has_merged_cells = true;
+          prow.push({
+            content: typeof c.content === 'string' ? c.content : undefined,
+            rowspan,
+            colspan,
+            is_placeholder,
+          });
+        }
+        preview.push(prow);
+      }
+      if (preview.length) cells_preview = preview;
+    }
 
     if (!Number.isFinite(page) || !Number.isFinite(rows) || !Number.isFinite(cols)) continue;
     out.push({
@@ -154,6 +154,7 @@ export async function preparePdfContext(params: {
   pdfFile: File;
   pageStart: string;
   pageEnd: string;
+  parserMode: 'local' | 'mineru';
   onStep: (label: string) => void;
 }): Promise<HomePdfContext> {
   const { context } = await preparePdfContextWithDebug(params);
@@ -165,6 +166,7 @@ export async function preparePdfContextWithDebug(params: {
   pdfFile: File;
   pageStart: string;
   pageEnd: string;
+  parserMode: 'local' | 'mineru';
   onStep: (label: string) => void;
 }): Promise<{ context: HomePdfContext; debug: PreparePdfContextDebug }> {
   const start = parseOptionalPage(params.pageStart);
@@ -180,6 +182,7 @@ export async function preparePdfContextWithDebug(params: {
     ocrMath: true,
     ocrModel: 'glm-4.6v-flash',
     ocrScale: 2.0,
+    parserMode: params.parserMode,
   })) as PdfIngestResult;
 
   params.onStep('表格公式识别（table formula vision）');

@@ -24,6 +24,7 @@ export type PdfIngestOptions = {
   ocrMath?: boolean;
   ocrModel?: string;
   ocrScale?: number;
+  parserMode?: 'local' | 'mineru';
 };
 
 export async function uploadPdfAndIngest(
@@ -46,6 +47,7 @@ export async function uploadPdfAndIngest(
   if (typeof options.ocrMath === 'boolean') qs.set('ocr_math', options.ocrMath ? '1' : '0');
   if (typeof options.ocrModel === 'string' && options.ocrModel.trim()) qs.set('ocr_model', options.ocrModel.trim());
   if (typeof options.ocrScale === 'number' && Number.isFinite(options.ocrScale)) qs.set('ocr_scale', String(options.ocrScale));
+  if (options.parserMode) qs.set('parser_mode', options.parserMode);
   const url = `${backend}/api/projects/${encodeURIComponent(projectId)}/pdf/ingest${qs.toString() ? `?${qs.toString()}` : ''}`;
 
   const res = await fetch(url, {
