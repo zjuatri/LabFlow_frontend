@@ -33,6 +33,8 @@ export interface TypstBlock {
   id: string;
   type: BlockType;
   content: string;
+  // Optional UI hint (editor-only). Not guaranteed to round-trip through Typst.
+  placeholder?: string;
   level?: number; // 用于标题级别 (1-6)
   language?: string; // 用于代码块语言
   width?: string; // 图片宽度 (e.g., "100%", "8cm")

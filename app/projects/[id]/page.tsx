@@ -69,6 +69,7 @@ export default function ProjectEditorPage() {
 
   const previewRef = useRef<HTMLDivElement>(null);
   const editorScrollRef = useRef<HTMLDivElement>(null);
+  const blankCursorRef = useRef(0);
   const pageRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   const registerPageRef = useCallback((pageIndex: number, el: HTMLDivElement | null) => {
@@ -84,6 +85,35 @@ export default function ProjectEditorPage() {
     pageRefs,
     setActiveAnchor,
   });
+
+  const findAnswerBlankIndexes = useCallback((): number[] => {
+    const idx: number[] = [];
+    for (let i = 0; i < blocks.length; i++) {
+      const b = blocks[i];
+      if (b.type !== 'paragraph') continue;
+      if (!b.placeholder) continue;
+      const txt = (b.content ?? '').replace(/\u200B/g, '').trim();
+      if (txt.length === 0) idx.push(i);
+    }
+    return idx;
+  }, [blocks]);
+
+  const jumpToNextBlank = useCallback(() => {
+    const blanks = findAnswerBlankIndexes();
+    if (blanks.length === 0) return;
+    const start = blankCursorRef.current % blanks.length;
+    const targetIndex = blanks[start];
+    blankCursorRef.current = start + 1;
+
+    const container = editorScrollRef.current;
+    if (!container) return;
+    const el = container.querySelector(`[data-block-index="${targetIndex}"]`) as HTMLElement | null;
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Focus first editable inside the block if possible.
+    const editable = el.querySelector('[contenteditable="true"]') as HTMLElement | null;
+    editable?.focus();
+  }, [findAnswerBlankIndexes]);
 
   const buildRenderCodeForPreview = useCallback(() => {
     // Keep saved `code` clean. Only inject markers into the code sent to renderer.
@@ -421,7 +451,13 @@ export default function ProjectEditorPage() {
         <div className="flex items-center justify-between px-4 py-3 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <button
-              onClick={() => router.push('/')}
+              onClick={() => {
+                if (typeof window !== 'undefined' && window.history.length > 1) {
+                  router.back();
+                  return;
+                }
+                router.push('/workspace');
+              }}
               className="p-2 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors shrink-0"
               title="返回主页"
             >
@@ -550,6 +586,24 @@ export default function ProjectEditorPage() {
           />
         ) : (
           <div className="flex-1 overflow-y-auto bg-white dark:bg-zinc-950" ref={editorScrollRef}>
+            {(() => {
+              const blanks = findAnswerBlankIndexes();
+              if (blanks.length === 0) return null;
+              return (
+                <div className="sticky top-0 z-10 px-4 py-2 bg-amber-50/95 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 flex items-center justify-between gap-3">
+                  <div className="text-xs text-amber-800 dark:text-amber-200">
+                    发现 {blanks.length} 处“待填写答案”。虚线框段落为答案区。
+                  </div>
+                  <button
+                    type="button"
+                    onClick={jumpToNextBlank}
+                    className="text-xs px-2 py-1 rounded border border-amber-300 dark:border-amber-700 bg-white/80 dark:bg-zinc-950/40 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                  >
+                    跳到下一处
+                  </button>
+                </div>
+              );
+            })()}
             <BlockEditor
               blocks={blocks}
               onChange={(b) => {

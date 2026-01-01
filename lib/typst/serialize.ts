@@ -4,7 +4,8 @@ import {
   base64EncodeUtf8,
   defaultParagraphLeadingEm, snapLineSpacingMultiplier, leadingEmFromMultiplier,
   inlineToSingleLine, safeParseTablePayload, safeParseChartPayload,
-  convertMixedParagraph
+  convertMixedParagraph, sanitizeTypstInlineMath, sanitizeTypstMathSegment,
+  LF_ANSWER_MARKER
 } from './utils';
 
 /**
@@ -21,19 +22,19 @@ export function blocksToTypst(blocks: TypstBlock[], opts?: { settings?: Document
       case 'heading':
         out.push(serializeHeading(block));
         break;
-      
+
       case 'paragraph':
         out.push(serializeParagraph(block));
         break;
-      
+
       case 'code':
         out.push(serializeCode(block));
         break;
-      
+
       case 'math':
         out.push(serializeMath(block));
         break;
-      
+
       case 'image':
         imageIndex += 1;
         out.push(serializeImage(block, imageIndex, settings));
@@ -42,7 +43,7 @@ export function blocksToTypst(blocks: TypstBlock[], opts?: { settings?: Document
       case 'chart':
         out.push(serializeChart(block));
         break;
-      
+
       case 'list':
         out.push(serializeList(block));
         break;
@@ -51,7 +52,7 @@ export function blocksToTypst(blocks: TypstBlock[], opts?: { settings?: Document
         tableIndex += 1;
         out.push(serializeTable(block, tableIndex, settings));
         break;
-      
+
       default:
         out.push(block.content);
         break;
@@ -68,8 +69,31 @@ function serializeHeading(block: TypstBlock): string {
 
 function serializeParagraph(block: TypstBlock): string {
   const raw = block.content ?? '';
-  const body = convertMixedParagraph(raw);
-  
+  const isAnswerBlank = !!block.placeholder && raw.replace(/\u200B/g, '').trim().length === 0;
+  const body = sanitizeTypstInlineMath(convertMixedParagraph(raw));
+
+  if (isAnswerBlank) {
+    // Stylized placeholder box
+    const placeholderBlock = `#block(
+  width: 100%,
+  height: 2em,
+  fill: rgb("#EFF6FF"), // Light blue bg
+  stroke: (paint: rgb("#BFDBFE"), dash: "dashed"), // Blue dashed border
+  radius: 4pt,
+  inset: 8pt,
+  above: 12pt,
+  below: 12pt
+)[
+  #align(center + horizon)[
+    #text(fill: rgb("#93C5FD"), size: 0.9em)[( 请在此处填写答案 )]
+  ]
+]${LF_ANSWER_MARKER}`;
+
+    // If it has leading setting (rare for empty block), wrap it? usually not needed for block.
+    // Typst blocks handle their own spacing (above/below).
+    return placeholderBlock;
+  }
+
   const multiplierRaw = typeof block.lineSpacing === 'number' && Number.isFinite(block.lineSpacing)
     ? block.lineSpacing
     : undefined;
@@ -79,8 +103,8 @@ function serializeParagraph(block: TypstBlock): string {
     const leadingEm = leadingEmFromMultiplier(multiplier);
     return `#set par(leading: ${leadingEm}em)\n${body}\n#set par(leading: ${defaultParagraphLeadingEm}em)`;
   }
-  
-  return body;
+
+  return `${body}`;
 }
 
 function serializeCode(block: TypstBlock): string {
@@ -110,7 +134,7 @@ function serializeMath(block: TypstBlock): string {
     }
   }
 
-  return `$ ${(block.mathTypst ?? block.content).trim()} $${encoded}`;
+  return `$ ${sanitizeTypstMathSegment((block.mathTypst ?? block.content).trim())} $${encoded}`;
 }
 
 function serializeImage(block: TypstBlock, imageIndex: number, settings: DocumentSettings): string {
@@ -127,7 +151,42 @@ function serializeImage(block: TypstBlock, imageIndex: number, settings: Documen
   };
   const encoded = `${LF_IMAGE_MARKER}${base64EncodeUtf8(JSON.stringify(payload))}*/`;
   const alignValue = align === 'left' ? 'left' : align === 'right' ? 'right' : 'center';
-  const imageLine = `#align(${alignValue}, image("${block.content}", width: ${width}, height: ${height}))${encoded}`;
+
+  // If image path is empty, output a placeholder text instead of image("") which causes compilation error
+  const imagePath = (block.content ?? '').trim();
+  if (!imagePath) {
+    const placeholderText = captionText || '(待上传图片)';
+    return `#align(${alignValue})[${placeholderText}]${encoded}`;
+  }
+
+  // Check if the path looks like a placeholder or hallucinated path that won't exist
+  // Valid paths should already exist in the project's images folder
+  // Hallucinated paths often have Chinese characters or non-standard patterns
+  const isLikelyHallucinated = (path: string): boolean => {
+    // Check for common hallucination patterns:
+    // 1. Chinese characters in filename (DeepSeek often invents these)
+    // 2. Paths that don't start with /static/projects/ but look like static paths
+    // 3. Placeholder-like names
+    const hasChineseInFilename = /[\u4e00-\u9fa5]/.test(path.split('/').pop() || '');
+    const looksLikePlaceholder = /\[\[.*\]\]|待.*图|占位/.test(path);
+    const hasIllegalChars = /[<>"|?*]/.test(path);
+    return hasChineseInFilename || looksLikePlaceholder || hasIllegalChars;
+  };
+
+  // If path looks hallucinated, output a styled placeholder instead
+  if (isLikelyHallucinated(imagePath)) {
+    const warningText = captionText || '(图片路径无效)';
+    const pathDisplay = imagePath.length > 60 ? imagePath.slice(0, 60) + '...' : imagePath;
+    return `#block(width: 100%, fill: rgb("#FEF2F2"), stroke: rgb("#FCA5A5"), inset: 12pt, radius: 4pt)[
+  #text(fill: rgb("#DC2626"), weight: "bold")[⚠ 图片未找到]
+  #linebreak()
+  #text(size: 0.8em, fill: rgb("#991B1B"))[路径: ${pathDisplay}]
+  #linebreak()
+  #text(size: 0.9em)[${warningText}]
+]${encoded}`;
+  }
+
+  const imageLine = `#align(${alignValue}, image("${imagePath}", width: ${width}, height: ${height}))${encoded}`;
   const captionLine = captionText ? `#align(${alignValue})[${captionText}]` : '';
 
   if (captionLine && settings.imageCaptionPosition === 'above') {
@@ -135,7 +194,7 @@ function serializeImage(block: TypstBlock, imageIndex: number, settings: Documen
   } else if (captionLine && settings.imageCaptionPosition === 'below') {
     return `${imageLine}\n${captionLine}`;
   }
-  
+
   return imageLine;
 }
 
@@ -173,6 +232,10 @@ function serializeTable(block: TypstBlock, tableIndex: number, settings: Documen
     ? `stroke: (x: 0pt, y: 0pt), table.hline(y: 0, stroke: 1.6pt), table.hline(y: 1, stroke: 0.8pt), table.hline(y: ${rows}, stroke: 1.6pt)`
     : 'stroke: 0.8pt';
 
+  // Default table cell alignment: left horizontally, centered vertically.
+  // In Typst's alignment system, `center` is horizontal center, and `horizon` is vertical center.
+  const align = 'align: left + horizon';
+
   const flatArgs: string[] = [];
 
   for (let r = 0; r < rows; r++) {
@@ -203,6 +266,6 @@ function serializeTable(block: TypstBlock, tableIndex: number, settings: Documen
   const captionLine = captionText ? `#align(center)[${captionText}]\n` : '';
   // Use #table directly inside #align, with width on individual columns or wrap table in a box.
   // Correct Typst syntax: #align(center)[#block(width: ...)[#table(...)]]
-  const tableLine = `#align(center)[#block(width: ${width})[#table(columns: ${columns}, ${stroke}, ${flatArgs.join(', ')})]]${encoded}`;
+  const tableLine = `#align(center)[#block(width: ${width})[#table(columns: ${columns}, ${align}, ${stroke}, ${flatArgs.join(', ')})]]${encoded}`;
   return `${captionLine}${tableLine}`;
 }

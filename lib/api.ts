@@ -81,6 +81,12 @@ export type Project = {
 };
 
 export type PromptResponse = { ai_prompt: string; updated_at?: string | null };
+export type PromptsResponse = {
+  ai_prompt: string;
+  pdf_page_ocr_prompt: string;
+  table_cell_ocr_prompt: string;
+  updated_at?: string | null;
+};
 
 export async function register(email: string, password: string): Promise<TokenResponse> {
   return request<TokenResponse>('/api/auth/register', {
@@ -135,6 +141,29 @@ export type DeepSeekChatResponse = {
   } | null;
 };
 
+export type ProjectImageSummary = {
+  filename: string;
+  url: string;
+  page?: number | null;
+  summary: string;
+};
+
+export type ImagesSummarizeResponse = {
+  project_id: string;
+  model: string;
+  summaries: ProjectImageSummary[];
+};
+
+export async function summarizeProjectImages(
+  projectId: string,
+  payload: { images?: Array<{ filename: string; url?: string; page?: number | null }>; max_images?: number; model?: string } = {}
+): Promise<ImagesSummarizeResponse> {
+  return requestWithTimeout<ImagesSummarizeResponse>(`/api/projects/${encodeURIComponent(projectId)}/images/summarize`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }, 180000);
+}
+
 export async function chatWithDeepSeek(
   message: string,
   model: string = 'deepseek-v3',
@@ -179,5 +208,20 @@ export async function updateManagePrompt(ai_prompt: string): Promise<PromptRespo
   return request<PromptResponse>('/api/manage/prompt', {
     method: 'PUT',
     body: JSON.stringify({ ai_prompt }),
+  });
+}
+
+export async function getManagePrompts(): Promise<PromptsResponse> {
+  return request<PromptsResponse>('/api/manage/prompts');
+}
+
+export async function updateManagePrompts(payload: {
+  ai_prompt?: string;
+  pdf_page_ocr_prompt?: string;
+  table_cell_ocr_prompt?: string;
+}): Promise<PromptsResponse> {
+  return request<PromptsResponse>('/api/manage/prompts', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
   });
 }

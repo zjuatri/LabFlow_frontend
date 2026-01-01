@@ -4,6 +4,7 @@ import { TypstBlock } from '@/lib/typst';
 import Image from 'next/image';
 import { useState } from 'react';
 import ImageCropModal from '../ImageCropModal';
+import { ImageOff } from 'lucide-react';
 
 interface ImageBlockEditorProps {
   block: TypstBlock;
@@ -13,38 +14,37 @@ interface ImageBlockEditorProps {
 
 export default function ImageBlockEditor({ block, onUpdate, onUploadImage }: ImageBlockEditorProps) {
   const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   const handleCropComplete = async (croppedImageUrl: string) => {
     onUpdate({ content: croppedImageUrl });
+    setImageError(false); // Reset error state on new crop
   };
 
-  const alignClass = 
+  const alignClass =
     (block.align || 'center') === 'left' ? 'justify-start' :
-    (block.align || 'center') === 'right' ? 'justify-end' : 'justify-center';
+      (block.align || 'center') === 'right' ? 'justify-end' : 'justify-center';
+
+  // Reset error state when block.content changes
+  const handleImageError = () => {
+    setImageError(true);
+  };
 
   return (
     <div className="flex flex-col gap-3">
       {/* 图片预览 */}
       {block.content ? (
-        <div className="flex flex-col gap-3 p-3 bg-zinc-50 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
-          <div className={`flex ${alignClass}`}>
-            <Image
-              src={block.content}
-              alt="图片预览"
-              width={400}
-              height={300}
-              className="max-h-48 max-w-full h-auto w-auto object-contain rounded"
-              unoptimized
-            />
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setIsCropModalOpen(true)}
-              className="flex-1 px-3 py-2 text-sm rounded bg-blue-500 hover:bg-blue-600 text-white transition-colors"
-            >
-              编辑图片
-            </button>
-            <label className="flex-1 px-3 py-2 text-sm rounded bg-green-500 hover:bg-green-600 text-white text-center cursor-pointer transition-colors">
+        imageError ? (
+          // Fallback UI for broken image
+          <div className="flex flex-col gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
+            <div className={`flex ${alignClass} items-center gap-2 text-red-600 dark:text-red-400`}>
+              <ImageOff size={24} />
+              <span className="font-medium">图片加载失败</span>
+            </div>
+            <div className="text-xs text-red-500 dark:text-red-400 font-mono break-all bg-red-100 dark:bg-red-900/30 p-2 rounded">
+              {block.content}
+            </div>
+            <label className="px-3 py-2 text-sm rounded bg-blue-500 hover:bg-blue-600 text-white text-center cursor-pointer transition-colors">
               <input
                 type="file"
                 accept="image/*"
@@ -53,6 +53,7 @@ export default function ImageBlockEditor({ block, onUpdate, onUploadImage }: Ima
                   if (file) {
                     try {
                       await onUploadImage(file);
+                      setImageError(false);
                     } catch (err) {
                       alert(err instanceof Error ? err.message : '上传失败');
                     }
@@ -60,10 +61,50 @@ export default function ImageBlockEditor({ block, onUpdate, onUploadImage }: Ima
                 }}
                 className="hidden"
               />
-              更换图片
+              上传替换图片
             </label>
           </div>
-        </div>
+        ) : (
+          <div className="flex flex-col gap-3 p-3 bg-zinc-50 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
+            <div className={`flex ${alignClass}`}>
+              <Image
+                src={block.content}
+                alt="图片预览"
+                width={400}
+                height={300}
+                className="max-h-48 max-w-full h-auto w-auto object-contain rounded"
+                unoptimized
+                onError={handleImageError}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setIsCropModalOpen(true)}
+                className="flex-1 px-3 py-2 text-sm rounded bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+              >
+                编辑图片
+              </button>
+              <label className="flex-1 px-3 py-2 text-sm rounded bg-green-500 hover:bg-green-600 text-white text-center cursor-pointer transition-colors">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      try {
+                        await onUploadImage(file);
+                      } catch (err) {
+                        alert(err instanceof Error ? err.message : '上传失败');
+                      }
+                    }
+                  }}
+                  className="hidden"
+                />
+                更换图片
+              </label>
+            </div>
+          </div>
+        )
       ) : (
         <label className="px-4 py-8 rounded border-2 border-dashed border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800 hover:border-blue-400 dark:hover:border-blue-500 text-center cursor-pointer transition-colors">
           <input
@@ -102,31 +143,28 @@ export default function ImageBlockEditor({ block, onUpdate, onUploadImage }: Ima
           <div className="flex gap-1">
             <button
               onClick={(e) => { e.stopPropagation(); onUpdate({ align: 'left' }); }}
-              className={`px-3 py-1 text-xs rounded transition-colors ${
-                (block.align || 'center') === 'left'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'
-              }`}
+              className={`px-3 py-1 text-xs rounded transition-colors ${(block.align || 'center') === 'left'
+                ? 'bg-blue-500 text-white'
+                : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'
+                }`}
             >
               居左
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); onUpdate({ align: 'center' }); }}
-              className={`px-3 py-1 text-xs rounded transition-colors ${
-                (block.align || 'center') === 'center'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'
-              }`}
+              className={`px-3 py-1 text-xs rounded transition-colors ${(block.align || 'center') === 'center'
+                ? 'bg-blue-500 text-white'
+                : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'
+                }`}
             >
               居中
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); onUpdate({ align: 'right' }); }}
-              className={`px-3 py-1 text-xs rounded transition-colors ${
-                (block.align || 'center') === 'right'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'
-              }`}
+              className={`px-3 py-1 text-xs rounded transition-colors ${(block.align || 'center') === 'right'
+                ? 'bg-blue-500 text-white'
+                : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'
+                }`}
             >
               居右
             </button>

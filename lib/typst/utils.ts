@@ -7,6 +7,8 @@ import {
   PersistedChartPayload,
 } from './types';
 
+import { latexToTypstMath } from '../math-convert';
+
 export const LF_MATH_MARKER = '/*LF_MATH:';
 export const LF_TABLE_MARKER = '/*LF_TABLE:';
 export const LF_IMAGE_MARKER = '/*LF_IMAGE:';
@@ -72,6 +74,84 @@ export function defaultTablePayload(rows = 2, cols = 2): PersistedTablePayload {
   };
 }
 
+/**
+ * Infer missing colspan/rowspan from hidden cells.
+ * AI often marks cells as `hidden: true` but forgets to set colspan/rowspan on the master cell.
+ * This function scans each row: if a cell is hidden but the cell to its left is not hidden and
+ * has no colspan covering it, extend the left cell's colspan. Similarly for rowspan from above.
+ */
+function inferMissingSpans(cells: PersistedTableCell[][], rows: number, cols: number): void {
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = cells[r][c];
+      if (!cell.hidden) continue;
+
+      // Check if already covered by an explicit merge.
+      let covered = false;
+      // Check cells to the left.
+      for (let cc = c - 1; cc >= 0 && !covered; cc--) {
+        const left = cells[r][cc];
+        if (left.hidden) continue;
+        const cs = Math.max(1, left.colspan ?? 1);
+        if (cc + cs > c) {
+          covered = true;
+        }
+        break;
+      }
+      // Check cells above.
+      for (let rr = r - 1; rr >= 0 && !covered; rr--) {
+        const above = cells[rr][c];
+        if (above.hidden) continue;
+        const rs = Math.max(1, above.rowspan ?? 1);
+        if (rr + rs > r) {
+          covered = true;
+        }
+        break;
+      }
+
+      if (covered) continue;
+
+      // Not covered: try to extend the cell to the left (colspan) first.
+      let leftMaster: PersistedTableCell | null = null;
+      let leftCol = -1;
+      for (let cc = c - 1; cc >= 0; cc--) {
+        if (!cells[r][cc].hidden) {
+          leftMaster = cells[r][cc];
+          leftCol = cc;
+          break;
+        }
+      }
+      if (leftMaster && leftCol >= 0) {
+        // Extend colspan to cover this hidden cell.
+        const currentCs = Math.max(1, leftMaster.colspan ?? 1);
+        const neededCs = c - leftCol + 1;
+        if (neededCs > currentCs) {
+          leftMaster.colspan = neededCs;
+        }
+        continue;
+      }
+
+      // If no left master, try to extend the cell above (rowspan).
+      let aboveMaster: PersistedTableCell | null = null;
+      let aboveRow = -1;
+      for (let rr = r - 1; rr >= 0; rr--) {
+        if (!cells[rr][c].hidden) {
+          aboveMaster = cells[rr][c];
+          aboveRow = rr;
+          break;
+        }
+      }
+      if (aboveMaster && aboveRow >= 0) {
+        const currentRs = Math.max(1, aboveMaster.rowspan ?? 1);
+        const neededRs = r - aboveRow + 1;
+        if (neededRs > currentRs) {
+          aboveMaster.rowspan = neededRs;
+        }
+      }
+    }
+  }
+}
+
 export function safeParseTablePayload(content: string): PersistedTablePayload {
   try {
     const parsedUnknown: unknown = JSON.parse(content);
@@ -126,6 +206,10 @@ export function safeParseTablePayload(content: string): PersistedTablePayload {
         return { content: (cellIn ?? '').toString() };
       });
     });
+
+    // Infer missing colspan/rowspan from hidden cells.
+    // AI often marks cells as `hidden: true` but forgets to set colspan/rowspan on the master cell.
+    inferMissingSpans(cells, rows, cols);
 
     return { caption, style, rows, cols, cells };
   } catch {
@@ -469,11 +553,11 @@ export const convertMixedParagraph = (content: string): string => {
 
     const kind = visiblePrefixKind(trimmed);
     const lastSegment = segments[segments.length - 1];
-    
+
     // Merge ordered and bullet together as 'list' segments for grouping purposes
     const isListKind = kind === 'bullet' || kind === 'ordered';
     const lastIsListKind = lastSegment && (lastSegment.kind === 'bullet' || lastSegment.kind === 'ordered');
-    
+
     if (lastSegment && ((isListKind && lastIsListKind && lastSegment.kind === kind) || (!isListKind && !lastIsListKind))) {
       lastSegment.lines.push(trimmed);
     } else {
@@ -534,5 +618,167 @@ export const inlineToSingleLine = (s: string): string => {
   // Table cells must not contain raw newlines, otherwise the whole `table(...)` spans
   // multiple lines and the marker-driven parser will treat fragments as paragraphs.
   // Use Typst's `linebreak()` element to preserve visual line breaks inline.
-  return (s ?? '').replace(/\r?\n/g, ' #linebreak() ');
+  // Also convert literal `\n` (backslash + letter n, two chars) which AI sometimes outputs.
+  return sanitizeTypstInlineMath((s ?? ''))
+    .replace(/\\n/g, '\n')           // literal \n -> real newline first
+    .replace(/\r?\n/g, ' #linebreak() ');
 };
+
+// Marker for paragraph answer blanks (used to persist placeholder hints across save/load).
+export const LF_ANSWER_MARKER = '/*LF_ANSWER*/';
+
+const UNIT_SUFFIXES = new Set([
+  // length
+  'mm', 'cm', 'm', 'km', 'um', 'nm',
+  // mass
+  'mg', 'g', 'kg',
+  // time
+  'ms', 's', 'min', 'h',
+  // force/pressure
+  'N', 'kN', 'Pa', 'kPa', 'MPa', 'GPa',
+  // frequency
+  'Hz', 'kHz', 'MHz', 'GHz',
+  // electric
+  'V', 'A', 'mA', 'W',
+  // energy
+  'J', 'kJ',
+  // temperature (common latin fallbacks)
+  'C',
+]);
+
+const KNOWN_MATH_FUNCTIONS = new Set([
+  // Functions
+  'sin', 'cos', 'tan', 'cot', 'sec', 'csc',
+  'arcsin', 'arccos', 'arctan',
+  'sinh', 'cosh', 'tanh', 'coth',
+  'ln', 'log', 'lg', 'exp',
+  'lim', 'max', 'min', 'sup', 'inf',
+  'det', 'trace', 'dim', 'ker', 'deg', 'gcd', 'lcm',
+  'mod', 'sgn', 'arg', 'Re', 'Im',
+  'sum', 'prod', 'int', 'oint',
+  'sqrt', 'frac', 'binom', 'cases', 'mat', 'vec',
+  'abs', 'norm', 'floor', 'ceil', 'round',
+  'op', 'text', 'underline', 'overline', 'hat', 'tilde', 'dot', 'ddot', 'arrow',
+  'upright', 'bold', 'italic', 'sans', 'serif', 'mono',
+  // Greek letters (lowercase)
+  'alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta', 'iota', 'kappa',
+  'lambda', 'mu', 'nu', 'xi', 'omicron', 'pi', 'rho', 'sigma', 'tau', 'upsilon', 'phi', 'chi', 'psi', 'omega',
+  // Greek letters (uppercase)
+  'Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta', 'Iota', 'Kappa',
+  'Lambda', 'Mu', 'Nu', 'Xi', 'Omicron', 'Pi', 'Rho', 'Sigma', 'Tau', 'Upsilon', 'Phi', 'Chi', 'Psi', 'Omega',
+  // Special symbols
+  'partial', 'nabla', 'infty', 'aleph', 'beth', 'ell',
+  'in', 'notin', 'subset', 'subseteq', 'supset', 'supseteq', 'cup', 'cap',
+  'forall', 'exists', 'nexists', 'top', 'bot', 'empty',
+  'cdot', 'times', 'div', 'pm', 'mp',
+  'approx', 'sim', 'cong', 'equiv', 'neq', 'leq', 'geq', 'll', 'gg',
+  'leftarrow', 'rightarrow', 'leftrightarrow', 'Leftarrow', 'Rightarrow', 'Leftrightarrow',
+  'to', 'maps', 'mapsto',
+  // Custom unit whitelist (kept separate to avoid quoting them if they appear alone)
+  'mm', 'cm', 'm', 'km', 'um', 'nm', 'mg', 'g', 'kg', 'ms', 's', 'min', 'h',
+  'Hz', 'kHz', 'MHz', 'GHz', 'Pa', 'kPa', 'MPa', 'GPa', 'J', 'kJ', 'W', 'V', 'A', 'mA',
+]);
+
+export function sanitizeTypstMathSegment(segment: string): string {
+  let s = segment ?? '';
+
+  // 1. Convert trivial LaTeX-isms if detected
+  if (/\\[A-Za-z]+/.test(s) || /\\frac\s*\{/.test(s) || /\\times\b/.test(s) || /[_^]\{/.test(s)) {
+    s = latexToTypstMath(s);
+  }
+
+  // 2. Escape literal % to \% (comment char in Typst)
+  s = s.replace(/(^|[^\\])%/g, (_m, p1) => `${p1}\\%`);
+
+  // 3. Fix upright(mm) / bold(mm)
+  s = s.replace(/\b(upright|bold|italic)\(\s*([A-Za-z0-9]+)\s*\)/g, (_m, fn, arg) => {
+    return `${fn}("${arg}")`;
+  });
+
+  // 4. Quote unknown multi-letter variables (e.g. Kv -> "Kv", Mp -> "Mp")
+  // Typst treats any 2+ char word as a function call or variable lookup. 
+  // If it's not in the whitelist, we should quote it to treat it as text.
+  // We use a regex that matches "words" (sequence of letters) but be careful about:
+  // - single chars (don't quote 'x')
+  // - quoted strings (don't quote '"text"')
+  // - function calls 'sin(' (handled by looking ahead? no, Typst allows 'sin x')
+  // Simpler approach: split by non-word chars and replace.
+
+  // We process the string by finding variable-like tokens
+  // A variable is [A-Za-z][A-Za-z0-9]* 
+  // But we mostly care about [A-Za-z]{2,}
+  // We must ignore tokens inside quotes.
+  // This is a naive tokenizer.
+
+  const tokens = s.split(/([A-Za-z]{2,})/);
+  s = tokens.map((tok, idx) => {
+    // Even indices are delimiters, Odd indices are identifiers (captured)
+    if (idx % 2 === 0) return tok;
+
+    // Check if it's already inside quotes? 
+    // This simple split is dangerous if quotes exist. 
+    // E.g. "foo bar" -> split -> "foo", " ", "bar" -> quoted "bar" inside quotes?
+    // Let's rely on word boundary replacement which is safer if we assume input is mostly math expressions.
+    // Typst math usually doesn't have many string literals unless manually added.
+
+    if (KNOWN_MATH_FUNCTIONS.has(tok)) return tok;
+
+    // Check context for function call syntax "func("
+    const nextChar = tokens[idx + 1]?.trim().charAt(0);
+    if (nextChar === '(') return tok; // likely a function call we missed or custom function
+
+    return `"${tok}"`;
+  }).join('');
+
+  // 5. Fix number+unit spacing: 1700 "mm" -> 1700 "mm" (already quoted above)
+  // If we quoted the unit above (e.g. "mm"), removing the quote again might be nice if we want space.
+  // But "mm" is valid Typst string. 1700 "mm" renders as 1700mm text.
+  // The previous logic put spaces before units.
+  // Let's refine step 4:
+  // Actually, for units like 'mm', we WANT them quoted.
+  // The whitelist above INCLUDES units, so they weren't quoted by Step 4.
+  // Step 5 adds quotes AND space if missing.
+
+  s = s.replace(
+    /(\d+(?:\.\d+)?)\s*([A-Za-z]{1,4})\b/g,
+    (m, num, unit) => {
+      if (UNIT_SUFFIXES.has(unit)) {
+        // If it was whitelisted (unquoted), we add quotes and space here
+        return `${num} "${unit}"`;
+      }
+      return m;
+    }
+  );
+
+  return s;
+}
+
+export function sanitizeTypstInlineMath(input: string): string {
+  const s = input ?? '';
+  if (!s.includes('$')) return s;
+
+  let out = '';
+  let buf = '';
+  let inMath = false;
+
+  const flush = () => {
+    if (buf.length === 0) return;
+    out += inMath ? sanitizeTypstMathSegment(buf) : buf;
+    buf = '';
+  };
+
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    const prev = i > 0 ? s[i - 1] : '';
+    if (ch === '$' && prev !== '\\') {
+      flush();
+      inMath = !inMath;
+      out += '$';
+      continue;
+    }
+    buf += ch;
+  }
+
+  flush();
+  return out;
+}

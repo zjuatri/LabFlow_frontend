@@ -33,7 +33,7 @@ type IngestTable = {
 };
 
 type IngestImage = {
-  page_number: number;
+  page: number;
   filename: string;
   mime: string;
   width?: number | null;
@@ -44,6 +44,7 @@ type IngestImage = {
 type IngestResponse = {
   project_id: string;
   text_pages: string[];
+  ocr_text_pages?: Array<{ page: number; text: string }> | null;
   tables: IngestTable[];
   images: IngestImage[];
 };
@@ -99,8 +100,27 @@ export default function PdfTestPage() {
 
     try {
       const project = await createProject(title);
-      const ingest = (await uploadPdfAndIngest(project.id, file, { pageStart: start, pageEnd: end })) as IngestResponse;
+      
+      // 并行执行基础解析和公式识别
+      const [ingest, visionRes] = await Promise.all([
+        uploadPdfAndIngest(project.id, file, {
+          pageStart: start,
+          pageEnd: end,
+          ocrMath: true,
+          ocrModel: 'glm-4.6v-flash',
+          ocrScale: 2.0,
+        }) as Promise<IngestResponse>,
+        uploadPdfAndParseTableFormulasWithVision(project.id, file, { pageStart: start, pageEnd: end }).catch(err => {
+          console.warn('Vision parsing failed:', err);
+          setVisionError(err instanceof Error ? err.message : String(err));
+          return null;
+        })
+      ]);
+      
       setResult(ingest);
+      if (visionRes) {
+        setVisionResult(visionRes);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -207,7 +227,7 @@ export default function PdfTestPage() {
               fontWeight: 600,
             }}
           >
-            {busy ? '解析中…' : '创建项目并上传解析'}
+            {busy ? '解析中（含公式识别）…' : '创建项目并上传解析（含公式识别）'}
           </button>
 
           <button
@@ -223,7 +243,7 @@ export default function PdfTestPage() {
               fontWeight: 600,
             }}
           >
-            {visionBusy ? '公式识别中…' : '表格单元格公式识别（GLM Vision）'}
+            {visionBusy ? '公式识别中…' : '单独运行：表格单元格公式识别（GLM Vision）'}
           </button>
 
           {error ? (
@@ -282,6 +302,33 @@ export default function PdfTestPage() {
             </div>
           </details>
 
+          {Array.isArray((result as any).ocr_text_pages) ? (
+            <details open style={{ border: '1px solid #eee', borderRadius: 12, padding: 16 }}>
+              <summary style={{ cursor: 'pointer', fontWeight: 700 }}>ocr_text_pages（含行内公式）</summary>
+              <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
+                {((result as any).ocr_text_pages ?? []).map((p: any, idx: number) => (
+                  <div key={idx} style={{ border: '1px solid #f0f0f0', borderRadius: 10, padding: 12 }}>
+                    <div style={{ fontWeight: 700, marginBottom: 6 }}>Page {p?.page ?? idx + 1}</div>
+                    <pre
+                      style={{
+                        margin: 0,
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        background: '#fafafa',
+                        padding: 10,
+                        borderRadius: 8,
+                        maxHeight: 360,
+                        overflow: 'auto',
+                      }}
+                    >
+                      {p?.text || ''}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : null}
+
           <details style={{ border: '1px solid #eee', borderRadius: 12, padding: 16 }}>
             <summary style={{ cursor: 'pointer', fontWeight: 700 }}>tables</summary>
             <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
@@ -331,7 +378,7 @@ export default function PdfTestPage() {
               {(result.images ?? []).map((img, idx) => (
                 <div key={idx} style={{ border: '1px solid #f0f0f0', borderRadius: 10, padding: 10 }}>
                   <div style={{ fontWeight: 700, marginBottom: 6 }}>
-                    Page {img.page_number}
+                    Page {img.page}
                   </div>
                   <div style={{ color: '#666', fontSize: 12, marginBottom: 8 }}>{img.filename}</div>
                   <img

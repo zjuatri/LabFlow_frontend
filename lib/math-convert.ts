@@ -187,8 +187,13 @@ export function latexToTypstMath(latex: string): string {
   // Handle \mathbf{X} -> bold(X) in Typst
   s = s.replace(/\\mathbf\{([^}]+)\}/g, 'bold($1)');
   
-  // Handle \mathrm{X} -> upright(X) in Typst
-  s = s.replace(/\\mathrm\{([^}]+)\}/g, 'upright($1)');
+  // Handle \mathrm{X} -> upright("X") in Typst when it's a plain identifier.
+  // This commonly represents units like \mathrm{mm}.
+  s = s.replace(/\\mathrm\{([^}]+)\}/g, (_m, inner) => {
+    const v = String(inner ?? '').trim();
+    if (/^[A-Za-z]{1,16}$/.test(v)) return `upright("${v}")`;
+    return `upright(${v})`;
+  });
   
   // Handle \text{...} -> "..."
   s = s.replace(/\\text\{([^}]+)\}/g, '"$1"');
@@ -238,6 +243,27 @@ export function latexToTypstMath(latex: string): string {
       s = `${s.slice(0, sqrtIndex)}sqrt(${latexToTypstMath(token)})${s.slice(after + token.length)}`;
       continue;
     }
+  }
+
+  // Convert LaTeX grouped subscripts/superscripts into Typst grouping.
+  // In Typst math, curly braces are literal characters, so `Z_{1}` would render `{1}`.
+  // Typst groups with parentheses: `Z_(1)`.
+  for (let guard = 0; guard < 500; guard++) {
+    const subIndex = s.indexOf('_{');
+    const supIndex = s.indexOf('^{');
+    const nextIndex =
+      subIndex === -1 ? supIndex : supIndex === -1 ? subIndex : Math.min(subIndex, supIndex);
+    if (nextIndex === -1) break;
+
+    const op = s[nextIndex]; // '_' or '^'
+    const braceStart = nextIndex + 1;
+    if (s[braceStart] !== '{') break;
+    const braceEnd = findMatchingBrace(s, braceStart);
+    if (braceEnd === -1) break;
+
+    const innerLatex = s.slice(braceStart + 1, braceEnd);
+    const innerTypst = latexToTypstMath(innerLatex);
+    s = `${s.slice(0, nextIndex)}${op}(${innerTypst})${s.slice(braceEnd + 1)}`;
   }
 
   // Token replacements (commands)

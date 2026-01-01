@@ -25,6 +25,10 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [activeInlineMath, setActiveInlineMath] = useState<InlineMathState | null>(null);
 
+  const effectiveText = (block.content ?? '').replace(/\u200B/g, '').trim();
+  const placeholderText = block.placeholder ?? '输入段落内容...';
+  const isAnswerBlank = !!block.placeholder && effectiveText.length === 0;
+
   // Close color picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -195,11 +199,11 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
     pill.setAttribute('data-typst', '');
     pill.contentEditable = 'false';
     pill.textContent = '∑';
-    
+
     range.deleteContents();
     range.insertNode(pill);
     range.collapse(false);
-    
+
     const space = document.createTextNode('\u00A0');
     range.insertNode(space);
     range.collapse(false);
@@ -362,8 +366,11 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
             ? { lineHeight: block.lineSpacing }
             : undefined
         }
-        className="w-full min-h-[40px] p-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 whitespace-pre-wrap outline-none [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-0 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-0 [&_li]:my-0"
-        data-placeholder="输入段落内容..."
+        className={
+          "w-full min-h-[40px] p-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 whitespace-pre-wrap outline-none [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-0 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-0 [&_li]:my-0" +
+          (isAnswerBlank ? ' border-dashed' : '')
+        }
+        data-placeholder={isAnswerBlank ? '( 请在此处填写答案 )' : placeholderText}
       />
 
       {/* 行内公式编辑器 */}
@@ -371,7 +378,7 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
         <div className="inline-math-editor mt-2 p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-medium text-zinc-500">编辑行内公式</span>
-            <button 
+            <button
               onClick={() => {
                 syncParagraphFromDom();
                 setActiveInlineMath(null);
@@ -391,11 +398,10 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
                   setActiveInlineMath({ ...activeInlineMath, format: 'latex' });
                   updateInlineMathPillAttrs({ ...activeInlineMath, format: 'latex' });
                 }}
-                className={`px-2 py-1 text-xs transition-colors ${
-                  activeInlineMath.format === 'latex'
-                    ? 'bg-blue-500 text-white'
-                    : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                }`}
+                className={`px-2 py-1 text-xs transition-colors ${activeInlineMath.format === 'latex'
+                  ? 'bg-blue-500 text-white'
+                  : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  }`}
               >
                 LaTeX
               </button>
@@ -405,11 +411,10 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
                   setActiveInlineMath({ ...activeInlineMath, format: 'typst' });
                   updateInlineMathPillAttrs({ ...activeInlineMath, format: 'typst' });
                 }}
-                className={`px-2 py-1 text-xs transition-colors ${
-                  activeInlineMath.format === 'typst'
-                    ? 'bg-blue-500 text-white'
-                    : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                }`}
+                className={`px-2 py-1 text-xs transition-colors ${activeInlineMath.format === 'typst'
+                  ? 'bg-blue-500 text-white'
+                  : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  }`}
               >
                 Typst
               </button>

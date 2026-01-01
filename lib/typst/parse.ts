@@ -3,6 +3,7 @@ import {
   LF_TABLE_MARKER, LF_IMAGE_MARKER, LF_CHART_MARKER, LF_DOC_MARKER,
   base64DecodeUtf8, generateId,
   defaultParagraphLeadingEm, inferLineSpacingMultiplier,
+  LF_ANSWER_MARKER,
 } from './utils';
 import { typstToLatexMath } from '../math-convert';
 
@@ -214,8 +215,11 @@ export function typstToBlocks(code: string): TypstBlock[] {
     }
 
     // 段落
-    const paragraphLine = line.replace(/ \\\s*$/g, '');
-    const paragraphText = paragraphLine.replace(
+    const paragraphLine = line.replace(/ \\s*$/g, '');
+    const hasAnswerMarker = paragraphLine.includes(LF_ANSWER_MARKER);
+    const paragraphText = paragraphLine
+      .replace(LF_ANSWER_MARKER, '')
+      .replace(
       /\s*#linebreak\(\s*(?:justify\s*:\s*(?:true|false)\s*)?\)\s*/g,
       '\n'
     );
@@ -229,6 +233,9 @@ export function typstToBlocks(code: string): TypstBlock[] {
         type: 'paragraph',
         content: paragraphText,
       };
+      if (hasAnswerMarker) {
+        currentBlock.placeholder = '在此填写答案...';
+      }
       if (typeof pendingParagraphLeading === 'number') {
         currentBlock.lineSpacing = pendingParagraphLeading;
       }

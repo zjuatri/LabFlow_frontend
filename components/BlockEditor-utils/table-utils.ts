@@ -66,19 +66,97 @@ export const parseTablePayload = (content: string): TablePayload => {
 export const normalizeTablePayload = (p: TablePayload): TablePayload => {
   const rows = Math.max(1, p.rows);
   const cols = Math.max(1, p.cols);
+
+  // First pass: copy cell data as-is.
+  const cells: TableCell[][] = Array.from({ length: rows }, (_, r) =>
+    Array.from({ length: cols }, (_, c) => ({
+      content: p.cells?.[r]?.[c]?.content ?? '',
+      rowspan: p.cells?.[r]?.[c]?.rowspan,
+      colspan: p.cells?.[r]?.[c]?.colspan,
+      hidden: p.cells?.[r]?.[c]?.hidden,
+    }))
+  );
+
+  // Second pass: infer missing colspan/rowspan from hidden cells.
+  // AI often marks cells as `hidden: true` but forgets to set colspan/rowspan on the master cell.
+  // We scan each row: if a cell is hidden but the cell to its left is not hidden and has no colspan
+  // covering it, extend the left cell's colspan. Similarly for rowspan from above.
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = cells[r][c];
+      if (!cell.hidden) continue;
+
+      // Check if already covered by an explicit merge.
+      let covered = false;
+      // Check cells to the left.
+      for (let cc = c - 1; cc >= 0 && !covered; cc--) {
+        const left = cells[r][cc];
+        if (left.hidden) continue;
+        const cs = Math.max(1, left.colspan ?? 1);
+        if (cc + cs > c) {
+          covered = true;
+        }
+        break;
+      }
+      // Check cells above.
+      for (let rr = r - 1; rr >= 0 && !covered; rr--) {
+        const above = cells[rr][c];
+        if (above.hidden) continue;
+        const rs = Math.max(1, above.rowspan ?? 1);
+        if (rr + rs > r) {
+          covered = true;
+        }
+        break;
+      }
+
+      if (covered) continue;
+
+      // Not covered: try to extend the cell to the left (colspan) first.
+      let leftMaster: TableCell | null = null;
+      let leftCol = -1;
+      for (let cc = c - 1; cc >= 0; cc--) {
+        if (!cells[r][cc].hidden) {
+          leftMaster = cells[r][cc];
+          leftCol = cc;
+          break;
+        }
+      }
+      if (leftMaster && leftCol >= 0) {
+        // Extend colspan to cover this hidden cell.
+        const currentCs = Math.max(1, leftMaster.colspan ?? 1);
+        const neededCs = c - leftCol + 1;
+        if (neededCs > currentCs) {
+          leftMaster.colspan = neededCs;
+        }
+        continue;
+      }
+
+      // If no left master, try to extend the cell above (rowspan).
+      let aboveMaster: TableCell | null = null;
+      let aboveRow = -1;
+      for (let rr = r - 1; rr >= 0; rr--) {
+        if (!cells[rr][c].hidden) {
+          aboveMaster = cells[rr][c];
+          aboveRow = rr;
+          break;
+        }
+      }
+      if (aboveMaster && aboveRow >= 0) {
+        const currentRs = Math.max(1, aboveMaster.rowspan ?? 1);
+        const neededRs = r - aboveRow + 1;
+        if (neededRs > currentRs) {
+          aboveMaster.rowspan = neededRs;
+        }
+      }
+    }
+  }
+
   return {
     caption: p.caption ?? '',
     style: p.style ?? 'normal',
     rows,
     cols,
-    cells: Array.from({ length: rows }, (_, r) =>
-      Array.from({ length: cols }, (_, c) => ({
-        content: p.cells?.[r]?.[c]?.content ?? '',
-        rowspan: p.cells?.[r]?.[c]?.rowspan,
-        colspan: p.cells?.[r]?.[c]?.colspan,
-        hidden: p.cells?.[r]?.[c]?.hidden,
-      }))
-    ),
+    cells,
   };
 };
 

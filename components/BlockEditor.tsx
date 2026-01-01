@@ -54,8 +54,13 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
 
     const migrated: TypstBlock[] = blocks.map((b): TypstBlock => {
       if (b.type !== 'list') return b;
-      const items = (b.content ?? '').split(/\r?\n/);
-      const content = items.map((x) => (x.trim() ? `- ${x}` : '')).join('\n');
+      // Deterministic fallback: treat legacy list items as an ordered list.
+      // This avoids accidentally downgrading numbered content into bullets.
+      const items = (b.content ?? '')
+        .split(/\r?\n/)
+        .map((x) => x.trim())
+        .filter((x) => x.length > 0);
+      const content = items.map((x, i) => `${i + 1}. ${x}`).join('\n');
       return { ...b, type: 'paragraph', content };
     });
 

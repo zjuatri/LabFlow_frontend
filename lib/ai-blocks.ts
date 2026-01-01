@@ -1,4 +1,5 @@
 import { type DocumentSettings, defaultDocumentSettings, type TypstBlock } from '@/lib/typst';
+import { latexToTypstMath } from './math-convert';
 
 export type AiBlocksResponse = {
   settings?: Partial<DocumentSettings> | null;
@@ -20,6 +21,19 @@ const allowedTypes = new Set<TypstBlock['type']>([
   'table',
   'chart',
 ]);
+
+const ANSWER_PLACEHOLDER = '在此填写答案...';
+const ZWSP = '\u200B';
+const ANSWER_MARKERS = new Set(['[[ANSWER]]', '[ANSWER]', '<ANSWER>', '{{ANSWER}}', '<<ANSWER>>']);
+// Pattern to detect Chinese placeholder phrases or standard placeholder patterns
+const ANSWER_MARKER_REGEX = /^\[\[.*(?:PLACEHOLDER|待填写|待补充|待完成).*\]\]$|^（?请?在此.*填写.*）?$/i;
+
+function isAnswerMarkerContent(content: string): boolean {
+  const trimmed = content.trim();
+  if (ANSWER_MARKERS.has(trimmed)) return true;
+  if (ANSWER_MARKER_REGEX.test(trimmed)) return true;
+  return false;
+}
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
@@ -70,11 +84,135 @@ function stringifyPayload(obj: unknown): string {
   return JSON.stringify(obj ?? {});
 }
 
-function normalizeBlock(raw: unknown, getNextId: () => string, projectId: string): TypstBlock | null {
-  if (!isObject(raw)) return null;
+function normalizeListToOrderedParagraph(rawList: unknown): string {
+  // Models sometimes output a dedicated `list` block with newline-separated items.
+  // Our editor renders true HTML lists when lines are prefixed with `- ` or `1. `.
+  // User expectation: if the original content is numbered, keep it as an ordered list.
+  // When ambiguous, ordered list is acceptable and more structured.
+  if (typeof rawList !== 'string') return '';
+
+  const text = rawList.replace(/\r\n/g, '\n');
+  const rawLines = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  const cnToInt = (cn: string): number | null => {
+    // Minimal mapping for common cases (1-20). Extend if needed.
+    const map: Record<string, number> = {
+      '一': 1,
+      '二': 2,
+      '三': 3,
+      '四': 4,
+      '五': 5,
+      '六': 6,
+      '七': 7,
+      '八': 8,
+      '九': 9,
+      '十': 10,
+      '十一': 11,
+      '十二': 12,
+      '十三': 13,
+      '十四': 14,
+      '十五': 15,
+      '十六': 16,
+      '十七': 17,
+      '十八': 18,
+      '十九': 19,
+      '二十': 20,
+    };
+    return map[cn] ?? null;
+  };
+
+  const normalizeLine = (line: string, fallbackIndex: number): { kind: 'ordered' | 'bullet' | 'plain'; line: string } => {
+    // Bullet
+    const bulletMatch = line.match(/^[-*]\s+(.+)$/);
+    if (bulletMatch) {
+      return { kind: 'bullet', line: `- ${bulletMatch[1].trim()}` };
+    }
+
+    // Ordered: 1. / 1) / 1、 / 1． / （1） / (1)
+    const arabicMatch = line.match(/^(?:\(?|（)?(\d+)(?:\)|）)?[\.|．|、|\)]\s*(.+)$/);
+    if (arabicMatch) {
+      const n = parseInt(arabicMatch[1] ?? '', 10);
+      const rest = (arabicMatch[2] ?? '').trim();
+      if (Number.isFinite(n) && rest) return { kind: 'ordered', line: `${n}. ${rest}` };
+    }
+
+    // Ordered: 一、 二、 ...
+    const cnMatch = line.match(/^([一二三四五六七八九十]+)、\s*(.+)$/);
+    if (cnMatch) {
+      const n = cnToInt((cnMatch[1] ?? '').trim());
+      const rest = (cnMatch[2] ?? '').trim();
+      if (n && rest) return { kind: 'ordered', line: `${n}. ${rest}` };
+    }
+
+    // Plain line -> will be numbered later if we decide ordered.
+    return { kind: 'plain', line: line.trim() };
+  };
+
+  const normalized = rawLines.map((l, i) => normalizeLine(l, i + 1));
+  const hasBullet = normalized.some((x) => x.kind === 'bullet');
+  const hasOrdered = normalized.some((x) => x.kind === 'ordered');
+
+  // If any bullet lines exist and no ordered markers exist, keep bullets.
+  if (hasBullet && !hasOrdered) {
+    return normalized
+      .map((x) => (x.kind === 'bullet' ? x.line : `- ${x.line}`))
+      .join('\n');
+  }
+
+  // Default: ordered list.
+  let counter = 1;
+  return normalized
+    .map((x) => {
+      if (x.kind === 'ordered') return x.line;
+      if (x.kind === 'bullet') {
+        const rest = x.line.replace(/^[-*]\s+/, '').trim();
+        const n = counter++;
+        return `${n}. ${rest}`;
+      }
+      const n = counter++;
+      return `${n}. ${x.line}`;
+    })
+    .join('\n');
+}
+
+function looksLikeMultiLineListParagraph(text: string): boolean {
+  // Heuristic: if a paragraph contains multiple non-empty lines, it's usually a list
+  // (e.g., 实验目的 1/2/3/4). Converting to an ordered list is acceptable and improves structure.
+  const normalized = text.replace(/\r\n/g, '\n');
+  if (!normalized.includes('\n')) return false;
+  if (normalized.includes('\n\n')) return false;
+
+  const lines = normalized
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  if (lines.length < 2) return false;
+  if (lines.length > 30) return false;
+  if (lines.some((l) => l.length > 200)) return false;
+
+  return true;
+}
+
+function normalizeBlockMany(raw: unknown, getNextId: () => string, projectId: string): TypstBlock[] {
+  if (!isObject(raw)) {
+    console.warn('[normalizeBlockMany] skipped non-object:', raw);
+    return [];
+  }
 
   const type = asString(raw.type);
-  if (!type || !allowedTypes.has(type as TypstBlock['type'])) return null;
+  if (!type || !allowedTypes.has(type as TypstBlock['type'])) {
+    console.warn('[normalizeBlockMany] skipped invalid type:', type, 'raw:', raw);
+    return [];
+  }
+
+  // Debug: log table blocks
+  if (type === 'table') {
+    console.log('[normalizeBlockMany] processing table block:', (raw as Record<string, unknown>).id);
+  }
 
   const id = asString(raw.id) ?? getNextId();
   const content = asString(raw.content) ?? '';
@@ -94,20 +232,40 @@ function normalizeBlock(raw: unknown, getNextId: () => string, projectId: string
 
   const mathLines = Array.isArray(raw.mathLines)
     ? raw.mathLines
-        .map((x) => {
-          if (!isObject(x)) return null;
-          const latex = asString(x.latex) ?? '';
-          const typst = asString(x.typst) ?? '';
-          return { latex, typst };
-        })
-        .filter((x): x is { latex: string; typst: string } => !!x)
+      .map((x) => {
+        if (!isObject(x)) return null;
+        const latex = asString(x.latex) ?? '';
+        const typst = asString(x.typst) ?? '';
+        return { latex, typst };
+      })
+      .filter((x): x is { latex: string; typst: string } => !!x)
     : undefined;
 
   // Friendly payload formats (recommended): tablePayload / chartPayload.
   const tablePayload = (raw as Record<string, unknown>).tablePayload;
   const chartPayload = (raw as Record<string, unknown>).chartPayload;
 
+  // Compatibility: convert unsupported/ambiguous list blocks into bullet paragraphs.
+  let normalizedType: TypstBlock['type'] = type as TypstBlock['type'];
   let finalContent = content;
+
+  // Explicit answer marker emitted by prompt: convert to an editable blank.
+  // Keep a zero-width space so it survives stringify/typst round-trips.
+  if (normalizedType === 'paragraph' && isAnswerMarkerContent(finalContent)) {
+    return [
+      {
+        id,
+        type: 'paragraph',
+        content: ZWSP,
+        placeholder: ANSWER_PLACEHOLDER,
+      },
+    ];
+  }
+
+  if (normalizedType === 'list') {
+    normalizedType = 'paragraph';
+    finalContent = normalizeListToOrderedParagraph(finalContent);
+  }
 
   if (type === 'table' && tablePayload !== undefined) {
     finalContent = stringifyPayload(tablePayload);
@@ -129,14 +287,18 @@ function normalizeBlock(raw: unknown, getNextId: () => string, projectId: string
 
     if (!url.startsWith(expectedPrefix)) {
       // Reject unsafe image urls.
-      return null;
+      return [];
     }
     finalContent = url;
   }
 
+  // NOTE: No heuristics/guessing here.
+  // - “阐述型有序列表” vs “问答型有序列表” is decided by the model following the prompt.
+  // - Question answer blanks must be emitted explicitly as a standalone paragraph: [[ANSWER]].
+
   const out: TypstBlock = {
     id,
-    type: type as TypstBlock['type'],
+    type: normalizedType,
     content: finalContent,
   };
 
@@ -151,12 +313,31 @@ function normalizeBlock(raw: unknown, getNextId: () => string, projectId: string
   if (out.type === 'math') {
     if (mathFormat) out.mathFormat = mathFormat;
     if (mathLatex !== null) out.mathLatex = mathLatex;
-    if (mathTypst !== null) out.mathTypst = mathTypst;
-    if (mathLines) out.mathLines = mathLines;
+
+    // Auto-convert LaTeX to Typst if missing (AI enforced to output LaTeX)
+    if (mathTypst !== null) {
+      out.mathTypst = mathTypst;
+    } else if (mathLatex !== null && (!mathFormat || mathFormat === 'latex')) {
+      // Lazy import or import at top? We need to import at top. 
+      // Since I cannot change top imports easily with this tool without context, 
+      // I assume I will add the import in a separate step or I'll use require? 
+      // Next.js client component... standard import is better. 
+      // Wait, I can't use replace_file_content to add import easily if I don't target the top.
+      // I'll assume I will add the import line in another call or just use a full file replacement logic if needed?
+      // Actually I can just add the logic assuming the import exists, and then add the import.
+      out.mathTypst = latexToTypstMath(mathLatex);
+    }
+
+    if (mathLines) {
+      out.mathLines = mathLines.map(line => ({
+        latex: line.latex,
+        typst: line.typst || (line.latex ? latexToTypstMath(line.latex) : '')
+      }));
+    }
     if (typeof mathBrace === 'boolean') out.mathBrace = mathBrace;
   }
 
-  return out;
+  return [out];
 }
 
 export function extractJsonFromModelText(text: string): unknown {
@@ -211,9 +392,18 @@ export function normalizeAiBlocksResponse(args: {
 
   const blocks: TypstBlock[] = [];
   for (const b of blocksRaw) {
-    const nb = normalizeBlock(b, getNextId, projectId);
-    if (nb) blocks.push(nb);
+    const nb = normalizeBlockMany(b, getNextId, projectId);
+    if (Array.isArray(nb) && nb.length > 0) {
+      blocks.push(...nb);
+    } else {
+      console.warn('[normalizeAiBlocksResponse] block returned empty:', b);
+    }
   }
+
+  // Debug: log all table blocks
+  const tableBlocks = blocks.filter(b => b.type === 'table');
+  console.log('[normalizeAiBlocksResponse] total blocks:', blocks.length, 'table blocks:', tableBlocks.length);
+  tableBlocks.forEach(tb => console.log('  table id:', tb.id, 'content length:', tb.content?.length));
 
   if (blocks.length === 0) {
     throw new Error('AI 输出的 blocks 均无效（请检查 type/id/content 字段）');

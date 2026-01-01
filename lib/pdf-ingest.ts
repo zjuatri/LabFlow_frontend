@@ -5,14 +5,25 @@ import { getToken } from './auth';
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
 
 function getBackendBaseUrlForBrowser(): string {
-  // If user didn't set NEXT_PUBLIC_BACKEND_URL, assume same-origin.
-  // This makes it work behind a reverse proxy as well.
-  return BASE_URL;
+  // If user explicitly set NEXT_PUBLIC_BACKEND_URL, use it.
+  if (BASE_URL) return BASE_URL;
+
+  // For local dev: default to localhost:8000 to bypass Next.js rewrite
+  // (rewrite has 30s timeout and will kill long-running OCR requests).
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    return 'http://localhost:8000';
+  }
+
+  // Production: same-origin (assumes reverse proxy routes /api/* to backend).
+  return '';
 }
 
 export type PdfIngestOptions = {
   pageStart?: number;
   pageEnd?: number;
+  ocrMath?: boolean;
+  ocrModel?: string;
+  ocrScale?: number;
 };
 
 export async function uploadPdfAndIngest(
@@ -32,6 +43,9 @@ export async function uploadPdfAndIngest(
   const qs = new URLSearchParams();
   if (typeof options.pageStart === 'number') qs.set('page_start', String(options.pageStart));
   if (typeof options.pageEnd === 'number') qs.set('page_end', String(options.pageEnd));
+  if (typeof options.ocrMath === 'boolean') qs.set('ocr_math', options.ocrMath ? '1' : '0');
+  if (typeof options.ocrModel === 'string' && options.ocrModel.trim()) qs.set('ocr_model', options.ocrModel.trim());
+  if (typeof options.ocrScale === 'number' && Number.isFinite(options.ocrScale)) qs.set('ocr_scale', String(options.ocrScale));
   const url = `${backend}/api/projects/${encodeURIComponent(projectId)}/pdf/ingest${qs.toString() ? `?${qs.toString()}` : ''}`;
 
   const res = await fetch(url, {

@@ -4,11 +4,12 @@ export const runtime = 'nodejs';
 
 const UPSTREAM_TIMEOUT_MS = 2 * 60 * 1000;
 
-export async function POST(req: Request, ctx: { params: { id: string } }) {
+export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const startedAt = Date.now();
   try {
+    const { id } = await ctx.params;
     const backendBase = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:8000';
-    const targetUrl = `${backendBase.replace(/\/$/, '')}/api/projects/${encodeURIComponent(ctx.params.id)}/pdf/table/formula/vision`;
+    const targetUrl = `${backendBase.replace(/\/$/, '')}/api/projects/${encodeURIComponent(id)}/pdf/table/formula/vision`;
 
     const url = new URL(req.url);
     const qs = url.searchParams.toString();
@@ -19,7 +20,7 @@ export async function POST(req: Request, ctx: { params: { id: string } }) {
     const contentLength = req.headers.get('content-length') || '';
 
     console.log(
-      `[proxy pdf/table/formula/vision] start id=${ctx.params.id} qs=${qs} ct=${contentType} cl=${contentLength}`,
+      `[proxy pdf/table/formula/vision] start id=${id} qs=${qs} ct=${contentType} cl=${contentLength}`,
     );
 
     if (!req.body) {
@@ -34,22 +35,20 @@ export async function POST(req: Request, ctx: { params: { id: string } }) {
 
     // For multipart/form-data, pass through the raw body stream.
     // `duplex` is required by Node.js fetch when streaming a request body.
-    // TS lib.dom.d.ts doesn't include it, so we cast init to `any`.
+    // TS lib.dom.d.ts doesn't include it, so we use an `unknown` cast.
     let upstream: Response;
     try {
-      upstream = await fetch(
-        fullUrl,
-        {
-          method: 'POST',
-          headers: {
-            ...(auth ? { Authorization: auth } : {}),
-            ...(contentType ? { 'Content-Type': contentType } : {}),
-          },
-          body: req.body,
-          duplex: 'half',
-          signal: abort.signal,
-        } as any,
-      );
+      const initWithDuplex = {
+        method: 'POST',
+        headers: {
+          ...(auth ? { Authorization: auth } : {}),
+          ...(contentType ? { 'Content-Type': contentType } : {}),
+        },
+        body: req.body,
+        duplex: 'half',
+        signal: abort.signal,
+      };
+      upstream = await fetch(fullUrl, initWithDuplex as unknown as RequestInit);
     } finally {
       clearTimeout(timeout);
     }
@@ -80,7 +79,7 @@ export async function POST(req: Request, ctx: { params: { id: string } }) {
     }
     return new NextResponse(text, { status: upstream.status, headers: outHeaders });
   } catch (e) {
-    const err = e as any;
+    const err = e as { message?: unknown; name?: unknown; code?: unknown; cause?: unknown };
     const detail = {
       message: err?.message ? String(err.message) : String(e),
       name: err?.name ? String(err.name) : undefined,

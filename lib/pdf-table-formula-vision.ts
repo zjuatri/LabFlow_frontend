@@ -2,14 +2,17 @@ import { getToken } from './auth';
 
 // For this long-running vision endpoint, we bypass Next.js proxy entirely
 // and call the backend directly to avoid the ~30s proxy timeout.
-// Note: In browser, process.env may not be available at runtime, so we hardcode fallback.
 function getBackendBaseUrlForBrowser(): string {
-  // Try env var first (works during SSR or if bundled), fallback to localhost for dev
-  if (typeof window !== 'undefined') {
-    // Browser runtime: env vars must be inlined at build time
-    return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+  const envUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
+  if (envUrl) return envUrl;
+
+  // Local dev: default to localhost:8000 to bypass Next.js rewrite timeout.
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    return 'http://localhost:8000';
   }
-  return process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:8000';
+
+  // Production: same-origin (assumes reverse proxy routes /api/* to backend).
+  return '';
 }
 
 export type PdfTableFormulaVisionOptions = {

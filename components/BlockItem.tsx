@@ -34,9 +34,17 @@ interface BlockItemProps {
 
 function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdate, onDelete, onAddAfter, onMove, onUploadImage, onTableSelectionSnapshot, lastTableSelection, onRenderChart, onClick }: BlockItemProps) {
 
+  const effectiveText = (block.content ?? '').replace(/\u200B/g, '').trim();
+  const isAnswerBlank = block.type === 'paragraph' && !!block.placeholder && effectiveText.length === 0;
+
   return (
     <div
-      className="group relative border border-zinc-200 dark:border-zinc-700 rounded-lg p-3 hover:border-zinc-400 dark:hover:border-zinc-500 bg-white dark:bg-zinc-900 cursor-pointer"
+      className={
+        "group relative border rounded-lg p-3 cursor-pointer transition-colors duration-200 " +
+        (isAnswerBlank
+          ? "border-dashed border-2 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-700"
+          : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500 bg-white dark:bg-zinc-900")
+      }
       onClick={onClick}
     >
       {/* 工具栏 */}
@@ -123,23 +131,23 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
       {block.type === 'code' ? (
         <CodeBlockEditor block={block} onUpdate={onUpdate} />
       ) : block.type === 'chart' ? (
-        <ChartBlockEditor 
-          block={block} 
-          onUpdate={onUpdate} 
-          allBlocks={allBlocks} 
-          availableTables={availableTables} 
-          onRenderChart={onRenderChart} 
-          lastTableSelection={lastTableSelection} 
+        <ChartBlockEditor
+          block={block}
+          onUpdate={onUpdate}
+          allBlocks={allBlocks}
+          availableTables={availableTables}
+          onRenderChart={onRenderChart}
+          lastTableSelection={lastTableSelection}
         />
       ) : block.type === 'image' ? (
         <ImageBlockEditor block={block} onUpdate={onUpdate} onUploadImage={onUploadImage} />
       ) : block.type === 'math' ? (
         <MathBlockEditor block={block} onUpdate={onUpdate} />
       ) : block.type === 'table' ? (
-            <TableBlockEditor block={block} onUpdate={onUpdate} onTableSelectionSnapshot={onTableSelectionSnapshot} />
+        <TableBlockEditor block={block} onUpdate={onUpdate} onTableSelectionSnapshot={onTableSelectionSnapshot} />
       ) : block.type === 'heading' ? (
         <TitleBlockEditor block={block} onUpdate={onUpdate} />
-      ) : block.type === 'paragraph' ? (
+      ) : block.type === 'paragraph' || block.type === 'list' ? (
         <TextBlockEditor block={block} onUpdate={onUpdate} />
       ) : (
         <input
