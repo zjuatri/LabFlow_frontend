@@ -76,7 +76,7 @@ export default function ProjectEditorPage() {
     pageRefs.current[pageIndex] = el;
   }, []);
 
-  useBidirectionalScrollSync({
+  const { suppressEditorSync } = useBidirectionalScrollSync({
     mode,
     svgPages,
     blocksLength: blocks.length,
@@ -445,6 +445,34 @@ export default function ProjectEditorPage() {
     return () => clearTimeout(timer);
   }, [buildRenderCodeForPreview, renderTypst]);
 
+  const handlePreviewClick = useCallback((pageIndex: number, localIndex: number) => {
+    if (!editorScrollRef.current) return;
+
+    // Suppress editor-to-preview sync to prevent the preview from scrolling back
+    suppressEditorSync(600);
+
+    let globalIndex = 0;
+    for (let i = 0; i < pageIndex; i++) {
+      const content = svgPages[i] || '';
+      const matches = content.match(/fill="#000001"/g);
+      globalIndex += matches ? matches.length : 0;
+    }
+    globalIndex += localIndex;
+
+    const el = editorScrollRef.current.querySelector(`[data-block-index="${globalIndex}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Temporary highlight
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.transition = 'background-color 0.3s ease';
+      const originalBg = htmlEl.style.backgroundColor;
+      htmlEl.style.backgroundColor = 'rgba(59, 130, 246, 0.15)';
+      setTimeout(() => {
+        htmlEl.style.backgroundColor = originalBg;
+      }, 800);
+    }
+  }, [svgPages]);
+
   return (
     <div className="flex h-screen w-full bg-zinc-50 dark:bg-zinc-900">
       <div className="flex flex-col w-1/2 border-r border-zinc-300 dark:border-zinc-700">
@@ -467,8 +495,8 @@ export default function ProjectEditorPage() {
               <button
                 onClick={() => handleModeSwitch('visual')}
                 className={`px-3 py-1 text-sm transition-colors ${mode === 'visual'
-                    ? 'bg-blue-500 text-white'
-                    : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  ? 'bg-blue-500 text-white'
+                  : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                   }`}
               >
                 可视化
@@ -476,8 +504,8 @@ export default function ProjectEditorPage() {
               <button
                 onClick={() => handleModeSwitch('source')}
                 className={`px-3 py-1 text-sm transition-colors ${mode === 'source'
-                    ? 'bg-blue-500 text-white'
-                    : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  ? 'bg-blue-500 text-white'
+                  : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                   }`}
               >
                 源代码
@@ -682,6 +710,7 @@ export default function ProjectEditorPage() {
                   activeLocalIndex={clickAnchor?.pageIndex === index ? clickAnchor.localIndex : null}
                   highlightNonce={highlightNonce}
                   registerPageRef={registerPageRef}
+                  onBlockClick={handlePreviewClick}
                 />
               ))}
             </div>

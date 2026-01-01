@@ -293,4 +293,14 @@ export function useBidirectionalScrollSync({
       }
     };
   }, [blocksLength, mode, pageRefs, previewRef, editorScrollRef, setActiveAnchor, svgPages.length]);
+
+  // Expose a function to suppress editor-to-preview sync temporarily
+  // This is useful when the user clicks on the preview and we don't want
+  // the resulting editor scroll to trigger a preview scroll back.
+  const suppressEditorSync = (durationMs: number = 500) => {
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    ignoreEditorUntilRef.current = now + durationMs;
+  };
+
+  return { suppressEditorSync };
 }
