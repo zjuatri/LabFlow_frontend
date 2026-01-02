@@ -108,10 +108,10 @@ export async function listProjects(type?: string): Promise<Project[]> {
   return request<Project[]>(`/api/projects${params}`);
 }
 
-export async function createProject(title: string, type: string = 'report'): Promise<Project> {
+export async function createProject(title: string, type: string = 'report', sourceProjectId?: string): Promise<Project> {
   return request<Project>('/api/projects', {
     method: 'POST',
-    body: JSON.stringify({ title, type }),
+    body: JSON.stringify({ title, type, source_project_id: sourceProjectId }),
   });
 }
 
