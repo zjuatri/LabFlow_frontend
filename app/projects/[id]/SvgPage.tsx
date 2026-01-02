@@ -168,7 +168,7 @@ export function SvgPage({
       {isVisible ? (
         <div
           dangerouslySetInnerHTML={{ __html: svgContent }}
-          style={{ userSelect: 'text', cursor: 'text' }}
+          style={{ userSelect: 'text' }}
           className="[&_svg]:select-text [&_text]:select-text [&_svg]:max-w-full [&_svg]:h-auto"
         />
       ) : (

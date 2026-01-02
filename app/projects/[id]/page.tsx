@@ -459,19 +459,82 @@ export default function ProjectEditorPage() {
     }
     globalIndex += localIndex;
 
+    // Get the block content for copying
+    const block = blocks[globalIndex];
+    if (block) {
+      let textToCopy = '';
+      if (block.type === 'image') {
+        // For images, copy the image path or caption
+        textToCopy = block.content || block.caption || '(图片)';
+      } else if (block.type === 'table') {
+        // For tables, try to extract text representation
+        try {
+          const payload = JSON.parse(block.content || '{}');
+          if (payload.cells) {
+            textToCopy = payload.cells
+              .map((row: any[]) => row.map((cell: any) => cell.content || '').join('\t'))
+              .join('\n');
+          }
+        } catch {
+          textToCopy = block.content || '';
+        }
+      } else {
+        textToCopy = block.content || '';
+      }
+
+      if (textToCopy) {
+        navigator.clipboard.writeText(textToCopy).then(() => {
+          // Show a brief toast notification
+          const toast = document.createElement('div');
+          toast.textContent = '已复制到剪贴板';
+          Object.assign(toast.style, {
+            position: 'fixed',
+            bottom: '20px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            padding: '8px 16px',
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            color: 'white',
+            borderRadius: '4px',
+            fontSize: '14px',
+            zIndex: '9999',
+            opacity: '0',
+            transition: 'opacity 0.3s'
+          });
+          document.body.appendChild(toast);
+          requestAnimationFrame(() => toast.style.opacity = '1');
+          setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+          }, 1500);
+        }).catch(() => {
+          // Clipboard API failed, ignore silently
+        });
+      }
+    }
+
     const el = editorScrollRef.current.querySelector(`[data-block-index="${globalIndex}"]`);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Temporary highlight
+      // Temporary highlight using outline and boxShadow for more visibility
       const htmlEl = el as HTMLElement;
-      htmlEl.style.transition = 'background-color 0.3s ease';
-      const originalBg = htmlEl.style.backgroundColor;
-      htmlEl.style.backgroundColor = 'rgba(59, 130, 246, 0.15)';
+      const originalOutline = htmlEl.style.outline;
+      const originalBoxShadow = htmlEl.style.boxShadow;
+      const originalTransition = htmlEl.style.transition;
+
+      htmlEl.style.transition = 'outline 0.2s ease, box-shadow 0.2s ease';
+      htmlEl.style.outline = '2px solid rgba(59, 130, 246, 0.6)';
+      htmlEl.style.boxShadow = '0 0 8px rgba(59, 130, 246, 0.4)';
+
       setTimeout(() => {
-        htmlEl.style.backgroundColor = originalBg;
-      }, 800);
+        htmlEl.style.outline = originalOutline;
+        htmlEl.style.boxShadow = originalBoxShadow;
+        setTimeout(() => {
+          htmlEl.style.transition = originalTransition;
+        }, 200);
+      }, 1000);
     }
-  }, [svgPages]);
+  }, [svgPages, blocks, suppressEditorSync]);
 
   return (
     <div className="flex h-screen w-full bg-zinc-50 dark:bg-zinc-900">
