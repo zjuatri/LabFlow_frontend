@@ -7,9 +7,19 @@ interface InputFieldBlockEditorProps {
     onUpdate: (updates: Partial<TypstBlock>) => void;
 }
 
+type InputLine = { label: string; value: string };
+
 export default function InputFieldBlockEditor({ block, onUpdate }: InputFieldBlockEditorProps) {
-    const label = block.inputLabel || '';
-    const value = block.inputValue || '';
+    // Support both old single-line format and new multi-line format
+    const getLines = (): InputLine[] => {
+        if (block.inputLines && block.inputLines.length > 0) {
+            return block.inputLines;
+        }
+        // Migrate from old single-line format
+        return [{ label: block.inputLabel || '', value: block.inputValue || '' }];
+    };
+
+    const lines = getLines();
     const separator = block.inputSeparator ?? '：';
     const showUnderline = block.inputShowUnderline !== false;
     const width = parseInt(block.inputWidth || '50', 10);
@@ -17,33 +27,70 @@ export default function InputFieldBlockEditor({ block, onUpdate }: InputFieldBlo
     const fontSize = block.inputFontSize || '';
     const fontFamily = block.inputFontFamily || '';
 
+    const updateLine = (index: number, field: 'label' | 'value', newValue: string) => {
+        const newLines = [...lines];
+        newLines[index] = { ...newLines[index], [field]: newValue };
+        onUpdate({ inputLines: newLines });
+    };
+
+    const addLine = () => {
+        onUpdate({ inputLines: [...lines, { label: '', value: '' }] });
+    };
+
+    const removeLine = (index: number) => {
+        if (lines.length <= 1) return;
+        const newLines = lines.filter((_, i) => i !== index);
+        onUpdate({ inputLines: newLines });
+    };
+
     return (
         <div className="p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded space-y-3">
-            {/* First row: Label, Separator, Value (all inline) */}
-            <div className="flex items-center gap-2">
-                <input
-                    type="text"
-                    value={label}
-                    onChange={(e) => onUpdate({ inputLabel: e.target.value })}
-                    placeholder="类别"
-                    className="w-20 px-2 py-1 text-sm border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800"
-                />
-                <input
-                    type="text"
-                    value={separator}
-                    onChange={(e) => onUpdate({ inputSeparator: e.target.value })}
-                    className="w-8 px-1 py-1 text-sm text-center border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800"
-                />
-                <div className={`flex-1 px-2 py-1 text-sm text-center border-b ${showUnderline ? 'border-zinc-500' : 'border-transparent'} bg-white dark:bg-zinc-800`}>
+            {/* Input lines */}
+            {lines.map((line, index) => (
+                <div key={index} className="flex items-center gap-2">
                     <input
                         type="text"
-                        value={value}
-                        onChange={(e) => onUpdate({ inputValue: e.target.value })}
-                        placeholder="内容"
-                        className="w-full text-center bg-transparent outline-none"
+                        value={line.label}
+                        onChange={(e) => updateLine(index, 'label', e.target.value)}
+                        placeholder="类别"
+                        className="w-20 px-2 py-1 text-sm border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800"
                     />
+                    <span className="text-sm text-zinc-500">{separator}</span>
+                    <div className={`flex-1 px-2 py-1 text-sm text-center border-b ${showUnderline ? 'border-zinc-500' : 'border-transparent'} bg-white dark:bg-zinc-800`}>
+                        <input
+                            type="text"
+                            value={line.value}
+                            onChange={(e) => updateLine(index, 'value', e.target.value)}
+                            placeholder="内容"
+                            className="w-full text-center bg-transparent outline-none"
+                        />
+                    </div>
+                    {lines.length > 1 && (
+                        <button
+                            type="button"
+                            onClick={() => removeLine(index)}
+                            className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                            title="删除此行"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    )}
                 </div>
-            </div>
+            ))}
+
+            {/* Add line button */}
+            <button
+                type="button"
+                onClick={addLine}
+                className="w-full py-1.5 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 border border-dashed border-blue-300 rounded flex items-center justify-center gap-1"
+            >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                添加一行
+            </button>
 
             {/* Second row: Width Slider (Full line) */}
             <div className="flex items-center gap-2 text-xs">
@@ -60,7 +107,18 @@ export default function InputFieldBlockEditor({ block, onUpdate }: InputFieldBlo
                 <span className="text-zinc-600 dark:text-zinc-400 w-8 text-right">{width}%</span>
             </div>
 
-            {/* Third row: Controls */}
+            {/* Separator input */}
+            <div className="flex items-center gap-2 text-xs">
+                <span className="text-zinc-500 dark:text-zinc-400">分隔符</span>
+                <input
+                    type="text"
+                    value={separator}
+                    onChange={(e) => onUpdate({ inputSeparator: e.target.value })}
+                    className="w-12 px-2 py-1 text-sm text-center border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800"
+                />
+            </div>
+
+            {/* Controls row */}
             <div className="flex items-center gap-4 flex-wrap text-xs">
                 {/* Alignment */}
                 <div className="flex items-center gap-2">

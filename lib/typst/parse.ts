@@ -88,12 +88,15 @@ export function typstToBlocks(code: string): TypstBlock[] {
     if (inputMarker) {
       try {
         const payload = JSON.parse(base64DecodeUtf8(inputMarker[1]));
+        // Support both old single-line format and new multi-line format
+        const inputLines = payload.lines || (payload.label !== undefined || payload.value !== undefined
+          ? [{ label: payload.label || '', value: payload.value || '' }]
+          : [{ label: '', value: '' }]);
         blocks.push({
           id: generateId(),
           type: 'input_field',
           content: '',
-          inputLabel: payload.label || '',
-          inputValue: payload.value || '',
+          inputLines,
           inputSeparator: payload.separator ?? '：',
           inputShowUnderline: payload.showUnderline !== false,
           inputWidth: payload.width || '50%',

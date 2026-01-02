@@ -374,8 +374,15 @@ function serializeVerticalSpace(block: TypstBlock, target: 'storage' | 'preview'
 }
 
 function serializeInputField(block: TypstBlock): string {
-  const label = block.inputLabel || '';
-  const value = block.inputValue || '';
+  // Support both old single-line and new multi-line format
+  const getLines = (): Array<{ label: string; value: string }> => {
+    if (block.inputLines && block.inputLines.length > 0) {
+      return block.inputLines;
+    }
+    return [{ label: block.inputLabel || '', value: block.inputValue || '' }];
+  };
+
+  const lines = getLines();
   const separator = block.inputSeparator ?? '：';
   const showUnderline = block.inputShowUnderline !== false;
   const width = block.inputWidth || '50%';
@@ -385,8 +392,7 @@ function serializeInputField(block: TypstBlock): string {
 
   // Encode metadata for parsing
   const payload = {
-    label,
-    value,
+    lines,
     separator,
     showUnderline,
     width,
@@ -396,34 +402,29 @@ function serializeInputField(block: TypstBlock): string {
   };
   const encoded = `/*LF_INPUT:${base64EncodeUtf8(JSON.stringify(payload))}*/`;
 
-  // Layout rule:
-  // Total width = (label + separator) + (remaining underline area).
-  // We use a 2-column grid: left is auto, right is 1fr (fills the remaining width).
-  // Use #box with stroke:(bottom:...) instead of #underline so the line spans full box width.
-  const leftPart = `${label}${separator}`;
-  let rightPart: string;
-  if (showUnderline) {
-    // Box with bottom stroke spans entire right column; value centered inside.
-    // Add bottom inset so text sits above the underline, not on top of it.
-    rightPart = `#box(width: 100%, stroke: (bottom: 0.5pt + black), inset: (bottom: 3pt))[#align(center)[${value}]]`;
-  } else {
-    rightPart = `#box(width: 100%)[#align(center)[${value}]]`;
-  }
-
-  let innerContent = `#grid(columns: (auto, 1fr), column-gutter: 0pt)[${leftPart}][${rightPart}]`;
-
-  // Wrap with font size/family if specified
+  // Build font args string
   const fontArgs: string[] = [];
   if (fontSize) fontArgs.push(`size: ${fontSize}`);
   if (fontFamily) fontArgs.push(`font: "${fontFamily}"`);
+  const fontPrefix = fontArgs.length > 0 ? `#text(${fontArgs.join(', ')})` : '';
 
-  if (fontArgs.length > 0) {
-    innerContent = `#text(${fontArgs.join(', ')})[${innerContent}]`;
-  }
+  // Generate Typst for each line - join with space instead of newline to keep everything on one line
+  const typstLines = lines.map(line => {
+    const leftPart = `${line.label}${separator}`;
+    let rightPart: string;
+    if (showUnderline) {
+      rightPart = `#box(width: 100%, stroke: (bottom: 0.5pt + black), inset: (bottom: 3pt))[#align(center)[${line.value}]]`;
+    } else {
+      rightPart = `#box(width: 100%)[#align(center)[${line.value}]]`;
+    }
+    // Apply font to each grid row individually
+    const gridContent = `#grid(columns: (auto, 1fr), column-gutter: 0pt)[${leftPart}][${rightPart}]`;
+    return fontPrefix ? `${fontPrefix}[${gridContent}]` : gridContent;
+  });
 
-  // Wrap in a box with specified total width
-  const boxContent = `#box(width: ${width})[${innerContent}]`;
+  // Join lines with #parbreak() to create visual line breaks, all on single line for parsing
+  const innerContent = typstLines.join(' #parbreak() ');
 
-  // Wrap with alignment
-  return `#align(${align})[${boxContent}]${encoded}`;
+  // Wrap in a box with specified total width, then align - all on one line
+  return `#align(${align})[#box(width: ${width})[${innerContent}]]${encoded}`;
 }

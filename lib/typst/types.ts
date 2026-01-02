@@ -64,7 +64,7 @@ export interface TypstBlock {
   mathLines?: Array<{ latex: string; typst: string }>;
   mathBrace?: boolean; // Whether to show left brace (like cases)
 
-  // Input field properties
+  // Input field properties (single-line mode, deprecated but kept for compatibility)
   inputLabel?: string;       // Left column: category name
   inputValue?: string;       // Right column: user input
   inputSeparator?: string;   // Separator between label and value (default "：")
@@ -73,6 +73,9 @@ export interface TypstBlock {
   inputAlign?: 'left' | 'center' | 'right'; // Block alignment (default center)
   inputFontSize?: string;    // Font size (e.g., "12pt")
   inputFontFamily?: string;  // Font family (e.g., "SimSun")
+
+  // Input field multi-line support
+  inputLines?: Array<{ label: string; value: string }>;
 }
 
 export type DocumentSettings = {
