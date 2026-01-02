@@ -88,39 +88,38 @@ export function SvgPage({
 
     lastHighlightNonceRef.current = highlightNonce;
 
-    const svgElement = containerRef.current.querySelector('svg');
-    const markers = svgElement?.querySelectorAll<SVGGraphicsElement>('path[fill="#000001"]');
-    const marker = markers?.item(activeLocalIndex);
-
-    if (marker) {
-      // Only show flash highlight - NO scrolling of the preview panel
-      // Preview scrolling is only triggered by editor-to-preview sync (from the left side),
-      // not when the user clicks on the preview itself.
-      showFlashHighlight(marker);
+    // Use getBlockRect for accurate block bounds
+    const rect = getBlockRect(activeLocalIndex);
+    if (rect && rect.l !== Infinity) {
+      showFlashHighlight(rect);
     }
-  }, [highlightNonce, isVisible, activeLocalIndex]);
+  }, [highlightNonce, isVisible, activeLocalIndex, getBlockRect]);
 
-  // Helper to show flash highlight
-  const showFlashHighlight = (marker: Element) => {
+  // Helper to show flash highlight using block rect
+  const showFlashHighlight = (rect: { l: number; t: number; r: number; b: number }) => {
     const container = containerRef.current;
     if (!container) return;
 
-    const r = marker.getBoundingClientRect();
-    const c = container.getBoundingClientRect();
-    const top = r.top - c.top;
+    const padding = 4;
+    const left = rect.l - padding;
+    const top = rect.t - padding;
+    const width = (rect.r - rect.l) + padding * 2;
+    const height = (rect.b - rect.t) + padding * 2;
 
     const highlight = document.createElement('div');
     Object.assign(highlight.style, {
       position: 'absolute',
-      left: '0',
-      right: '0',
+      left: `${left}px`,
       top: `${top}px`,
-      height: '2px', // Just a line marker for simplicity, or we can compute height
-      backgroundColor: '#3b82f6',
-      boxShadow: '0 0 10px rgba(59,130,246,0.5)',
+      width: `${width}px`,
+      height: `${height}px`,
+      backgroundColor: 'rgba(59, 130, 246, 0.15)',
+      border: '2px solid rgba(59, 130, 246, 0.4)',
+      borderRadius: '4px',
       zIndex: '20',
       opacity: '0',
-      transition: 'opacity 0.3s'
+      transition: 'opacity 0.3s',
+      pointerEvents: 'none'
     });
 
     container.appendChild(highlight);

@@ -183,7 +183,8 @@ function serializeImage(block: TypstBlock, imageIndex: number, settings: Documen
     const hint = match ? match[1] : '(点击此处上传图片)';
     const placeholderText = hint || '图片占位符';
     const textContent = `#text(fill: rgb("#3B82F6"), weight: "bold", size: 1.5em)[+] #text(fill: rgb("#3B82F6"), size: 0.9em)[${placeholderText}]`;
-    const blockContent = `#align(center + horizon)[${textContent}]`;
+    // Use the selected alignment (alignValue) instead of hardcoded center
+    const blockContent = `#align(${alignValue} + horizon)[${textContent}]`;
 
     // We explicitly store the 'src' (block.content) in the payload so the parser can restore the 
     // [[IMAGE_PLACEHOLDER]] value even though it's not in the visual Typst code (which only shows the hint).
@@ -195,8 +196,8 @@ function serializeImage(block: TypstBlock, imageIndex: number, settings: Documen
     };
     const encoded = `/*LF_IMAGE:${base64EncodeUtf8(JSON.stringify(payload))}*/`;
 
-    // Compact single-line block
-    return `#block(width: ${width}, height: 8em, fill: rgb("#EFF6FF"), stroke: rgb("#93C5FD"), radius: 4pt, inset: 12pt)[${blockContent}]${encoded}`;
+    // Compact single-line block - use alignValue for the outer #align as well
+    return `#align(${alignValue})[#block(width: ${width}, height: 8em, fill: rgb("#EFF6FF"), stroke: rgb("#93C5FD"), radius: 4pt, inset: 12pt)[${blockContent}]]${encoded}`;
   }
 
   // If path looks hallucinated, output a styled placeholder instead

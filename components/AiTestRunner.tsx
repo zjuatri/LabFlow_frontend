@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { getToken } from '@/lib/auth';
@@ -55,6 +56,9 @@ export default function AiTestRunner() {
   const [aiActualModel, setAiActualModel] = useState<string>('');
 
   const [jumpReady, setJumpReady] = useState(false);
+
+  // Guard to prevent duplicate project creation in React StrictMode
+  const creationStartedRef = useRef(false);
 
   const [steps, setSteps] = useState<Record<string, StepState>>({
     createProject: { label: '创建项目', status: 'idle' },
@@ -118,6 +122,8 @@ export default function AiTestRunner() {
     (async () => {
       if (!draft) return;
       if (run?.projectId) return; // already ran once; restore from store
+      if (creationStartedRef.current) return; // prevent duplicate creation in StrictMode
+      creationStartedRef.current = true;
 
       setStep('createProject', { status: 'running', error: undefined });
       setProjectId('');
@@ -137,7 +143,10 @@ export default function AiTestRunner() {
       try {
         const title = draft.outlineText.trim().split(/\r?\n/)[0]?.trim() || 'AI 生成实验报告（AI-TEST）';
         const created = await createProject(title.slice(0, 200));
-        if (!mounted) return;
+        // Note: We intentionally skip the !mounted check here because React StrictMode
+        // might have "unmounted" this instance to run the effect again, but since
+        // we use creationStartedRef to prevent the second run, we MUST allow the
+        // first run to complete and update the state.
         createdId = created.id;
         setProjectId(created.id);
         setProjectTitle(created.title);
@@ -167,7 +176,7 @@ export default function AiTestRunner() {
             onStep: () => { },
           });
 
-          if (!mounted) return;
+          // if (!mounted) return;
           contextForPrompt = context;
           setPrepDebug(debug);
           setPdfContext(context);
@@ -178,7 +187,7 @@ export default function AiTestRunner() {
             pdfContext: context,
           });
         } catch (e) {
-          if (!mounted) return;
+          // if (!mounted) return;
           setStep('pdfPreprocess', { status: 'error', error: e instanceof Error ? e.message : String(e) });
         }
       } else {
@@ -230,7 +239,7 @@ export default function AiTestRunner() {
           message = tpl.replaceAll('{{USER_INPUT_JSON}}', tempVars.USER_INPUT_JSON).replaceAll('{{PROJECT_ID}}', tempVars.PROJECT_ID);
         }
 
-        if (!mounted) return;
+        // if (!mounted) return;
         setPromptTemplate(tpl);
         setFinalPrompt(message);
         setStep('buildPrompt', { status: 'done', output: { used_manage_template: !!template } });
@@ -240,7 +249,7 @@ export default function AiTestRunner() {
           finalPrompt: message,
         });
       } catch (e) {
-        if (!mounted) return;
+        // if (!mounted) return;
         setStep('buildPrompt', { status: 'error', error: e instanceof Error ? e.message : String(e) });
       }
     })();
@@ -386,10 +395,10 @@ export default function AiTestRunner() {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
       <header className="bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
             <Image src="/icon.png" alt="LabFlow" width={32} height={32} />
             <div className="text-xl font-bold text-zinc-900 dark:text-zinc-100">AI Test</div>
-          </div>
+          </Link>
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push('/')}
