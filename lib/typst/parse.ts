@@ -5,7 +5,9 @@ import {
   defaultParagraphLeadingEm, inferLineSpacingMultiplier,
   LF_ANSWER_MARKER,
 } from './utils';
-import { typstToLatexMath } from '../math-convert';
+import { parseMathBlock } from './parse-math';
+import { parseChartBlock, parseImageBlock } from './parse-media';
+import { parseTableFromMarker } from './parse-table';
 
 /**
  * 将 Typst 源代码解析为块列表
@@ -378,36 +380,7 @@ function parseBlockList(lines: string[], startIndex: number): { items: string[];
   return { items: [], endIndex: startIndex };
 }
 
-function parseMathBlock(trimmed: string): TypstBlock | null {
-  const m = trimmed.match(/^\$\s*([\s\S]*?)\s*\$(?:\/\*LF_MATH:([A-Za-z0-9+/=]+)\*\/)?$/);
-  if (!m) return null;
 
-  const typstMath = (m[1] ?? '').trim();
-  const payloadB64 = m[2];
-
-  let payload: PersistedMathPayload | null = null;
-  if (payloadB64) {
-    try {
-      payload = JSON.parse(base64DecodeUtf8(payloadB64)) as PersistedMathPayload;
-    } catch {
-      payload = null;
-    }
-  }
-
-  const mathTypst = (payload?.typst ?? typstMath).trim();
-  const mathLatex = (payload?.latex ?? '').trim() || typstToLatexMath(mathTypst);
-
-  return {
-    id: generateId(),
-    type: 'math',
-    content: mathTypst,
-    mathFormat: payload?.format ?? 'latex',
-    mathTypst,
-    mathLatex,
-    mathLines: payload?.lines,
-    mathBrace: payload?.brace,
-  };
-}
 
 function parseListItem(
   trimmed: string,
@@ -434,129 +407,9 @@ function parseListItem(
   return { block: newBlock, isList: true, shouldFlush: true };
 }
 
-function parseChartBlock(trimmed: string, markerB64: string): TypstBlock | null {
-  try {
-    const decoded: unknown = JSON.parse(base64DecodeUtf8(markerB64));
-    const payload = (decoded && typeof decoded === 'object') ? (decoded as Record<string, unknown>) : {};
 
-    const match = trimmed.match(/#align\(\s*(left|center|right)\s*,\s*image\("([^"]+)"/);
-    const align = (match?.[1] as 'left' | 'center' | 'right' | undefined) ?? 'center';
-    const imageUrl = match?.[2] ?? '';
 
-    const widthMatch = trimmed.match(/\bwidth\s*:\s*([^,\)\]]+)/);
-    const widthFromCode = widthMatch?.[1]?.trim();
 
-    const merged = {
-      ...(payload && typeof payload === 'object' ? payload : {}),
-      imageUrl: (typeof payload['imageUrl'] === 'string' ? (payload['imageUrl'] as string) : imageUrl) || imageUrl,
-    };
-
-    return {
-      id: generateId(),
-      type: 'chart',
-      content: JSON.stringify(merged),
-      align,
-      width: widthFromCode || '50%',
-    };
-  } catch {
-    return null;
-  }
-}
-
-function parseImageBlock(trimmed: string): TypstBlock | null {
-  // Handle new placeholder block format: #block(...)[...]/*LF_IMAGE:...*/
-  const placeholderMatch = trimmed.match(/^#block\(.*\)\[.*\](?:\/\*LF_IMAGE:([A-Za-z0-9+/=]+)\*\/)$/);
-  if (placeholderMatch) {
-    try {
-      const payload = JSON.parse(base64DecodeUtf8(placeholderMatch[1])) as {
-        caption?: string;
-        width?: string;
-        height?: string;
-        src?: string;
-      };
-
-      const widthMatch = trimmed.match(/width:\s*([^,)\s]+)/);
-
-      return {
-        id: generateId(),
-        type: 'image',
-        // Critical: Restore original placeholder src if available, otherwise fallback
-        content: payload.src || '[[IMAGE_PLACEHOLDER]]',
-        align: 'center',
-        width: (payload.width ?? widthMatch?.[1] ?? '50%'),
-        height: 'auto',
-        caption: (payload.caption ?? '').toString(),
-      };
-    } catch {
-      // ignore
-    }
-  }
-
-  const imgMarker = trimmed.match(/\/\*LF_IMAGE:([A-Za-z0-9+/=]+)\*\//);
-  if (imgMarker) {
-    try {
-      const payload = JSON.parse(base64DecodeUtf8(imgMarker[1])) as {
-        caption?: string;
-        width?: string;
-        height?: string;
-        src?: string; // Support src in normal images too if present
-      };
-      const match = trimmed.match(/#align\(\s*(left|center|right)\s*,\s*image\("([^"]+)"(?:,\s*width:\s*([^,}]+))?(?:,\s*height:\s*([^)]+))?\)\)/);
-      if (match) {
-        return {
-          id: generateId(),
-          type: 'image',
-          content: payload.src || match[2],
-          align: (match[1] as 'left' | 'center' | 'right') ?? 'center',
-          width: (payload.width ?? match[3]?.trim() ?? '50%'),
-          height: 'auto',
-          caption: (payload.caption ?? '').toString(),
-        };
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  const match = trimmed.match(/#align\(\s*(left|center|right)\s*,\s*image\("([^"]+)"(?:,\s*width:\s*([^,}]+))?(?:,\s*height:\s*([^)]+))?\)\)/);
-  if (match) {
-    return {
-      id: generateId(),
-      type: 'image',
-      content: match[2],
-      align: (match[1] as 'left' | 'center' | 'right') ?? 'center',
-      width: match[3]?.trim() || '50%',
-      height: 'auto',
-    };
-  }
-
-  return null;
-}
-
-function parseTableFromMarker(trimmed: string): TypstBlock | null {
-  const m = trimmed.match(/\/\*LF_TABLE:([A-Za-z0-9+/=]+)\*\//);
-  if (!m) return null;
-
-  // Match both old format block(width: ...) and new format #block(width: ...)
-  const widthMatch = trimmed.match(/#?block\(\s*width\s*:\s*([^\)\]]+)/);
-  const widthFromCode = widthMatch?.[1]?.trim();
-
-  try {
-    const payload = JSON.parse(base64DecodeUtf8(m[1])) as PersistedTablePayload;
-    if (payload && Array.isArray(payload.cells)) {
-      return {
-        id: generateId(),
-        type: 'table',
-        content: JSON.stringify(payload),
-        width: widthFromCode || '50%',
-      };
-    }
-  } catch {
-    // ignore
-  }
-
-  return null;
-}
 
 function shouldSkipCaptionLine(lines: string[], currentIndex: number, skipNextCaption: boolean): boolean {
   const nextFew = Array.from({ length: 6 }, (_, k) => lines[currentIndex + 1 + k])

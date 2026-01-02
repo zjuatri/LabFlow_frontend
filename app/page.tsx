@@ -22,12 +22,17 @@ export default function CreateProjectPage() {
   const { setDraft, clearRun } = useAiTestStore();
   const token = getToken();
 
-  // Redirect if not logged in
-  useEffect(() => {
+  // Redirect logic removed to allow guest access
+
+  const handleInteraction = (e?: React.SyntheticEvent) => {
     if (!token) {
+      e?.preventDefault();
+      e?.stopPropagation();
       router.push('/login');
+      return false;
     }
-  }, [router, token]);
+    return true;
+  };
 
   // Form State
   const [outlineText, setOutlineText] = useState('');
@@ -54,6 +59,8 @@ export default function CreateProjectPage() {
   }, [selectedModel]);
 
   const handleGenerate = async () => {
+    if (!handleInteraction()) return;
+
     if (!outlineText.trim() && !detailsText.trim() && referenceFiles.length === 0) {
       // Allow if only PDF is provided
       if (!pdfFile && !pdfUrl.trim()) return;
@@ -77,13 +84,21 @@ export default function CreateProjectPage() {
   };
 
   const handleFilesChange = (newFiles: AiTestUploadedFile[]) => {
+    // We can allow file selection but block upload or simple allow interaction? 
+    // Requirement says "jumping to login when interacting". 
+    // Let's protect the state update or the click. 
+    // Ideally we wrap the input, but here we can just check in the handler.
+    // However, the file input UI might handle its own clicks.
+    // We'll wrap the main container with a capture listener for a more global effect, 
+    // or just check token on set. But global capture is safer for "any interaction".
+    // For now, let's keep it simple: specific guards.
+    // Actually, user said "interact with homepage jumps to login".
+    // I will add a guard to the parent container.
     setReferenceFiles(newFiles);
   };
 
   const canGenerate =
     !!pdfFile || !!pdfUrl.trim() || outlineText.trim() || detailsText.trim() || referenceFiles.length > 0;
-
-  if (!token) return <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950/50" />;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 selection:bg-blue-500/20">
@@ -92,7 +107,42 @@ export default function CreateProjectPage() {
       <SiteHeader />
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 pt-28 pb-20">
+      <main
+        className="max-w-7xl mx-auto px-4 pt-28 pb-20"
+        onClickCapture={(e) => {
+          // Allow clicking links (like header) but block form interactions
+          // Actually header is outside main.
+          // Check if user is logged in.
+          if (!token) {
+            // We want to block interaction with inputs/buttons inside main
+            // but maybe allow scrolling/reading?
+            // The requirement is "interact with homepage jumps to login".
+            // Clicking "Generate" is definitely an interaction.
+            // Typing is an interaction.
+            // Selecting files is an interaction.
+
+            // Let's identify if the target is interactive.
+            const target = e.target as HTMLElement;
+            const isInteractive = target.closest('button') || target.closest('input') || target.closest('textarea') || target.closest('[role="button"]');
+
+            if (isInteractive) {
+              e.preventDefault();
+              e.stopPropagation();
+              router.push('/login');
+            }
+          }
+        }}
+        onFocusCapture={(e) => {
+          if (!token) {
+            // Prevent focusing inputs
+            e.preventDefault();
+            e.stopPropagation();
+            // Blur the element if possible or just redirect
+            (e.target as HTMLElement).blur();
+            router.push('/login');
+          }
+        }}
+      >
 
         {/* Hero Section */}
         <div className="text-center mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">

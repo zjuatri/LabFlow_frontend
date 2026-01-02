@@ -72,56 +72,68 @@ export default function SiteHeader() {
                 {/* Navigation */}
                 <nav className="flex items-center gap-1 sm:gap-2">
 
-                    <Link
-                        href="/"
-                        className={`
+                    {!token ? (
+                        <Link
+                            href="/login"
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full text-sm font-medium transition-colors shadow-sm shadow-blue-500/20"
+                        >
+                            <span className="hidden sm:inline">登录 / 注册</span>
+                            <span className="sm:hidden">登录</span>
+                        </Link>
+                    ) : (
+                        <>
+                            <Link
+                                href="/"
+                                className={`
               flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all
               ${isActive('/')
-                                ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
-                                : 'text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900'}
+                                        ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
+                                        : 'text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900'}
             `}
-                    >
-                        <Home size={16} />
-                        <span className="hidden sm:inline">首页</span>
-                    </Link>
+                            >
+                                <Home size={16} />
+                                <span className="hidden sm:inline">首页</span>
+                            </Link>
 
-                    <Link
-                        href="/workspace"
-                        className={`
+                            <Link
+                                href="/workspace"
+                                className={`
               flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all
               ${isActive('/workspace') || pathname.startsWith('/projects')
-                                ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
-                                : 'text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900'}
+                                        ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
+                                        : 'text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900'}
             `}
-                    >
-                        <Library size={16} />
-                        <span className="hidden sm:inline">工作区</span>
-                    </Link>
+                            >
+                                <Library size={16} />
+                                <span className="hidden sm:inline">工作区</span>
+                            </Link>
 
-                    {isAdmin && (
-                        <Link
-                            href="/manage"
-                            className={`
+                            {isAdmin && (
+                                <Link
+                                    href="/manage"
+                                    className={`
                 flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all
                 ${isActive('/manage')
-                                    ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                                    : 'text-zinc-500 hover:text-blue-600 dark:text-zinc-400 dark:hover:text-blue-400 hover:bg-zinc-50 dark:hover:bg-zinc-900'}
+                                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                                            : 'text-zinc-500 hover:text-blue-600 dark:text-zinc-400 dark:hover:text-blue-400 hover:bg-zinc-50 dark:hover:bg-zinc-900'}
               `}
-                        >
-                            <Settings2 size={16} />
-                            <span className="hidden sm:inline">管理</span>
-                        </Link>
+                                >
+                                    <Settings2 size={16} />
+                                    <span className="hidden sm:inline">管理</span>
+                                </Link>
+                            )}
+
+                            <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-800 mx-2" />
+
+                            <button
+                                onClick={onLogout}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium text-zinc-500 hover:text-red-600 dark:text-zinc-400 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all"
+                            >
+                                <LogOut size={16} />
+                                <span className="hidden sm:inline">退出</span>
+                            </button>
+                        </>
                     )}
-
-                    <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-800 mx-2" />
-
-                    <button
-                        onClick={onLogout}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium text-zinc-500 hover:text-red-600 dark:text-zinc-400 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all"
-                    >
-                        <LogOut size={16} />
-                        <span className="hidden sm:inline">退出</span>
-                    </button>
 
                 </nav>
             </div>
