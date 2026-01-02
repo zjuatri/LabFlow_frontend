@@ -12,7 +12,7 @@ import {
   Clock
 } from 'lucide-react';
 
-import { clearToken, getToken } from '@/lib/auth';
+import { useAuth } from '@/components/AuthProvider';
 import { getManagePrompts, updateManagePrompts } from '@/lib/api';
 
 function PromptEditor(props: {
@@ -62,33 +62,9 @@ function PromptEditor(props: {
   );
 }
 
-function decodeJwtPayload(token: string): any | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length < 2) return null;
-    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const json = decodeURIComponent(
-      atob(b64)
-        .split('')
-        .map((c) => `%${c.charCodeAt(0).toString(16).padStart(2, '0')}`)
-        .join('')
-    );
-    return JSON.parse(json);
-  } catch {
-    return null;
-  }
-}
-
 export default function ManagePage() {
   const router = useRouter();
-  const token = getToken();
-  const [mounted, setMounted] = useState(false);
-
-  const role = useMemo(() => {
-    if (!token) return null;
-    const payload = decodeJwtPayload(token);
-    return payload?.role ?? null;
-  }, [token]);
+  const { token, isLoading: isAuthLoading, isAdmin, clearToken } = useAuth();
 
   const [prompt, setPrompt] = useState('');
   const [pdfOcrPrompt, setPdfOcrPrompt] = useState('');
@@ -98,17 +74,13 @@ export default function ManagePage() {
   const [error, setError] = useState<string>('');
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
+    if (isAuthLoading) return;
 
     if (!token) {
       router.push('/login');
       return;
     }
-    if (role !== 'admin') {
+    if (!isAdmin) {
       router.push('/');
       return;
     }
@@ -134,7 +106,7 @@ export default function ManagePage() {
         setStatus('idle');
       }
     })();
-  }, [mounted, role, router, token]);
+  }, [isAdmin, router, token, isAuthLoading, clearToken]);
 
   const onSave = async () => {
     try {
@@ -153,10 +125,10 @@ export default function ManagePage() {
     }
   };
 
-  if (!mounted) {
+  if (isAuthLoading) {
     return <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950/50" />;
   }
-  if (!token || role !== 'admin') {
+  if (!token || !isAdmin) {
     return <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950/50" />;
   }
 
