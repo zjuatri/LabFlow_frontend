@@ -54,6 +54,10 @@ export function blocksToTypst(blocks: TypstBlock[], opts?: { settings?: Document
         out.push(serializeTable(block, tableIndex, settings));
         break;
 
+      case 'vertical_space':
+        out.push(serializeVerticalSpace(block));
+        break;
+
       default:
         out.push(block.content);
         break;
@@ -337,4 +341,10 @@ function serializeTable(block: TypstBlock, tableIndex: number, settings: Documen
   // Correct Typst syntax: #align(center)[#block(width: ...)[#table(...)]]
   const tableLine = `#align(center)[#block(width: ${width})[#table(columns: ${columns}, ${align}, ${stroke}, ${flatArgs.join(', ')})]]${encoded}`;
   return `${captionLine}${tableLine}`;
+}
+
+function serializeVerticalSpace(block: TypstBlock): string {
+  // block.content stores the length, e.g. "1em", "2cm"
+  const length = (block.content || '1em').trim();
+  return `#v(${length})`;
 }

@@ -9,6 +9,7 @@ import ImageBlockEditor from './BlockEditors/ImageBlockEditor';
 import TableBlockEditor from './BlockEditors/TableBlockEditor';
 import MathBlockEditor from './BlockEditors/MathBlockEditor';
 import ChartBlockEditor, { type ChartRenderRequest } from './BlockEditors/ChartBlockEditor';
+import VerticalSpaceBlockEditor from './BlockEditors/VerticalSpaceBlockEditor';
 
 import {
   defaultTablePayload,
@@ -87,6 +88,13 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
               });
               return;
             }
+            if (nextType === 'vertical_space' && block.type !== 'vertical_space') {
+              onUpdate({
+                type: nextType,
+                content: '1em',
+              });
+              return;
+            }
             onUpdate({ type: nextType });
           }}
           className="text-xs px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
@@ -98,6 +106,7 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
           <option value="image">图片</option>
           <option value="table">表格</option>
           <option value="chart">图表</option>
+          <option value="vertical_space">空白行</option>
         </select>
 
         {(block.type === 'paragraph') && (
@@ -167,6 +176,8 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
         <TitleBlockEditor block={block} onUpdate={onUpdate} />
       ) : block.type === 'paragraph' || block.type === 'list' ? (
         <TextBlockEditor block={block} onUpdate={onUpdate} />
+      ) : block.type === 'vertical_space' ? (
+        <VerticalSpaceBlockEditor block={block} onUpdate={onUpdate} />
       ) : (
         <input
           type="text"
@@ -198,6 +209,7 @@ function getTypeName(type: BlockType): string {
     image: '图片',
     table: '表格',
     chart: '图表',
+    vertical_space: '空白行',
   };
   return names[type] || '内容';
 }

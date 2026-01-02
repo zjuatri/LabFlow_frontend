@@ -82,6 +82,19 @@ export function typstToBlocks(code: string): TypstBlock[] {
       continue;
     }
 
+    // 垂直间距
+    if (trimmed.startsWith('#v(')) {
+      const match = trimmed.match(/^#v\((.+)\)$/);
+      if (match) {
+        blocks.push({
+          id: generateId(),
+          type: 'vertical_space',
+          content: match[1], // e.g. "1em", "20pt"
+        });
+        continue;
+      }
+    }
+
     // 代码块
     if (trimmed.startsWith('```')) {
       if (!inCodeBlock) {

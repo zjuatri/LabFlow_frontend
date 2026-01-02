@@ -1,4 +1,4 @@
-export type BlockType = 'heading' | 'paragraph' | 'code' | 'math' | 'image' | 'list' | 'table' | 'chart';
+export type BlockType = 'heading' | 'paragraph' | 'code' | 'math' | 'image' | 'list' | 'table' | 'chart' | 'vertical_space';
 
 export type ChartType = 'scatter' | 'bar' | 'pie' | 'hbar';
 export type ChartDataSource = 'manual' | 'table';
