@@ -45,9 +45,10 @@ export function stripDocumentSettings(code: string): { code: string; settings: D
     try {
         const decoded = JSON.parse(base64DecodeUtf8(m[1])) as Partial<DocumentSettings>;
         settings = {
-            tableCaptionNumbering: !!decoded.tableCaptionNumbering,
-            imageCaptionNumbering: !!decoded.imageCaptionNumbering,
-            imageCaptionPosition: decoded.imageCaptionPosition === 'above' ? 'above' : 'below',
+            tableCaptionNumbering: decoded.tableCaptionNumbering ?? true,
+            imageCaptionNumbering: decoded.imageCaptionNumbering ?? true,
+            imageCaptionPosition: decoded.imageCaptionPosition ?? 'below',
+            verticalSpaceVisible: decoded.verticalSpaceVisible ?? false,
             fontSize: decoded.fontSize || '10.5pt',
         };
     } catch {

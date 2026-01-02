@@ -6,15 +6,14 @@ interface VerticalSpaceBlockEditorProps {
 }
 
 export default function VerticalSpaceBlockEditor({ block, onUpdate }: VerticalSpaceBlockEditorProps) {
-    // Parse current value (e.g. "2em") or default to "1em"
-    const rawValue = block.content || '1em';
-    // We primarily support 'em' in the slider, but preserve other units if typed manually (future).
-    // For now, assume slider controls 'em'.
-    const numValue = parseFloat(rawValue) || 1;
+    // Parse current value (e.g. "5%", "10%") or default to "5%"
+    const rawValue = block.content || '5%';
+    // Extract numeric value, handling both % and legacy em units
+    const numValue = parseFloat(rawValue) || 5;
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = parseFloat(e.target.value);
-        onUpdate({ content: `${val}em` });
+        onUpdate({ content: `${val}%` });
     };
 
     return (
@@ -25,15 +24,15 @@ export default function VerticalSpaceBlockEditor({ block, onUpdate }: VerticalSp
                 </span>
                 <input
                     type="range"
-                    min="0.5"
-                    max="5.0"
-                    step="0.5"
+                    min="0"
+                    max="100"
+                    step="1"
                     value={numValue}
                     onChange={handleChange}
                     className="flex-1 h-2 bg-zinc-200 rounded-lg appearance-none cursor-pointer dark:bg-zinc-700"
                 />
                 <span className="text-xs font-mono text-zinc-700 dark:text-zinc-300 w-12 text-right">
-                    {numValue}em
+                    {numValue}%
                 </span>
             </div>
         </div>

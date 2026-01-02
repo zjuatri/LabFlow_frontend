@@ -12,8 +12,9 @@ import {
 /**
  * 将块列表转换为 Typst 源代码
  */
-export function blocksToTypst(blocks: TypstBlock[], opts?: { settings?: DocumentSettings }): string {
+export function blocksToTypst(blocks: TypstBlock[], opts?: { settings?: DocumentSettings, target?: 'storage' | 'preview' | 'export' }): string {
   const settings = opts?.settings ?? defaultDocumentSettings;
+  const target = opts?.target ?? 'storage';
   let tableIndex = 0;
   let imageIndex = 0;
 
@@ -55,7 +56,7 @@ export function blocksToTypst(blocks: TypstBlock[], opts?: { settings?: Document
         break;
 
       case 'vertical_space':
-        out.push(serializeVerticalSpace(block));
+        out.push(serializeVerticalSpace(block, target, settings));
         break;
 
       default:
@@ -343,8 +344,27 @@ function serializeTable(block: TypstBlock, tableIndex: number, settings: Documen
   return `${captionLine}${tableLine}`;
 }
 
-function serializeVerticalSpace(block: TypstBlock): string {
-  // block.content stores the length, e.g. "1em", "2cm"
-  const length = (block.content || '1em').trim();
-  return `#v(${length})`;
+function serializeVerticalSpace(block: TypstBlock, target: 'storage' | 'preview' | 'export', settings: DocumentSettings): string {
+  // block.content stores the length, e.g. "5%", "10%", or legacy "1em"
+  const length = (block.content || '5%').trim();
+  const visible = settings.verticalSpaceVisible;
+
+  // Export mode: just the vertical space
+  if (target === 'export') {
+    return `#v(${length})`;
+  }
+
+  // Preview mode with guide visible: use block with zero margins for exact spacing
+  if (target === 'preview' && visible) {
+    // #block with explicit above/below:0pt ensures no extra margins
+    // clip:true ensures content doesn't overflow, inset:0pt ensures no padding
+    return `#block(height: ${length}, width: 100%, above: 0pt, below: 0pt, clip: true, inset: 0pt, fill: rgb("#dcfce7"), stroke: (paint: rgb("#22c55e"), thickness: 1pt, dash: "dashed"))`;
+  }
+  // Storage or Preview(Hidden): use block for consistent rendering across modes
+  if (target === 'storage') {
+    // Use #block for storage too, so source code mode renders same as visual mode
+    return `#block(height: ${length}, width: 100%, above: 0pt, below: 0pt)`;
+  }
+  // Hidden preview: use identical block but without fill
+  return `#block(height: ${length}, width: 100%, above: 0pt, below: 0pt)`;
 }

@@ -181,6 +181,22 @@ export function EditorToolbar({
                                             <option value="below">下方</option>
                                         </select>
                                     </div>
+                                    <div className="flex items-center gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
+                                        <label className="flex items-center gap-2 cursor-pointer select-none text-xs">
+                                            <input
+                                                type="checkbox"
+                                                checked={docSettings.verticalSpaceVisible}
+                                                onChange={(e) =>
+                                                    onSettingsChange({
+                                                        ...docSettings,
+                                                        verticalSpaceVisible: e.target.checked,
+                                                    })
+                                                }
+                                                className="rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            显示空白行辅助块
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                         </div>

@@ -69,6 +69,8 @@ export type DocumentSettings = {
   tableCaptionNumbering: boolean;
   imageCaptionNumbering: boolean;
   imageCaptionPosition: 'above' | 'below';
+  // Global visibility for vertical space blocks (draft guides)
+  verticalSpaceVisible: boolean;
   fontSize: string;
 };
 
@@ -76,6 +78,7 @@ export const defaultDocumentSettings: DocumentSettings = {
   tableCaptionNumbering: true,
   imageCaptionNumbering: true,
   imageCaptionPosition: 'below',
+  verticalSpaceVisible: false,
   fontSize: '10.5pt',
 };
 

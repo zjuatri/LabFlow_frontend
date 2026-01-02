@@ -83,13 +83,48 @@ export function typstToBlocks(code: string): TypstBlock[] {
     }
 
     // 垂直间距
-    if (trimmed.startsWith('#v(')) {
+    // Detect either #v(...) or the #block(...) variant used for preview
+    // Check for our marker first
+    const vsMarker = trimmed.match(/\/\*LF_VS:([A-Za-z0-9+/=]+)\*\//);
+    if (vsMarker) {
+      // It's a managed vertical space block
+      try {
+        // We might have metadata but vertical_space relies on global settings now.
+        // Still parse content (height)
+        let height = '1em';
+        const vMatch = trimmed.match(/^#v\((.+)\)/);
+        const blockMatch = trimmed.match(/^#block\(height:\s*([^,]+)/);
+        if (vMatch) height = vMatch[1].trim();
+        else if (blockMatch) height = blockMatch[1].trim();
+
+        blocks.push({
+          id: generateId(),
+          type: 'vertical_space',
+          content: height,
+        });
+        continue;
+      } catch {
+        // Fallback if marker parse fails
+      }
+    } else if (trimmed.startsWith('#v(')) {
+      // Legacy or manual #v(...) without marker
       const match = trimmed.match(/^#v\((.+)\)$/);
       if (match) {
         blocks.push({
           id: generateId(),
           type: 'vertical_space',
-          content: match[1], // e.g. "1em", "20pt"
+          content: match[1],
+        });
+        continue;
+      }
+    } else if (trimmed.startsWith('#block(height:')) {
+      // Block-based vertical space (new format for consistent rendering)
+      const match = trimmed.match(/^#block\(height:\s*([^,]+)/);
+      if (match) {
+        blocks.push({
+          id: generateId(),
+          type: 'vertical_space',
+          content: match[1].trim(),
         });
         continue;
       }

@@ -157,7 +157,7 @@ export default function ProjectEditorPage() {
     // Add a trailing sentinel marker to properly bound the last block for highlight.
     return (
       blocks
-        .map((b) => wrapWithMarker(blocksToTypst([b], { settings: docSettings })))
+        .map((b) => wrapWithMarker(blocksToTypst([b], { settings: docSettings, target: 'preview' })))
         .join('\n\n') +
       `\n\n${markerLine}`
     );
@@ -252,7 +252,8 @@ export default function ProjectEditorPage() {
   }, []);
 
   const downloadPdf = useCallback(async () => {
-    const typstCode = buildRenderCodeForPreview();
+    // For export, we generate clean code without markers and without draft blocks (like vertical space guides)
+    const typstCode = blocksToTypst(blocks, { settings: docSettings, target: 'export' });
     if (!typstCode.trim()) return;
 
     try {
@@ -283,7 +284,7 @@ export default function ProjectEditorPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     }
-  }, [BASE_URL, buildRenderCodeForPreview, title]);
+  }, [BASE_URL, blocks, docSettings, title]);
 
   // code -> blocks
   useEffect(() => {
@@ -562,14 +563,37 @@ export default function ProjectEditorPage() {
 
                 // Fetch the image
                 const response = await fetch(imgPath);
-                const blob = await response.blob();
+                let blob = await response.blob();
+
+                // Convert to PNG if not already, as ClipboardItem has strict type support
+                // and some apps prefer PNG.
+                if (blob.type !== 'image/png') {
+                  try {
+                    const pngBlob = await new Promise<Blob | null>((resolve) => {
+                      const img = new Image();
+                      img.crossOrigin = 'anonymous'; // might be needed if CORS allows
+                      img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        const ctx = canvas.getContext('2d');
+                        if (!ctx) { resolve(null); return; }
+                        ctx.drawImage(img, 0, 0);
+                        canvas.toBlob((b) => resolve(b), 'image/png');
+                      };
+                      img.onerror = () => resolve(null);
+                      img.src = URL.createObjectURL(blob);
+                    });
+                    if (pngBlob) blob = pngBlob;
+                  } catch (e) {
+                    console.warn('Image conversion failed', e);
+                  }
+                }
 
                 // Write to clipboard
-                // ClipboardItem supports limited types (png, jpg usually converted to png by browser if needed?)
-                // Actually ClipboardItem keys must be standard mime types.
                 await navigator.clipboard.write([
                   new ClipboardItem({
-                    [blob.type]: blob
+                    [blob.type === 'image/png' ? 'image/png' : blob.type]: blob
                   })
                 ]);
 
