@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Save, Undo2, Redo2, Settings, ArrowLeft, Download } from 'lucide-react';
 
 import BlockEditor from '@/components/BlockEditor';
 import {
@@ -15,16 +14,18 @@ import {
   injectDocumentSettings,
 } from '@/lib/typst';
 import { clearToken, getToken } from '@/lib/auth';
-import { getProject, updateProject } from '@/lib/api';
+import { getProject, updateProject, listProjects, type Project } from '@/lib/api';
 import { DEFAULT_TYPST_CODE } from '@/lib/typst-default';
 import { useBidirectionalScrollSync } from '@/lib/bidirectional-scroll-sync';
-import { SvgPage } from './SvgPage';
+
+// Import extracted components
+import { CoverModal } from './components/CoverModal';
+import { EditorToolbar, type EditorMode } from './components/EditorToolbar';
+import { PreviewPanel } from './components/PreviewPanel';
 
 // In production/Docker we typically proxy /api/* through the same origin.
 // For local dev, set NEXT_PUBLIC_BACKEND_URL=http://localhost:8000.
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
-
-type EditorMode = 'source' | 'visual';
 
 function extractAiDebug(typst_code: string): { debugText: string | null; rest: string } {
   const start = typst_code.indexOf('/* LF_AI_DEBUG v1');
@@ -64,6 +65,12 @@ export default function ProjectEditorPage() {
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+
+  const [showCoverModal, setShowCoverModal] = useState(false);
+  const [covers, setCovers] = useState<Project[]>([]);
+  const [loadingCovers, setLoadingCovers] = useState(false);
+
+  const [projectType, setProjectType] = useState<'report' | 'cover' | 'template'>('report');
 
   const isRestoringRef = useRef(false);
 
@@ -168,6 +175,9 @@ export default function ProjectEditorPage() {
     (async () => {
       try {
         const p = await getProject(projectId);
+        const type = p.type as 'report' | 'cover' | 'template';
+        setProjectType(type);
+
         const rawCode = (p.typst_code ?? '').trim() ? (p.typst_code ?? '') : DEFAULT_TYPST_CODE;
 
         const { debugText, rest } = extractAiDebug(rawCode);
@@ -178,7 +188,17 @@ export default function ProjectEditorPage() {
         setTitle(p.title);
         setCode(initialCode);
         setBlocks(typstToBlocks(initialCode));
-        setDocSettings(settings);
+
+        // If it's a cover, disable numbering by default
+        if (type === 'cover') {
+          setDocSettings({
+            ...settings,
+            tableCaptionNumbering: false,
+            imageCaptionNumbering: false,
+          });
+        } else {
+          setDocSettings(settings);
+        }
 
         // initialize history with loaded state
         setHistory([{ blocks: typstToBlocks(initialCode), settings }]);
@@ -407,6 +427,50 @@ export default function ProjectEditorPage() {
     });
   }, [canRedo, history, historyIndex]);
 
+  const handleOpenCoverModal = useCallback(async () => {
+    setShowCoverModal(true);
+    setLoadingCovers(true);
+    try {
+      const data = await listProjects('cover');
+      setCovers(data);
+    } catch (err) {
+      console.error('Failed to load covers', err);
+    } finally {
+      setLoadingCovers(false);
+    }
+  }, []);
+
+  const handleInsertCover = useCallback(async (coverId: string) => {
+    try {
+      const coverProject = await getProject(coverId);
+      const rawCode = (coverProject.typst_code ?? '').trim() ? (coverProject.typst_code ?? '') : DEFAULT_TYPST_CODE;
+
+      // We need to parse the cover code into blocks
+      // We might need to strip settings if we don't want to override doc settings, 
+      // but usually cover might rely on some settings. 
+      // For now, let's just take the blocks.
+      const { rest } = extractAiDebug(rawCode);
+      const { code: coverBody } = stripDocumentSettings(rest);
+      const coverBlocks = typstToBlocks(coverBody);
+
+      // Add page break after cover
+      const pageBreakBlock: TypstBlock = {
+        id: `pagebreak-${Date.now()}`,
+        type: 'paragraph',
+        content: '#pagebreak()',
+      };
+
+      const newBlocks = [...coverBlocks, pageBreakBlock, ...blocks];
+
+      setBlocks(newBlocks);
+      setSyncSource('blocks');
+      // Push mechanism to history if needed, handled by useEffect on blocks change
+      setShowCoverModal(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '插入封面失败');
+    }
+  }, [blocks]);
+
   // Close settings dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -539,128 +603,25 @@ export default function ProjectEditorPage() {
   return (
     <div className="flex h-screen w-full bg-zinc-50 dark:bg-zinc-900">
       <div className="flex flex-col w-1/2 border-r border-zinc-300 dark:border-zinc-700">
-        <div className="flex items-center justify-between px-4 py-3 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <button
-              onClick={() => {
-                if (typeof window !== 'undefined' && window.history.length > 1) {
-                  router.back();
-                  return;
-                }
-                router.push('/workspace');
-              }}
-              className="p-2 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors shrink-0"
-              title="返回主页"
-            >
-              <ArrowLeft size={16} />
-            </button>
-            <div className="flex bg-white dark:bg-zinc-900 rounded-lg border border-zinc-300 dark:border-zinc-600 overflow-hidden shrink-0">
-              <button
-                onClick={() => handleModeSwitch('visual')}
-                className={`px-3 py-1 text-sm transition-colors ${mode === 'visual'
-                  ? 'bg-blue-500 text-white'
-                  : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                  }`}
-              >
-                可视化
-              </button>
-              <button
-                onClick={() => handleModeSwitch('source')}
-                className={`px-3 py-1 text-sm transition-colors ${mode === 'source'
-                  ? 'bg-blue-500 text-white'
-                  : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                  }`}
-              >
-                源代码
-              </button>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            <button
-              onClick={handleUndo}
-              disabled={!canUndo}
-              className="p-2 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 disabled:opacity-40"
-              title="撤销 (Ctrl+Z)"
-            >
-              <Undo2 size={16} />
-            </button>
-            <button
-              onClick={handleRedo}
-              disabled={!canRedo}
-              className="p-2 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 disabled:opacity-40"
-              title="重做 (Ctrl+Y)"
-            >
-              <Redo2 size={16} />
-            </button>
-            <button
-              onClick={handleSave}
-              className="p-2 rounded bg-blue-600 hover:bg-blue-700 text-white"
-              title="保存 (Ctrl+S)"
-            >
-              <Save size={16} />
-            </button>
-            <div className="relative" ref={settingsRef}>
-              <button
-                onClick={() => setShowSettings(!showSettings)}
-                className="p-2 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                title="设置"
-              >
-                <Settings size={16} />
-              </button>
-              {showSettings && (
-                <div className="absolute right-0 mt-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded shadow-lg z-10 min-w-max">
-                  <div className="px-4 py-3 space-y-3 text-xs text-zinc-700 dark:text-zinc-300">
-                    <div className="mb-2">
-                      <label className="block text-xs font-semibold mb-2">项目标题</label>
-                      <input
-                        type="text"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        placeholder="项目标题"
-                        className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-xs"
-                      />
-                    </div>
-                    <div className="border-t border-zinc-300 dark:border-zinc-600 pt-3">
-                      <label className="flex items-center gap-2 select-none cursor-pointer mb-2">
-                        <input
-                          type="checkbox"
-                          checked={docSettings.tableCaptionNumbering}
-                          onChange={(e) => setDocSettings((s) => ({ ...s, tableCaptionNumbering: e.target.checked }))}
-                        />
-                        表格排序
-                      </label>
-                      <label className="flex items-center gap-2 select-none cursor-pointer mb-2">
-                        <input
-                          type="checkbox"
-                          checked={docSettings.imageCaptionNumbering}
-                          onChange={(e) => setDocSettings((s) => ({ ...s, imageCaptionNumbering: e.target.checked }))}
-                        />
-                        图片排序
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <label className="select-none cursor-pointer">图片标题位置</label>
-                        <select
-                          value={docSettings.imageCaptionPosition}
-                          onChange={(e) =>
-                            setDocSettings((s) => ({
-                              ...s,
-                              imageCaptionPosition: e.target.value === 'above' ? 'above' : 'below',
-                            }))
-                          }
-                          className="text-xs px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-900"
-                        >
-                          <option value="above">上方</option>
-                          <option value="below">下方</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <EditorToolbar
+          mode={mode}
+          onModeSwitch={handleModeSwitch}
+          title={title}
+          onTitleChange={setTitle}
+          docSettings={docSettings}
+          onSettingsChange={setDocSettings}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          onSave={() => void handleSave()}
+          onOpenCoverModal={handleOpenCoverModal}
+          projectType={projectType}
+          showSettings={showSettings}
+          onToggleSettings={() => setShowSettings(!showSettings)}
+          onCloseSettings={() => setShowSettings(false)}
+        />
 
         {mode === 'source' ? (
           <textarea
@@ -745,45 +706,27 @@ export default function ProjectEditorPage() {
         </div>
       ) : null}
 
-      <div className="flex flex-col w-1/2">
-        <div className="px-4 py-3 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">预览</h2>
-          <button
-            onClick={downloadPdf}
-            className="p-2 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-            title="下载 PDF"
-          >
-            <Download size={16} />
-          </button>
-        </div>
-        <div className="flex-1 overflow-auto bg-zinc-200 dark:bg-zinc-900 p-4 relative" ref={previewRef}>
-          {error ? (
-            <div className="p-4 bg-red-100 dark:bg-red-900/20 border border-red-400 dark:border-red-700 rounded">
-              <p className="text-sm font-semibold text-red-800 dark:text-red-300">Error:</p>
-              <pre className="mt-2 text-xs text-red-700 dark:text-red-400 whitespace-pre-wrap">{error}</pre>
-            </div>
-          ) : svgPages.length > 0 ? (
-            <div className="flex flex-col items-center gap-6">
-              {svgPages.map((svgContent, index) => (
-                <SvgPage
-                  key={index}
-                  svgContent={svgContent}
-                  pageIndex={index}
-                  forceVisible={activeAnchor?.pageIndex === index}
-                  activeLocalIndex={clickAnchor?.pageIndex === index ? clickAnchor.localIndex : null}
-                  highlightNonce={highlightNonce}
-                  registerPageRef={registerPageRef}
-                  onBlockClick={handlePreviewClick}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-full text-zinc-500 dark:text-zinc-400">
-              {isRendering ? '正在渲染...' : '预览内容将在此显示'}
-            </div>
-          )}
-        </div>
-      </div>
+      <PreviewPanel
+        error={error}
+        svgPages={svgPages}
+        isRendering={isRendering}
+        activeAnchor={activeAnchor}
+        clickAnchor={clickAnchor}
+        highlightNonce={highlightNonce}
+        registerPageRef={registerPageRef}
+        onBlockClick={handlePreviewClick}
+        onDownloadPdf={() => void downloadPdf()}
+        previewRef={previewRef}
+      />
+
+      {/* Cover Selection Modal */}
+      <CoverModal
+        show={showCoverModal}
+        onClose={() => setShowCoverModal(false)}
+        onInsert={handleInsertCover}
+        loading={loadingCovers}
+        covers={covers}
+      />
     </div>
   );
 }

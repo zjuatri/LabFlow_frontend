@@ -230,6 +230,101 @@ export const typstInlineToHtml = (typst: string): string => {
         }
       }
 
+      // #underline[...]
+      if (input.startsWith('#underline[', i)) {
+        const openIdx = i + '#underline'.length;
+        if (input[openIdx] === '[') {
+          const end = findMatching(input, openIdx, '[', ']');
+          if (end !== -1) {
+            const inner = input.slice(openIdx + 1, end);
+            // using <u> tag which is standard for execCommand('underline')
+            out += `<u>${parse(inner)}</u>`;
+            i = end;
+            continue;
+          }
+        }
+      }
+
+      // #block[...] - simply unwrap
+      if (input.startsWith('#block[', i) || input.startsWith('#block(', i)) {
+        let start = i + '#block'.length;
+        // Skip optional args (...)
+        if (input[start] === '(') {
+          const endArgs = findMatching(input, start, '(', ')');
+          if (endArgs !== -1) {
+            start = endArgs + 1;
+          } else {
+            // Malformed args
+            out += '#block';
+            i += '#block'.length - 1;
+            continue;
+          }
+        }
+
+        // Skip whitespace
+        while (start < input.length && /\s/.test(input[start])) start++;
+
+        if (input[start] === '[') {
+          const end = findMatching(input, start, '[', ']');
+          if (end !== -1) {
+            const inner = input.slice(start + 1, end);
+            // Recurse, result is just the inner content (block is layout mostly)
+            out += parse(inner);
+            i = end;
+            continue;
+          }
+        }
+      }
+
+      // #enum / #list
+      if (input.startsWith('#enum', i) || input.startsWith('#list', i)) {
+        const isEnum = input.startsWith('#enum', i);
+        const keyword = isEnum ? '#enum' : '#list';
+        let curr = i + keyword.length;
+
+        // Skip optional args (...)
+        if (input[curr] === '(') {
+          const endArgs = findMatching(input, curr, '(', ')');
+          if (endArgs !== -1) {
+            curr = endArgs + 1;
+          } else {
+            out += keyword;
+            i += keyword.length - 1;
+            continue;
+          }
+        }
+
+        // Look for sequence of [...]
+        const items: string[] = [];
+        let matchedAny = false;
+
+        while (true) {
+          // Skip whitespace
+          let scan = curr;
+          while (scan < input.length && /\s/.test(input[scan])) scan++;
+
+          if (scan < input.length && input[scan] === '[') {
+            const end = findMatching(input, scan, '[', ']');
+            if (end !== -1) {
+              const inner = input.slice(scan + 1, end);
+              items.push(inner);
+              curr = end + 1;
+              matchedAny = true;
+              continue;
+            }
+          }
+          break;
+        }
+
+        if (matchedAny) {
+          const tag = isEnum ? 'ol' : 'ul';
+          const listItems = items.map(item => `<li>${parse(item)}</li>`).join('');
+          out += `<${tag}>${listItems}</${tag}>`;
+          i = curr - 1; // loop increment will bring it to curr
+          continue;
+        }
+      }
+
       // #text(fill: rgb("#RRGGBB"))[...]
       if (input.startsWith('#text(', i)) {
         const parenStart = i + '#text'.length;
@@ -429,6 +524,7 @@ export const htmlToTypstInline = (root: HTMLElement): string => {
     }
     if (tag === 'em' || tag === 'i') return `_${inner}_`;
     if (tag === 's' || tag === 'strike') return `#strike[${inner}]`;
+    if (tag === 'u') return `#underline[${inner}]`;
 
     const style = (el.getAttribute('style') ?? '').toLowerCase();
     const colorMatch = style.match(/color\s*:\s*([^;]+)/);
@@ -440,6 +536,7 @@ export const htmlToTypstInline = (root: HTMLElement): string => {
     }
 
     const hasStrike = style.includes('line-through');
+    const hasUnderline = style.includes('underline');
 
     let out = inner;
     if (color) {
@@ -457,6 +554,9 @@ export const htmlToTypstInline = (root: HTMLElement): string => {
     }
     if (hasStrike) {
       out = `#strike[${out}]`;
+    }
+    if (hasUnderline) {
+      out = `#underline[${out}]`;
     }
     return out;
   };

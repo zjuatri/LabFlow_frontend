@@ -75,6 +75,7 @@ export type TokenResponse = { access_token: string; token_type: 'bearer' };
 export type Project = {
   id: string;
   title: string;
+  type: string;
   typst_code: string;
   created_at: string;
   updated_at: string;
@@ -102,14 +103,15 @@ export async function login(email: string, password: string): Promise<TokenRespo
   });
 }
 
-export async function listProjects(): Promise<Project[]> {
-  return request<Project[]>('/api/projects');
+export async function listProjects(type?: string): Promise<Project[]> {
+  const params = type ? `?type=${type}` : '';
+  return request<Project[]>(`/api/projects${params}`);
 }
 
-export async function createProject(title: string): Promise<Project> {
+export async function createProject(title: string, type: string = 'report'): Promise<Project> {
   return request<Project>('/api/projects', {
     method: 'POST',
-    body: JSON.stringify({ title }),
+    body: JSON.stringify({ title, type }),
   });
 }
 
@@ -117,7 +119,7 @@ export async function getProject(id: string): Promise<Project> {
   return request<Project>(`/api/projects/${id}`);
 }
 
-export async function updateProject(id: string, updates: { title?: string; typst_code?: string }): Promise<Project> {
+export async function updateProject(id: string, updates: { title?: string; typst_code?: string; type?: string }): Promise<Project> {
   return request<Project>(`/api/projects/${id}`, {
     method: 'PUT',
     body: JSON.stringify(updates),

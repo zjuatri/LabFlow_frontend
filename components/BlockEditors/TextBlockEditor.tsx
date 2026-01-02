@@ -3,7 +3,7 @@
 import { TypstBlock } from '@/lib/typst';
 import { latexToTypstMath, typstToLatexMath } from '@/lib/math-convert';
 import { useRef, useState, useEffect, type MouseEvent as ReactMouseEvent } from 'react';
-import { Bold, Italic, Strikethrough, Sigma, Palette } from 'lucide-react';
+import { Bold, Italic, Strikethrough, Sigma, Palette, Underline } from 'lucide-react';
 
 // Import types and utilities from separated modules
 import type { InlineMathFormat, InlineMathState } from '../BlockEditor-utils/types';
@@ -154,7 +154,7 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
     syncParagraphFromDom();
   };
 
-  const applyFormat = (fmt: 'bold' | 'italic' | 'strike' | 'color', color?: string) => {
+  const applyFormat = (fmt: 'bold' | 'italic' | 'strike' | 'underline' | 'color', color?: string) => {
     const editor = paragraphEditorRef.current;
     if (!editor) return;
     editor.focus();
@@ -165,6 +165,8 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
       document.execCommand('italic');
     } else if (fmt === 'strike') {
       document.execCommand('strikeThrough');
+    } else if (fmt === 'underline') {
+      document.execCommand('underline');
     } else if (fmt === 'color') {
       document.execCommand('foreColor', false, color ?? '#000000');
     }
@@ -269,6 +271,17 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
           title="删除线"
         >
           <Strikethrough size={16} />
+        </button>
+        <button
+          type="button"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            applyFormat('underline');
+          }}
+          className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
+          title="下划线 (Ctrl+U)"
+        >
+          <Underline size={16} />
         </button>
         <button
           type="button"
@@ -413,6 +426,9 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
             } else if (e.key === 'i' || e.key === 'I') {
               e.preventDefault();
               applyFormat('italic');
+            } else if (e.key === 'u' || e.key === 'U') {
+              e.preventDefault();
+              applyFormat('underline');
             }
           }
         }}
