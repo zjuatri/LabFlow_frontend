@@ -100,6 +100,24 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
           <option value="chart">图表</option>
         </select>
 
+        {(block.type === 'paragraph') && (
+          <select
+            value={block.fontSize || ''}
+            onChange={(e) => onUpdate({ fontSize: e.target.value || undefined })}
+            className="text-xs px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 w-24"
+            title="字号"
+          >
+            <option value="">默认字号</option>
+            <option value="9pt">9pt (小五)</option>
+            <option value="10.5pt">10.5pt (五号)</option>
+            <option value="12pt">12pt (小四)</option>
+            <option value="14pt">14pt (四号)</option>
+            <option value="15pt">15pt (小三)</option>
+            <option value="16pt">16pt (三号)</option>
+            <option value="22pt">22pt (二号)</option>
+          </select>
+        )}
+
         <div className="ml-auto flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={() => onMove('up')}

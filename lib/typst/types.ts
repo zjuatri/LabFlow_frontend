@@ -41,6 +41,7 @@ export interface TypstBlock {
   height?: string; // 图片高度 (e.g., "auto", "5cm")
   align?: 'left' | 'center' | 'right'; // 图片/段落对齐方式
   font?: string; // 段落字体 (e.g., "SimSun", "SimHei", "KaiTi", "FangSong")
+  fontSize?: string; // Block-specific font size (e.g., "12pt")
 
   // Paragraph line spacing multiplier (e.g. 1, 1.2, 1.5, 2).
   // We store it as a multiplier because Typst's `par(leading:)` uses a length (default 0.65em),
@@ -68,12 +69,14 @@ export type DocumentSettings = {
   tableCaptionNumbering: boolean;
   imageCaptionNumbering: boolean;
   imageCaptionPosition: 'above' | 'below';
+  fontSize: string;
 };
 
 export const defaultDocumentSettings: DocumentSettings = {
   tableCaptionNumbering: true,
   imageCaptionNumbering: true,
   imageCaptionPosition: 'below',
+  fontSize: '10.5pt',
 };
 
 export type PersistedMathPayload = {

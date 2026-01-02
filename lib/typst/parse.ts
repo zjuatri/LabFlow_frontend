@@ -4,6 +4,7 @@ import {
   base64DecodeUtf8, generateId,
   defaultParagraphLeadingEm, inferLineSpacingMultiplier,
   LF_ANSWER_MARKER,
+  unwrapBlockDecorators,
 } from './utils';
 import { parseMathBlock } from './parse-math';
 import { parseChartBlock, parseImageBlock } from './parse-media';
@@ -308,7 +309,22 @@ export function typstToBlocks(code: string): TypstBlock[] {
     blocks.push(currentBlock);
   }
 
-  return blocks;
+  return blocks.map(b => {
+    if (b.type === 'paragraph') {
+      const unwrapped = unwrapBlockDecorators(b.content);
+      // Only apply if we found decorators, to avoid unnecessary updates/re-renders or loss of other props
+      // Actually we should always apply if we want to clean up even simple content if it was wrapped.
+      // Merging properties safely.
+      return {
+        ...b,
+        content: unwrapped.content,
+        align: unwrapped.align ?? b.align,
+        fontSize: unwrapped.fontSize ?? b.fontSize,
+        font: unwrapped.font ?? b.font,
+      };
+    }
+    return b;
+  });
 }
 
 function parseBlockList(lines: string[], startIndex: number): { items: string[]; endIndex: number } {

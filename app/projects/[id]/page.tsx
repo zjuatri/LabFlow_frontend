@@ -547,35 +547,75 @@ export default function ProjectEditorPage() {
       }
 
       if (textToCopy) {
-        navigator.clipboard.writeText(textToCopy).then(() => {
-          // Show a brief toast notification
-          const toast = document.createElement('div');
-          toast.textContent = '已复制到剪贴板';
-          Object.assign(toast.style, {
-            position: 'fixed',
-            bottom: '20px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            padding: '8px 16px',
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            color: 'white',
-            borderRadius: '4px',
-            fontSize: '14px',
-            zIndex: '9999',
-            opacity: '0',
-            transition: 'opacity 0.3s'
-          });
-          document.body.appendChild(toast);
-          requestAnimationFrame(() => toast.style.opacity = '1');
-          setTimeout(() => {
-            toast.style.opacity = '0';
-            setTimeout(() => toast.remove(), 300);
-          }, 1500);
-        }).catch(() => {
-          // Clipboard API failed, ignore silently
-        });
+        (async () => {
+          try {
+            if (block.type === 'image' && block.content) {
+              // Try to fetch image and write to clipboard as blob
+              try {
+                // If it's a relative path, prepend BASE_URL or rely on browser to handle relative to current origin,
+                // but usually images are served from /static/ or similar.
+                // WE assume block.content is the path.
+                const imgPath = block.content;
+                // Since this is a restricted app, we might need auth headers if images are protected?
+                // Usually static files are public or cookie-auth handled.
+                // Note: Clipboard Item API requires secure context (HTTPS or localhost).
+
+                // Fetch the image
+                const response = await fetch(imgPath);
+                const blob = await response.blob();
+
+                // Write to clipboard
+                // ClipboardItem supports limited types (png, jpg usually converted to png by browser if needed?)
+                // Actually ClipboardItem keys must be standard mime types.
+                await navigator.clipboard.write([
+                  new ClipboardItem({
+                    [blob.type]: blob
+                  })
+                ]);
+
+                // Success toast
+                showToast('图片已复制到剪贴板');
+                return;
+              } catch (err) {
+                console.warn('Failed to copy image blob, fallback to path', err);
+                // Fallback to text copy below
+              }
+            }
+
+            await navigator.clipboard.writeText(textToCopy);
+            showToast('已复制到剪贴板');
+          } catch (err) {
+            console.error('Clipboard failed', err);
+          }
+        })();
       }
     }
+
+    function showToast(msg: string) {
+      const toast = document.createElement('div');
+      toast.textContent = msg;
+      Object.assign(toast.style, {
+        position: 'fixed',
+        bottom: '20px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        padding: '8px 16px',
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        color: 'white',
+        borderRadius: '4px',
+        fontSize: '14px',
+        zIndex: '9999',
+        opacity: '0',
+        transition: 'opacity 0.3s'
+      });
+      document.body.appendChild(toast);
+      requestAnimationFrame(() => toast.style.opacity = '1');
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }, 1500);
+    }
+
 
     const el = editorScrollRef.current.querySelector(`[data-block-index="${globalIndex}"]`);
     if (el) {

@@ -5,7 +5,8 @@ import {
   defaultParagraphLeadingEm, snapLineSpacingMultiplier, leadingEmFromMultiplier,
   inlineToSingleLine, safeParseTablePayload, safeParseChartPayload,
   convertMixedParagraph, sanitizeTypstInlineMath, sanitizeTypstMathSegment,
-  LF_ANSWER_MARKER
+  LF_ANSWER_MARKER,
+  injectDocumentSettings
 } from './utils';
 
 /**
@@ -123,10 +124,15 @@ function serializeParagraph(block: TypstBlock): string {
     : undefined;
   const multiplier = typeof multiplierRaw === 'number' ? snapLineSpacingMultiplier(multiplierRaw) : undefined;
 
-  // Apply font if set (default is SimSun, don't output if default)
+  // Apply font/size settings
   const font = (block.font ?? 'SimSun').trim();
-  if (font) {
-    body = `#text(font: "${font}")[${body}]`;
+  const size = block.fontSize ? block.fontSize.trim() : undefined;
+
+  if (font || size) {
+    const args: string[] = [];
+    if (font) args.push(`font: "${font}"`);
+    if (size) args.push(`size: ${size}`);
+    body = `#text(${args.join(', ')})[${body}]`;
   }
 
   // Apply alignment if set (default is left, don't output if default)
