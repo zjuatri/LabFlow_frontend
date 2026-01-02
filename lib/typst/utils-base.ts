@@ -14,6 +14,9 @@ export const LF_ANSWER_MARKER = '/*LF_ANSWER*/';
 export const LF_COVER_BEGIN_MARKER = '/*LF_COVER_BEGIN:';
 export const LF_COVER_END_MARKER = '/*LF_COVER_END*/';
 
+// Composite row marker (used to store flex-like row layout metadata)
+export const LF_COMPOSITE_ROW_MARKER = '/*LF_COMPOSITE_ROW:';
+
 export function base64EncodeUtf8(input: string): string {
     // Browser-safe UTF-8 base64
     const utf8 = encodeURIComponent(input).replace(/%([0-9A-F]{2})/g, (_, p1) =>
@@ -122,6 +125,12 @@ export function unwrapBlockDecorators(input: string): {
 
         if (!changed) break;
     }
+
+    // Strip injected bold fix rule if present (font: "SimHei" or stroke: 0.25pt)
+    // We use a safe regex that matches the specific pattern injected by serialize.ts
+    // Matches: #show strong: set text(...); at the start.
+    const boldFixRegex = /^#show\s+strong\s*:\s*set\s+text\s*\([^)]+\)\s*;\s*/;
+    current = current.replace(boldFixRegex, '');
 
     return { content: current, align, fontSize, font };
 }

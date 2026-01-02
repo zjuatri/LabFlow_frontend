@@ -7,6 +7,7 @@ import {
   unwrapBlockDecorators,
   LF_COVER_BEGIN_MARKER,
   LF_COVER_END_MARKER,
+  LF_COMPOSITE_ROW_MARKER,
 } from './utils';
 import { parseMathBlock } from './parse-math';
 import { parseChartBlock, parseImageBlock } from './parse-media';
@@ -167,6 +168,106 @@ export function typstToBlocks(code: string): TypstBlock[] {
           inputAlign: payload.align || 'center',
           inputFontSize: payload.fontSize || '',
           inputFontFamily: payload.fontFamily || '',
+        });
+        continue;
+      } catch {
+        // Fallback if parse fails
+      }
+    }
+
+    // 复合行 (Composite Row)
+    // Detect LF_COMPOSITE_ROW marker
+    const compositeRowMarker = trimmed.match(/\/\*LF_COMPOSITE_ROW:([A-Za-z0-9+/=]+)\*\//);
+    if (compositeRowMarker) {
+      try {
+        const payload = JSON.parse(base64DecodeUtf8(compositeRowMarker[1]));
+
+        // Extract children from either:
+        // 1. #grid(columns: ..., [child1], [child2], ...) - for left/center/right
+        // 2. #box(width: 100%)[#box()[child1] #h(1fr) #box()[child2]] - for space-*
+        const beforeMarker = trimmed.slice(0, trimmed.indexOf(LF_COMPOSITE_ROW_MARKER));
+        const childContents: string[] = [];
+
+        // Check if it's the box format (space-between/around/evenly)
+        const isBoxFormat = beforeMarker.startsWith('#box(width: 100%)');
+
+        if (isBoxFormat) {
+          // Extract content inside outer box: #box(width: 100%)[...]
+          const outerMatch = beforeMarker.match(/^#box\(width:\s*100%\)\[(.*)\]$/);
+          if (outerMatch) {
+            const innerContent = outerMatch[1];
+            // Find all #box()[...] patterns
+            const boxPattern = /#box\(\)\[/g;
+            let match;
+            while ((match = boxPattern.exec(innerContent)) !== null) {
+              const startIdx = match.index + match[0].length;
+              // Find matching closing bracket
+              let depth = 1;
+              let endIdx = startIdx;
+              for (let k = startIdx; k < innerContent.length && depth > 0; k++) {
+                if (innerContent[k] === '[') depth++;
+                else if (innerContent[k] === ']') depth--;
+                if (depth === 0) endIdx = k;
+              }
+              childContents.push(innerContent.slice(startIdx, endIdx));
+            }
+          }
+        } else {
+          // Grid format: #align(left|center|right)[#grid(columns: ..., [child1], [child2], ...)]
+          // Or just: #grid(columns: ..., [child1], [child2], ...)
+          // We need to extract only the children [...] from inside the grid, not the outer #align[...] wrapper
+
+          // First, find the grid content - skip over #align(...)[...] if present
+          let gridContent = beforeMarker;
+          const alignMatch = beforeMarker.match(/^#align\((left|center|right)\)\[(.+)\]$/);
+          if (alignMatch) {
+            gridContent = alignMatch[2];
+          }
+
+          // Now find the grid children: look for pattern after #grid(..., 
+          // The grid params end where the first [...] starts
+          const gridMatch = gridContent.match(/#grid\([^[]+/);
+          const gridParamsEnd = gridMatch ? gridMatch[0].length : 0;
+          const childPart = gridContent.slice(gridParamsEnd);
+
+          // Extract all [...] from the child part
+          let depth = 0;
+          let start = -1;
+          for (let j = 0; j < childPart.length; j++) {
+            const ch = childPart[j];
+            if (ch === '[') {
+              if (depth === 0) start = j + 1;
+              depth++;
+            } else if (ch === ']') {
+              depth--;
+              if (depth === 0 && start >= 0) {
+                childContents.push(childPart.slice(start, j));
+                start = -1;
+              }
+            }
+          }
+        }
+
+        // Parse each child content as blocks
+        const children: TypstBlock[] = [];
+        for (const childCode of childContents) {
+          const parsedChildren = typstToBlocks(childCode.trim());
+          children.push(...parsedChildren);
+        }
+
+        if (currentBlock) {
+          blocks.push(currentBlock);
+          currentBlock = null;
+        }
+
+        blocks.push({
+          id: generateId(),
+          type: 'composite_row',
+          content: '',
+          children,
+          compositeJustify: payload.justify || 'space-between',
+          compositeGap: payload.gap || '8pt',
+          compositeVerticalAlign: payload.verticalAlign || 'top',
         });
         continue;
       } catch {
@@ -450,7 +551,7 @@ export function typstToBlocks(code: string): TypstBlock[] {
   }
 
   return blocks.map(b => {
-    if (b.type === 'paragraph') {
+    if (b.type === 'paragraph' || b.type === 'heading') {
       const unwrapped = unwrapBlockDecorators(b.content);
       // Only apply if we found decorators, to avoid unnecessary updates/re-renders or loss of other props
       // Actually we should always apply if we want to clean up even simple content if it was wrapped.

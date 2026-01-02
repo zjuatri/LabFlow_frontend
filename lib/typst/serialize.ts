@@ -1,4 +1,4 @@
-import { TypstBlock, DocumentSettings, defaultDocumentSettings, PersistedMathPayload, PersistedTableCell } from './types';
+import { TypstBlock, DocumentSettings, defaultDocumentSettings, PersistedMathPayload, PersistedTableCell, CompositeRowJustify } from './types';
 import {
   LF_MATH_MARKER, LF_TABLE_MARKER, LF_IMAGE_MARKER, LF_CHART_MARKER,
   base64EncodeUtf8,
@@ -8,7 +8,8 @@ import {
   LF_ANSWER_MARKER,
   injectDocumentSettings,
   LF_COVER_BEGIN_MARKER,
-  LF_COVER_END_MARKER
+  LF_COVER_END_MARKER,
+  LF_COMPOSITE_ROW_MARKER,
 } from './utils';
 
 /**
@@ -43,10 +44,15 @@ export function blocksToTypst(blocks: TypstBlock[], opts?: { settings?: Document
         out.push(serializeMath(block));
         break;
 
-      case 'image':
-        imageIndex += 1;
-        out.push(serializeImage(block, imageIndex, settings));
+      case 'image': {
+        // Only increment image index if the image has a caption
+        const hasCaption = (block.caption ?? '').trim().length > 0;
+        if (hasCaption) {
+          imageIndex += 1;
+        }
+        out.push(serializeImage(block, hasCaption ? imageIndex : 0, settings));
         break;
+      }
 
       case 'chart':
         out.push(serializeChart(block));
@@ -67,6 +73,10 @@ export function blocksToTypst(blocks: TypstBlock[], opts?: { settings?: Document
 
       case 'input_field':
         out.push(serializeInputField(block));
+        break;
+
+      case 'composite_row':
+        out.push(serializeCompositeRow(block, opts));
         break;
 
       default:
@@ -101,6 +111,18 @@ function serializeCover(block: TypstBlock, opts?: { settings?: DocumentSettings,
   return parts.join('\n\n');
 }
 
+// CJK fonts that lack native bold/italic variants - handled via global show rules in preamble
+export const CJK_FONTS_NEED_FAKE_STYLE = ['SimSun', 'SimHei', 'KaiTi', 'FangSong'];
+
+// Generate preamble with CJK font styling rules (for bold/italic simulation)
+export function generateCjkStylePreamble(): string {
+  return `// CJK font styling: simulate bold with stroke, italic with skew
+#show strong: set text(stroke: 0.25pt)
+#show emph: it => text(style: "normal")[#skew(ax: -12deg, it.body)]
+`;
+}
+
+// serializeHeading
 function serializeHeading(block: TypstBlock): string {
   const level = block.level || 1;
   let body = `${'='.repeat(level)} ${block.content}`;
@@ -118,6 +140,7 @@ function serializeHeading(block: TypstBlock): string {
     // For headings, font is usually set via show rule, but we can wrap the content if needed?
     // Actually `#text(font: "...")` around the heading content works but might be stripped by the heading structure parsing.
     // Safer way for inline heading style: `= #text(font: "...")[Heading Content]`
+    // CJK bold/italic is handled via global show rules in preamble
     body = `${'='.repeat(level)} #text(font: "${font}")[${block.content}]`;
   }
 
@@ -170,6 +193,8 @@ function serializeParagraph(block: TypstBlock): string {
     const args: string[] = [];
     if (font) args.push(`font: "${font}"`);
     if (size) args.push(`size: ${size}`);
+
+    // CJK bold/italic is handled via global show rules in preamble
     body = `#text(${args.join(', ')})[${body}]`;
   }
 
@@ -222,8 +247,10 @@ function serializeImage(block: TypstBlock, imageIndex: number, settings: Documen
   const height = 'auto';
   const align = block.align || 'center';
   const captionRaw = (block.caption ?? '').trim();
-  const label = settings.imageCaptionNumbering ? `图${imageIndex} ` : '';
-  const captionText = (label + captionRaw).trim() ? (label + captionRaw) : '';
+  // Only show numbering if: numbering is enabled AND image has a caption AND imageIndex > 0
+  const shouldNumber = settings.imageCaptionNumbering && captionRaw.length > 0 && imageIndex > 0;
+  const label = shouldNumber ? `图${imageIndex} ` : '';
+  const captionText = captionRaw ? (label + captionRaw).trim() : '';
   const payload = {
     caption: block.caption ?? '',
     width,
@@ -458,4 +485,94 @@ function serializeInputField(block: TypstBlock): string {
 
   // Wrap in a box with specified total width, then align - all on one line
   return `#align(${align})[#box(width: ${width})[${innerContent}]]${encoded}`;
+}
+
+function serializeCompositeRow(block: TypstBlock, opts?: { settings?: DocumentSettings, target?: 'storage' | 'preview' | 'export' }): string {
+  const children = Array.isArray(block.children) ? block.children : [];
+  if (children.length === 0) {
+    return ''; // Empty composite row produces no output
+  }
+
+  const justify = block.compositeJustify || 'space-between';
+  const gap = block.compositeGap || '8pt';
+  const verticalAlign = block.compositeVerticalAlign || 'top';
+
+  // Encode metadata for round-trip parsing
+  const payload = {
+    justify,
+    gap,
+    verticalAlign,
+  };
+  const encoded = `${LF_COMPOSITE_ROW_MARKER}${base64EncodeUtf8(JSON.stringify(payload))}*/`;
+
+  // Get document settings for text styling
+  const settings = opts?.settings ?? defaultDocumentSettings;
+  const fontSize = settings.fontSize || '10.5pt';
+
+  // Serialize each child block - get raw content without brackets for space-* modes
+  const childRaw = children.map(child => {
+    return blocksToTypst([child], opts);
+  });
+
+  // Serialize each child block wrapped in brackets for grid mode
+  // We remove the enforced #set text(...) so children benefit from their own styles or global defaults.
+  // Previously we forced font: "SimSun", which broke bold/italic rendering for some fonts or configurations.
+  const childTypst = childRaw.map(code => `[${code}]`);
+
+  // Map vertical alignment to Typst align values
+  const alignValuesMap: Record<string, string> = { top: 'top', middle: 'horizon', bottom: 'bottom' };
+  const vertAlign = alignValuesMap[verticalAlign] || 'top';
+
+  // For space-between/around/evenly, use a different approach with #h(1fr) spacers
+  // For simple alignments (left/center/right), use grid with column-gutter
+  if (['space-between', 'space-around', 'space-evenly'].includes(justify)) {
+    // Use box + h(1fr) approach for space distribution
+    // Wrap each child in #box() for proper inline layout.
+    const spacer = '#h(1fr)';
+    const boxedChildren = childRaw.map(code => `#box()[${code}]`);
+    let content = '';
+
+    if (justify === 'space-between') {
+      // No space at edges, only between items
+      content = boxedChildren.join(` ${spacer} `);
+    } else if (justify === 'space-around') {
+      // Half space at edges, full space between
+      content = `#h(0.5fr) ${boxedChildren.join(` ${spacer} `)} #h(0.5fr)`;
+    } else {
+      // space-evenly: equal space everywhere
+      content = `${spacer} ${boxedChildren.join(` ${spacer} `)} ${spacer}`;
+    }
+
+    return `#box(width: 100%)[${content}]${encoded}`;
+  }
+
+  // For simple alignments, use grid
+  let columns: string;
+  switch (justify) {
+    case 'flex-start':
+    case 'flex-end':
+      // Auto-width columns
+      columns = `(${children.map(() => 'auto').join(', ')})`;
+      break;
+    case 'center':
+    default:
+      // Equal-width columns for center
+      columns = `(${children.map(() => 'auto').join(', ')})`;
+      break;
+  }
+
+  const gutterPart = `, column-gutter: ${gap}`;
+
+  // Build the grid with vertical alignment
+  const gridCode = `#grid(columns: ${columns}${gutterPart}, align: ${vertAlign}, ${childTypst.join(', ')})`;
+
+  // Wrap with horizontal alignment
+  if (justify === 'flex-start') {
+    return `#align(left)[${gridCode}]${encoded}`;
+  } else if (justify === 'flex-end') {
+    return `#align(right)[${gridCode}]${encoded}`;
+  } else {
+    // center
+    return `#align(center)[${gridCode}]${encoded}`;
+  }
 }

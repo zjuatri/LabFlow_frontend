@@ -8,6 +8,7 @@ import {
   TypstBlock,
   blocksToTypst,
   type DocumentSettings,
+  generateCjkStylePreamble,
 } from '@/lib/typst';
 import { clearToken, getToken } from '@/lib/auth';
 import { useBidirectionalScrollSync } from '@/lib/bidirectional-scroll-sync';
@@ -199,8 +200,11 @@ export default function ProjectEditorPage() {
     };
 
     const markerLine = '#place(dx: -50cm, rect(width: 1pt, height: 1pt, fill: rgb("000001")))';
+    // Add CJK font styling preamble for bold/italic simulation
+    const preamble = generateCjkStylePreamble();
     // Add a trailing sentinel marker to properly bound the last block for highlight.
     return (
+      preamble +
       blocks
         .map((b) => wrapWithMarker(blocksToTypst([b], { settings: docSettings, target: 'preview' })))
         .join('\n\n') +
@@ -278,7 +282,7 @@ export default function ProjectEditorPage() {
 
   const downloadPdf = useCallback(async () => {
     // For export, we generate clean code without markers and without draft blocks (like vertical space guides)
-    const typstCode = blocksToTypst(blocks, { settings: docSettings, target: 'export' });
+    const typstCode = generateCjkStylePreamble() + blocksToTypst(blocks, { settings: docSettings, target: 'export' });
     if (!typstCode.trim()) return;
 
     try {

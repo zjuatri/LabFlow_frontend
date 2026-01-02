@@ -11,6 +11,7 @@ import MathBlockEditor from './BlockEditors/MathBlockEditor';
 import ChartBlockEditor, { type ChartRenderRequest } from './BlockEditors/ChartBlockEditor';
 import VerticalSpaceBlockEditor from './BlockEditors/VerticalSpaceBlockEditor';
 import InputFieldBlockEditor from './BlockEditors/InputFieldBlockEditor';
+import CompositeRowItem from './CompositeRowItem';
 
 import {
   defaultTablePayload,
@@ -32,9 +33,11 @@ interface BlockItemProps {
   lastTableSelection: { blockId: string; r1: number; c1: number; r2: number; c2: number } | null;
   onRenderChart: (payload: ChartRenderRequest) => Promise<string>;
   onClick: () => void;
+  /** Width unit for images: 'percent' (default) or 'pt' (for composite blocks) */
+  imageWidthUnit?: 'percent' | 'pt';
 }
 
-function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdate, onDelete, onAddAfter, onMove, onUploadImage, onTableSelectionSnapshot, lastTableSelection, onRenderChart, onClick }: BlockItemProps) {
+function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdate, onDelete, onAddAfter, onMove, onUploadImage, onTableSelectionSnapshot, lastTableSelection, onRenderChart, onClick, imageWidthUnit = 'percent' }: BlockItemProps) {
 
   const effectiveText = (block.content ?? '').replace(/\u200B/g, '').trim();
   const isAnswerBlank = block.type === 'paragraph' && !!block.placeholder && effectiveText.length === 0;
@@ -142,6 +145,25 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
     );
   }
 
+  // Composite row container (similar to cover but for horizontal layout)
+  if (block.type === 'composite_row') {
+    return (
+      <CompositeRowItem
+        block={block}
+        availableTables={availableTables}
+        onUpdate={onUpdate}
+        onDelete={onDelete}
+        onAddAfter={onAddAfter}
+        onUploadImage={onUploadImage}
+        onTableSelectionSnapshot={onTableSelectionSnapshot}
+        lastTableSelection={lastTableSelection}
+        onRenderChart={onRenderChart}
+        onClick={onClick}
+        BlockItemComponent={BlockItem}
+      />
+    );
+  }
+
   return (
     <div
       className={
@@ -212,6 +234,15 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
               });
               return;
             }
+            if (nextType === 'composite_row' && block.type !== 'composite_row') {
+              onUpdate({
+                type: nextType,
+                children: [],
+                compositeJustify: 'space-between',
+                compositeGap: '8pt',
+              });
+              return;
+            }
             onUpdate({ type: nextType });
           }}
           className="text-xs px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
@@ -225,6 +256,7 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
           <option value="chart">图表</option>
           <option value="vertical_space">空白行</option>
           <option value="input_field">输入</option>
+          <option value="composite_row">复合行</option>
         </select>
 
         {(block.type === 'paragraph') && (
@@ -241,7 +273,12 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
             <option value="14pt">14pt (四号)</option>
             <option value="15pt">15pt (小三)</option>
             <option value="16pt">16pt (三号)</option>
+            <option value="18pt">18pt (小二)</option>
             <option value="22pt">22pt (二号)</option>
+            <option value="24pt">24pt (小一)</option>
+            <option value="26pt">26pt (一号)</option>
+            <option value="36pt">36pt (小初)</option>
+            <option value="42pt">42pt (初号)</option>
           </select>
         )}
 
@@ -285,7 +322,7 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
           lastTableSelection={lastTableSelection}
         />
       ) : block.type === 'image' ? (
-        <ImageBlockEditor block={block} onUpdate={onUpdate} onUploadImage={onUploadImage} />
+        <ImageBlockEditor block={block} onUpdate={onUpdate} onUploadImage={onUploadImage} widthUnit={imageWidthUnit} />
       ) : block.type === 'math' ? (
         <MathBlockEditor block={block} onUpdate={onUpdate} />
       ) : block.type === 'table' ? (
@@ -332,6 +369,7 @@ function getTypeName(type: BlockType): string {
     vertical_space: '空白行',
     input_field: '输入',
     cover: '封面',
+    composite_row: '复合行',
   };
   return names[type] || '内容';
 }

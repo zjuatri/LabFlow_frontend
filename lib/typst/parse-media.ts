@@ -59,6 +59,31 @@ export function parseImageBlock(trimmed: string): TypstBlock | null {
         }
     }
 
+    // Handle simple placeholder format: #align(center)[text]/*LF_IMAGE:...*/
+    // This is used for empty images without content
+    const simplePlaceholderMatch = trimmed.match(/^#align\(\s*(left|center|right)\s*\)\[([^\]]*)\](?:\/\*LF_IMAGE:([A-Za-z0-9+/=]+)\*\/)$/);
+    if (simplePlaceholderMatch) {
+        try {
+            const payload = JSON.parse(base64DecodeUtf8(simplePlaceholderMatch[3])) as {
+                caption?: string;
+                width?: string;
+                height?: string;
+                src?: string;
+            };
+            return {
+                id: generateId(),
+                type: 'image',
+                content: payload.src || '', // Empty path for placeholder
+                align: (simplePlaceholderMatch[1] as 'left' | 'center' | 'right') ?? 'center',
+                width: payload.width || '50%',
+                height: 'auto',
+                caption: payload.caption || '',
+            };
+        } catch {
+            // ignore
+        }
+    }
+
     const imgMarker = trimmed.match(/\/\*LF_IMAGE:([A-Za-z0-9+/=]+)\*\//);
     if (imgMarker) {
         try {

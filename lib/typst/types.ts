@@ -1,4 +1,7 @@
-export type BlockType = 'heading' | 'paragraph' | 'code' | 'math' | 'image' | 'list' | 'table' | 'chart' | 'vertical_space' | 'input_field' | 'cover';
+export type BlockType = 'heading' | 'paragraph' | 'code' | 'math' | 'image' | 'list' | 'table' | 'chart' | 'vertical_space' | 'input_field' | 'cover' | 'composite_row';
+
+export type CompositeRowJustify = 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around' | 'space-evenly';
+export type CompositeRowVerticalAlign = 'top' | 'middle' | 'bottom';
 
 export type ChartType = 'scatter' | 'bar' | 'pie' | 'hbar';
 export type ChartDataSource = 'manual' | 'table';
@@ -84,6 +87,11 @@ export interface TypstBlock {
 
   // Input field multi-line support
   inputLines?: Array<{ label: string; value: string }>;
+
+  // Composite row properties
+  compositeJustify?: CompositeRowJustify; // Flex-like justify mode
+  compositeGap?: string; // Gap between children (e.g., "8pt") - only used for flex-start/flex-end/center
+  compositeVerticalAlign?: CompositeRowVerticalAlign; // Vertical alignment (top/middle/bottom)
 }
 
 export type DocumentSettings = {

@@ -10,9 +10,11 @@ interface ImageBlockEditorProps {
   block: TypstBlock;
   onUpdate: (updates: Partial<TypstBlock>) => void;
   onUploadImage: (file: File) => Promise<void>;
+  /** Width unit: 'percent' for %, 'pt' for pt. Default: 'percent' */
+  widthUnit?: 'percent' | 'pt';
 }
 
-export default function ImageBlockEditor({ block, onUpdate, onUploadImage }: ImageBlockEditorProps) {
+export default function ImageBlockEditor({ block, onUpdate, onUploadImage, widthUnit = 'percent' }: ImageBlockEditorProps) {
   const [isCropModalOpen, setIsCropModalOpen] = useState(false);
   const [imageError, setImageError] = useState(false);
 
@@ -221,21 +223,23 @@ export default function ImageBlockEditor({ block, onUpdate, onUploadImage }: Ima
         <div>
           <label className="text-xs text-zinc-600 dark:text-zinc-400 block mb-2">
             宽度: {(() => {
-              const w = block.width || '50%';
-              return parseFloat(w) || 50;
-            })()}%
+              const w = block.width || (widthUnit === 'pt' ? '100pt' : '50%');
+              const num = parseFloat(w) || (widthUnit === 'pt' ? 100 : 50);
+              return `${num}${widthUnit === 'pt' ? 'pt' : '%'}`;
+            })()}
           </label>
           <input
             type="range"
-            min="0"
-            max="100"
+            min={widthUnit === 'pt' ? 20 : 0}
+            max={widthUnit === 'pt' ? 400 : 100}
+            step={widthUnit === 'pt' ? 10 : 1}
             value={(() => {
-              const w = block.width || '50%';
-              return parseFloat(w) || 50;
+              const w = block.width || (widthUnit === 'pt' ? '100pt' : '50%');
+              return parseFloat(w) || (widthUnit === 'pt' ? 100 : 50);
             })()}
             onChange={(e) => {
               const val = e.target.value;
-              onUpdate({ width: `${val}%` });
+              onUpdate({ width: widthUnit === 'pt' ? `${val}pt` : `${val}%` });
             }}
             onMouseDown={(e) => e.stopPropagation()}
             className="w-full h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
