@@ -59,11 +59,16 @@ function normalizeSettings(raw: unknown): DocumentSettings {
   const imageCaptionNumbering = raw.imageCaptionNumbering;
   const imageCaptionPosition = raw.imageCaptionPosition;
 
+  const verticalSpaceVisible = raw.verticalSpaceVisible;
+  const fontSize = raw.fontSize;
+
   return {
     tableCaptionNumbering: typeof tableCaptionNumbering === 'boolean' ? tableCaptionNumbering : base.tableCaptionNumbering,
     imageCaptionNumbering: typeof imageCaptionNumbering === 'boolean' ? imageCaptionNumbering : base.imageCaptionNumbering,
     imageCaptionPosition:
       imageCaptionPosition === 'above' || imageCaptionPosition === 'below' ? imageCaptionPosition : base.imageCaptionPosition,
+    verticalSpaceVisible: typeof verticalSpaceVisible === 'boolean' ? verticalSpaceVisible : base.verticalSpaceVisible,
+    fontSize: typeof fontSize === 'string' && fontSize.trim() ? fontSize : base.fontSize,
   };
 }
 

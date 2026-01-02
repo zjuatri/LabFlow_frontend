@@ -179,7 +179,7 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
         <div
           key={block.id}
            data-block-index={index}
-          draggable
+          draggable={block.type !== 'cover'}
           onMouseDownCapture={(e) => {
             const target = e.target as HTMLElement | null;
             suppressNextDragRef.current = !!target?.closest('input, textarea, [contenteditable="true"]');
@@ -188,6 +188,10 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
             suppressNextDragRef.current = false;
           }}
           onDragStart={(e) => {
+            if (block.type === 'cover') {
+              e.preventDefault();
+              return;
+            }
             // If the user began this interaction inside an input/textarea,
             // do not start a block drag (otherwise text selection becomes impossible).
             if (suppressNextDragRef.current) {

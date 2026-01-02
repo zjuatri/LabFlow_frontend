@@ -22,6 +22,11 @@ interface EditorToolbarProps {
     showSettings: boolean;
     onToggleSettings: () => void;
     onCloseSettings: () => void;
+
+    // Cover-specific settings (only relevant when editing a report that contains a cover block)
+    hasCover?: boolean;
+    coverFixedOnePage?: boolean;
+    onCoverFixedOnePageChange?: (fixed: boolean) => void;
 }
 
 export function EditorToolbar({
@@ -41,6 +46,9 @@ export function EditorToolbar({
     showSettings,
     onToggleSettings,
     onCloseSettings,
+    hasCover,
+    coverFixedOnePage,
+    onCoverFixedOnePageChange,
 }: EditorToolbarProps) {
     const router = useRouter();
     const settingsRef = useRef<HTMLDivElement>(null);
@@ -197,6 +205,20 @@ export function EditorToolbar({
                                             显示空白行辅助块
                                         </label>
                                     </div>
+
+                                    {projectType === 'report' && hasCover && typeof onCoverFixedOnePageChange === 'function' && (
+                                        <div className="flex items-center gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
+                                            <label className="flex items-center gap-2 cursor-pointer select-none text-xs">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={!!coverFixedOnePage}
+                                                    onChange={(e) => onCoverFixedOnePageChange(e.target.checked)}
+                                                    className="rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                封面固定占据一页
+                                            </label>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

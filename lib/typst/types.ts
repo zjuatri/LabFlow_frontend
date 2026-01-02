@@ -1,4 +1,4 @@
-export type BlockType = 'heading' | 'paragraph' | 'code' | 'math' | 'image' | 'list' | 'table' | 'chart' | 'vertical_space' | 'input_field';
+export type BlockType = 'heading' | 'paragraph' | 'code' | 'math' | 'image' | 'list' | 'table' | 'chart' | 'vertical_space' | 'input_field' | 'cover';
 
 export type ChartType = 'scatter' | 'bar' | 'pie' | 'hbar';
 export type ChartDataSource = 'manual' | 'table';
@@ -35,6 +35,14 @@ export interface TypstBlock {
   content: string;
   // Optional UI hint (editor-only). Not guaranteed to round-trip through Typst.
   placeholder?: string;
+
+  // Container blocks
+  // - cover: wraps cover elements inside a report
+  children?: TypstBlock[];
+  coverFixedOnePage?: boolean;
+  // UI-only collapsed state; default behavior can be enforced on load.
+  uiCollapsed?: boolean;
+
   level?: number; // 用于标题级别 (1-6)
   language?: string; // 用于代码块语言
   width?: string; // 图片宽度 (e.g., "100%", "8cm")

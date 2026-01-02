@@ -10,6 +10,10 @@ export const LF_CHART_MARKER = '/*LF_CHART:';
 export const LF_DOC_MARKER = '/*LF_DOC:';
 export const LF_ANSWER_MARKER = '/*LF_ANSWER*/';
 
+// Cover container markers (used to group cover elements inside a report)
+export const LF_COVER_BEGIN_MARKER = '/*LF_COVER_BEGIN:';
+export const LF_COVER_END_MARKER = '/*LF_COVER_END*/';
+
 export function base64EncodeUtf8(input: string): string {
     // Browser-safe UTF-8 base64
     const utf8 = encodeURIComponent(input).replace(/%([0-9A-F]{2})/g, (_, p1) =>

@@ -6,7 +6,9 @@ import {
   inlineToSingleLine, safeParseTablePayload, safeParseChartPayload,
   convertMixedParagraph, sanitizeTypstInlineMath, sanitizeTypstMathSegment,
   LF_ANSWER_MARKER,
-  injectDocumentSettings
+  injectDocumentSettings,
+  LF_COVER_BEGIN_MARKER,
+  LF_COVER_END_MARKER
 } from './utils';
 
 /**
@@ -21,6 +23,10 @@ export function blocksToTypst(blocks: TypstBlock[], opts?: { settings?: Document
   const out: string[] = [];
   for (const block of blocks) {
     switch (block.type) {
+      case 'cover':
+        out.push(serializeCover(block, opts));
+        break;
+
       case 'heading':
         out.push(serializeHeading(block));
         break;
@@ -70,6 +76,21 @@ export function blocksToTypst(blocks: TypstBlock[], opts?: { settings?: Document
   }
 
   return out.join('\n\n');
+}
+
+function serializeCover(block: TypstBlock, opts?: { settings?: DocumentSettings, target?: 'storage' | 'preview' | 'export' }): string {
+  const fixedOnePage = !!block.coverFixedOnePage;
+  const payload = { fixedOnePage };
+  const begin = `${LF_COVER_BEGIN_MARKER}${base64EncodeUtf8(JSON.stringify(payload))}*/`;
+  const end = `${LF_COVER_END_MARKER}`;
+  const children = Array.isArray(block.children) ? block.children : [];
+  const body = children.length > 0 ? blocksToTypst(children, opts) : '';
+
+  const parts: string[] = [begin];
+  if (body.trim()) parts.push(body);
+  parts.push(end);
+  if (fixedOnePage) parts.push('#pagebreak()');
+  return parts.join('\n\n');
 }
 
 function serializeHeading(block: TypstBlock): string {

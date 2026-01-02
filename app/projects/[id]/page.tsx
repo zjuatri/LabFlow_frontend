@@ -132,6 +132,10 @@ export default function ProjectEditorPage() {
       // To ensure they stay together on page breaks, we check if content is an image/figure.
       // For images and figures, wrap in a box so marker + content move together.
       const trimmed = content.trim();
+
+      // Cover container blocks may contain images and a forced #pagebreak().
+      // Wrapping them in a container (#block[..]) would make #pagebreak() illegal.
+      const isCoverContainer = trimmed.startsWith('/*LF_COVER_BEGIN:');
       const isImage =
         trimmed.startsWith('#image(') ||
         /^#align\(\s*(?:left|center|right)\s*,\s*image\(/.test(trimmed) ||
@@ -142,7 +146,7 @@ export default function ProjectEditorPage() {
 
       const markerCode = '#place(dx: -50cm, rect(width: 1pt, height: 1pt, fill: rgb("000001")))';
 
-      if (isImage || isFigure) {
+      if (!isCoverContainer && (isImage || isFigure)) {
         // Wrap in a block that keeps marker and content together.
         // We use width: 100% to ensure the block spans the page, allowing internal #align to work.
         // Without explicit width, #block might shrink-wrap or behave differently.
@@ -441,7 +445,7 @@ export default function ProjectEditorPage() {
     }
   }, []);
 
-  const handleInsertCover = useCallback(async (coverId: string) => {
+  const handleInsertCover = useCallback(async (coverId: string, fixedOnePage: boolean) => {
     try {
       const coverProject = await getProject(coverId);
       const rawCode = (coverProject.typst_code ?? '').trim() ? (coverProject.typst_code ?? '') : DEFAULT_TYPST_CODE;
@@ -454,14 +458,16 @@ export default function ProjectEditorPage() {
       const { code: coverBody } = stripDocumentSettings(rest);
       const coverBlocks = typstToBlocks(coverBody);
 
-      // Add page break after cover
-      const pageBreakBlock: TypstBlock = {
-        id: `pagebreak-${Date.now()}`,
-        type: 'paragraph',
-        content: '#pagebreak()',
+      const coverContainer: TypstBlock = {
+        id: `cover-${Date.now()}`,
+        type: 'cover',
+        content: '',
+        children: coverBlocks,
+        coverFixedOnePage: fixedOnePage,
+        uiCollapsed: true,
       };
 
-      const newBlocks = [...coverBlocks, pageBreakBlock, ...blocks];
+      const newBlocks = [coverContainer, ...blocks];
 
       setBlocks(newBlocks);
       setSyncSource('blocks');
@@ -668,24 +674,42 @@ export default function ProjectEditorPage() {
     <div className="flex h-screen w-full bg-zinc-50 dark:bg-zinc-900">
       <div className="flex flex-col w-1/2 border-r border-zinc-300 dark:border-zinc-700">
 
-        <EditorToolbar
-          mode={mode}
-          onModeSwitch={handleModeSwitch}
-          title={title}
-          onTitleChange={setTitle}
-          docSettings={docSettings}
-          onSettingsChange={setDocSettings}
-          canUndo={canUndo}
-          canRedo={canRedo}
-          onUndo={handleUndo}
-          onRedo={handleRedo}
-          onSave={() => void handleSave()}
-          onOpenCoverModal={handleOpenCoverModal}
-          projectType={projectType}
-          showSettings={showSettings}
-          onToggleSettings={() => setShowSettings(!showSettings)}
-          onCloseSettings={() => setShowSettings(false)}
-        />
+        {(() => {
+          const coverIndex = blocks.findIndex((b) => b.type === 'cover');
+          const hasCover = coverIndex >= 0;
+          const coverFixedOnePage = hasCover ? !!blocks[coverIndex]?.coverFixedOnePage : false;
+
+          return (
+
+            <EditorToolbar
+              mode={mode}
+              onModeSwitch={handleModeSwitch}
+              title={title}
+              onTitleChange={setTitle}
+              docSettings={docSettings}
+              onSettingsChange={setDocSettings}
+              canUndo={canUndo}
+              canRedo={canRedo}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
+              onSave={() => void handleSave()}
+              onOpenCoverModal={handleOpenCoverModal}
+              projectType={projectType}
+              showSettings={showSettings}
+              onToggleSettings={() => setShowSettings(!showSettings)}
+              onCloseSettings={() => setShowSettings(false)}
+              hasCover={hasCover}
+              coverFixedOnePage={coverFixedOnePage}
+              onCoverFixedOnePageChange={(fixed) => {
+                if (coverIndex < 0) return;
+                const next = [...blocks];
+                next[coverIndex] = { ...next[coverIndex], coverFixedOnePage: fixed };
+                setSyncSource('blocks');
+                setBlocks(next);
+              }}
+            />
+          );
+        })()}
 
         {mode === 'source' ? (
           <textarea

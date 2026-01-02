@@ -1,7 +1,7 @@
 'use client';
 
 import { TypstBlock, BlockType } from '@/lib/typst';
-import { Trash2, Plus, ChevronUp, ChevronDown } from 'lucide-react';
+import { Trash2, Plus, ChevronUp, ChevronDown, ChevronRight } from 'lucide-react';
 import TitleBlockEditor from './BlockEditors/TitleBlockEditor';
 import TextBlockEditor from './BlockEditors/TextBlockEditor';
 import CodeBlockEditor from './BlockEditors/CodeBlockEditor';
@@ -38,6 +38,87 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
 
   const effectiveText = (block.content ?? '').replace(/\u200B/g, '').trim();
   const isAnswerBlank = block.type === 'paragraph' && !!block.placeholder && effectiveText.length === 0;
+
+  if (block.type === 'cover') {
+    const collapsed = block.uiCollapsed !== false;
+    const children = Array.isArray(block.children) ? block.children : [];
+    return (
+      <div
+        className="group relative border rounded-lg p-3 cursor-pointer transition-colors duration-200 border-zinc-200 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500 bg-white dark:bg-zinc-900"
+        onClick={onClick}
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onUpdate({ uiCollapsed: !collapsed });
+            }}
+            className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            title={collapsed ? '展开封面' : '折叠封面'}
+          >
+            {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+          </button>
+          <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">封面</div>
+          <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
+            {children.length} 个元素
+          </div>
+          <div className="ml-auto flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 rounded"
+              title="删除封面"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </div>
+
+        {!collapsed && (
+          <div className="pl-4 border-l border-zinc-200 dark:border-zinc-700 space-y-2">
+            {children.length === 0 ? (
+              <div className="text-xs text-zinc-500 dark:text-zinc-400">(空封面)</div>
+            ) : (
+              children.map((child) => (
+                <div key={child.id} className="cursor-default" onClick={(e) => e.stopPropagation()}>
+                  <BlockItem
+                    block={child}
+                    isFirst={false}
+                    isLast={false}
+                    allBlocks={children}
+                    availableTables={availableTables}
+                    onUpdate={(updates) => {
+                      const nextChildren = children.map((b) => (b.id === child.id ? { ...b, ...updates } : b));
+                      onUpdate({ children: nextChildren });
+                    }}
+                    onDelete={() => {
+                      const nextChildren = children.filter((b) => b.id !== child.id);
+                      onUpdate({ children: nextChildren });
+                    }}
+                    onAddAfter={() => {
+                      // Simplest: append a new paragraph at end (no in-between insert)
+                      const nextId = `cover-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                      const nextChildren = [...children, { id: nextId, type: 'paragraph', content: '' } as TypstBlock];
+                      onUpdate({ children: nextChildren });
+                    }}
+                    onMove={() => { }}
+                    onUploadImage={onUploadImage}
+                    onTableSelectionSnapshot={onTableSelectionSnapshot}
+                    lastTableSelection={lastTableSelection}
+                    onRenderChart={onRenderChart}
+                    onClick={() => { }}
+                  />
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -228,6 +309,7 @@ function getTypeName(type: BlockType): string {
     chart: '图表',
     vertical_space: '空白行',
     input_field: '输入',
+    cover: '封面',
   };
   return names[type] || '内容';
 }
