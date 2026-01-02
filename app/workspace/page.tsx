@@ -6,6 +6,7 @@ import {
   X,
   Plus,
   Trash2,
+  Pencil,
   FolderOpen,
   Calendar,
   FileText
@@ -13,7 +14,7 @@ import {
 
 import SiteHeader from '@/components/SiteHeader';
 import { useAuth } from '@/components/AuthProvider';
-import { createProject, deleteProject, listProjects, Project } from '@/lib/api';
+import { createProject, deleteProject, listProjects, updateProject, Project } from '@/lib/api';
 
 export default function WorkspacePage() {
   const router = useRouter();
@@ -26,6 +27,12 @@ export default function WorkspacePage() {
   const [showModal, setShowModal] = useState(false);
   const [deleting, setDeleting] = useState<Project | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Rename states
+  const [renaming, setRenaming] = useState<Project | null>(null);
+  const [renameTitle, setRenameTitle] = useState('');
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [renameSaving, setRenameSaving] = useState(false);
 
   // Batch delete states
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -100,6 +107,24 @@ export default function WorkspacePage() {
       await load();
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : '删除失败');
+    }
+  };
+
+  const onConfirmRename = async () => {
+    if (!renaming) return;
+    const nextTitle = renameTitle.trim();
+    if (!nextTitle) return;
+    setRenameError(null);
+    setRenameSaving(true);
+    try {
+      await updateProject(renaming.id, { title: nextTitle });
+      setRenaming(null);
+      setRenameTitle('');
+      await load();
+    } catch (err) {
+      setRenameError(err instanceof Error ? err.message : '重命名失败');
+    } finally {
+      setRenameSaving(false);
     }
   };
 
@@ -317,17 +342,31 @@ export default function WorkspacePage() {
                         </div>
 
                         {/* Single Delete Action */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteError(null);
-                            setDeleting(p);
-                          }}
-                          className="p-1.5 -mr-1.5 rounded-md hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                          title="删除项目"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRenameError(null);
+                              setRenaming(p);
+                              setRenameTitle(p.title);
+                            }}
+                            className="p-1.5 rounded-md hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
+                            title="重命名"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteError(null);
+                              setDeleting(p);
+                            }}
+                            className="p-1.5 -mr-1.5 rounded-md hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 transition-colors"
+                            title="删除项目"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -434,6 +473,85 @@ export default function WorkspacePage() {
                   className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-medium shadow-lg shadow-red-500/20 transition-colors disabled:opacity-50"
                 >
                   删除
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rename Modal */}
+      {renaming && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in duration-200"
+          onClick={() => {
+            if (renameSaving) return;
+            setRenaming(null);
+            setRenameTitle('');
+            setRenameError(null);
+          }}
+        >
+          <div
+            className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">重命名</h3>
+              <button
+                onClick={() => {
+                  if (renameSaving) return;
+                  setRenaming(null);
+                  setRenameTitle('');
+                  setRenameError(null);
+                }}
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                新名称
+              </label>
+              <input
+                type="text"
+                className="w-full px-4 py-2.5 border border-zinc-300 dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                value={renameTitle}
+                onChange={(e) => setRenameTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    void onConfirmRename();
+                  }
+                }}
+                autoFocus
+              />
+              {renameError && (
+                <div className="mt-3 text-sm text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                  <X size={14} />
+                  {renameError}
+                </div>
+              )}
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    if (renameSaving) return;
+                    setRenaming(null);
+                    setRenameTitle('');
+                    setRenameError(null);
+                  }}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                  disabled={renameSaving}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={() => void onConfirmRename()}
+                  disabled={renameSaving || !renameTitle.trim()}
+                  className="px-6 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-blue-500/20"
+                >
+                  {renameSaving ? '保存中...' : '保存'}
                 </button>
               </div>
             </div>
