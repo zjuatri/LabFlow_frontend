@@ -64,13 +64,37 @@ export function blocksToTypst(blocks: TypstBlock[], opts?: { settings?: Document
 
 function serializeHeading(block: TypstBlock): string {
   const level = block.level || 1;
-  return `${'='.repeat(level)} ${block.content}`;
+  let body = `${'='.repeat(level)} ${block.content}`;
+
+  // Apply font if set (default is SimSun, don't output if default)
+  const font = (block.font ?? 'SimSun').trim();
+  const align = block.align;
+
+  // Typst syntax for heading styling is a bit different.
+  // We can't wrap `#= Heading` inside `#align` or `#text` directly effectively for the structure.
+  // BUT valid Typst allows `#align(center)[= Heading]` which aligns the heading node itself.
+
+  // Apply settings
+  if (font) {
+    // For headings, font is usually set via show rule, but we can wrap the content if needed?
+    // Actually `#text(font: "...")` around the heading content works but might be stripped by the heading structure parsing.
+    // Safer way for inline heading style: `= #text(font: "...")[Heading Content]`
+    body = `${'='.repeat(level)} #text(font: "${font}")[${block.content}]`;
+  }
+
+  // Apply alignment
+  if (align && align !== 'left') {
+    // Wrap the entire heading in align
+    body = `#align(${align})[${body}]`;
+  }
+
+  return body;
 }
 
 function serializeParagraph(block: TypstBlock): string {
   const raw = block.content ?? '';
   const isAnswerBlank = !!block.placeholder && raw.replace(/\u200B/g, '').trim().length === 0;
-  const body = sanitizeTypstInlineMath(convertMixedParagraph(raw));
+  let body = sanitizeTypstInlineMath(convertMixedParagraph(raw));
 
   if (isAnswerBlank) {
     // Stylized placeholder box
@@ -98,6 +122,18 @@ function serializeParagraph(block: TypstBlock): string {
     ? block.lineSpacing
     : undefined;
   const multiplier = typeof multiplierRaw === 'number' ? snapLineSpacingMultiplier(multiplierRaw) : undefined;
+
+  // Apply font if set (default is SimSun, don't output if default)
+  const font = (block.font ?? 'SimSun').trim();
+  if (font) {
+    body = `#text(font: "${font}")[${body}]`;
+  }
+
+  // Apply alignment if set (default is left, don't output if default)
+  const align = block.align;
+  if (align && align !== 'left') {
+    body = `#align(${align})[${body}]`;
+  }
 
   if (typeof multiplier === 'number') {
     const leadingEm = leadingEmFromMultiplier(multiplier);

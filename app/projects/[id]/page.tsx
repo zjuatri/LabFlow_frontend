@@ -747,7 +747,7 @@ export default function ProjectEditorPage() {
 
       <div className="flex flex-col w-1/2">
         <div className="px-4 py-3 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">Preview</h2>
+          <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">预览</h2>
           <button
             onClick={downloadPdf}
             className="p-2 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
@@ -779,7 +779,7 @@ export default function ProjectEditorPage() {
             </div>
           ) : (
             <div className="flex items-center justify-center h-full text-zinc-500 dark:text-zinc-400">
-              {isRendering ? 'Rendering...' : 'Preview will appear here'}
+              {isRendering ? '正在渲染...' : '预览内容将在此显示'}
             </div>
           )}
         </div>

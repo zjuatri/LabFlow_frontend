@@ -52,7 +52,8 @@ export function SvgPage({
     containerRef as React.RefObject<HTMLDivElement>,
     pageIndex,
     isVisible,
-    onBlockClick
+    onBlockClick,
+    svgContent // Pass svgContent to trigger re-analysis on content change
   );
 
   // Re-use logic for visuals but simpler now because hook does the heavy lifting

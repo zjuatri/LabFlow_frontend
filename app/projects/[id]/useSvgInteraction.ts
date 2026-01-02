@@ -17,7 +17,8 @@ export function useSvgInteraction(
     containerRef: React.RefObject<HTMLDivElement>,
     pageIndex: number,
     isVisible: boolean,
-    onBlockClick: (pageIndex: number, localIndex: number) => void
+    onBlockClick: (pageIndex: number, localIndex: number) => void,
+    svgContent?: string // Add svgContent to trigger re-analysis on content change
 ) {
     const [hoveredLocalIndex, setHoveredLocalIndex] = useState<number | null>(null);
 
@@ -164,7 +165,7 @@ export function useSvgInteraction(
         blockRectsRef.current = rects;
     }, [containerRef]);
 
-    // Re-analyze when visible or resized
+    // Re-analyze when visible or resized or when SVG content changes
     useEffect(() => {
         if (!isVisible) return;
         setTimeout(analyzeGeometry, 150); // Slightly larger delay for stability
@@ -173,7 +174,7 @@ export function useSvgInteraction(
         if (containerRef.current) obs.observe(containerRef.current);
 
         return () => obs.disconnect();
-    }, [isVisible, analyzeGeometry, containerRef]);
+    }, [isVisible, analyzeGeometry, containerRef, svgContent]); // Add svgContent to trigger on content change
 
 
     // 2. Hit Testing Logic

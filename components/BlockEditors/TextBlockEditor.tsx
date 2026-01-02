@@ -335,6 +335,61 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
             <option value="2">2.0</option>
           </select>
         </div>
+
+        <div className="flex items-center gap-2 ml-2">
+          <span className="text-xs text-zinc-600 dark:text-zinc-400">字体</span>
+          <select
+            value={block.font ?? 'SimSun'}
+            onChange={(e) => onUpdate({ font: e.target.value })}
+            className="text-xs px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+            title="段落字体"
+          >
+            <option value="SimSun">宋体</option>
+            <option value="SimHei">黑体</option>
+            <option value="KaiTi">楷体</option>
+            <option value="FangSong">仿宋</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-1 ml-2">
+          <span className="text-xs text-zinc-600 dark:text-zinc-400">对齐</span>
+          <button
+            type="button"
+            onClick={() => onUpdate({ align: 'left' })}
+            className={`p-1 rounded transition-colors ${block.align === 'left' || !block.align ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
+            title="左对齐"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="15" y2="12" />
+              <line x1="3" y1="18" x2="18" y2="18" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => onUpdate({ align: 'center' })}
+            className={`p-1 rounded transition-colors ${block.align === 'center' ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
+            title="居中"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="6" y1="12" x2="18" y2="12" />
+              <line x1="4" y1="18" x2="20" y2="18" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => onUpdate({ align: 'right' })}
+            className={`p-1 rounded transition-colors ${block.align === 'right' ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
+            title="右对齐"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="9" y1="12" x2="21" y2="12" />
+              <line x1="6" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* 富文本编辑器 */}

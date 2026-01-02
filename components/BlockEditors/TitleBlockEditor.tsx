@@ -196,11 +196,11 @@ export default function TitleBlockEditor({ block, onUpdate }: TitleBlockEditorPr
     pill.setAttribute('data-typst', '');
     pill.contentEditable = 'false';
     pill.textContent = '∑';
-    
+
     range.deleteContents();
     range.insertNode(pill);
     range.collapse(false);
-    
+
     // Add a space after the pill to allow continuing typing
     const space = document.createTextNode('\u00A0');
     range.insertNode(space);
@@ -225,6 +225,61 @@ export default function TitleBlockEditor({ block, onUpdate }: TitleBlockEditorPr
             </option>
           ))}
         </select>
+
+        <div className="w-px h-4 bg-zinc-300 dark:bg-zinc-600 mx-1"></div>
+
+        <label className="text-xs text-zinc-600 dark:text-zinc-400">字体</label>
+        <select
+          value={block.font ?? 'SimSun'}
+          onChange={(e) => onUpdate({ font: e.target.value })}
+          className="text-xs px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+        >
+          <option value="SimSun">宋体</option>
+          <option value="SimHei">黑体</option>
+          <option value="KaiTi">楷体</option>
+          <option value="FangSong">仿宋</option>
+        </select>
+
+        <div className="w-px h-4 bg-zinc-300 dark:bg-zinc-600 mx-1"></div>
+
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onUpdate({ align: 'left' })}
+            className={`p-1 rounded transition-colors ${block.align === 'left' || !block.align ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
+            title="左对齐"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="15" y2="12" />
+              <line x1="3" y1="18" x2="18" y2="18" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => onUpdate({ align: 'center' })}
+            className={`p-1 rounded transition-colors ${block.align === 'center' ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
+            title="居中"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="6" y1="12" x2="18" y2="12" />
+              <line x1="4" y1="18" x2="20" y2="18" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => onUpdate({ align: 'right' })}
+            className={`p-1 rounded transition-colors ${block.align === 'right' ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
+            title="右对齐"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="9" y1="12" x2="21" y2="12" />
+              <line x1="6" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* 格式工具栏 - 移到文本框上方 */}
@@ -332,9 +387,8 @@ export default function TitleBlockEditor({ block, onUpdate }: TitleBlockEditorPr
             }
           }
         }}
-        className={`w-full min-h-[40px] p-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 whitespace-pre-wrap outline-none font-bold ${
-          ['text-lg', 'text-xl', 'text-2xl', 'text-3xl', 'text-4xl', 'text-5xl'][6 - (block.level || 1)] || 'text-base'
-        }`}
+        className={`w-full min-h-[40px] p-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 whitespace-pre-wrap outline-none font-bold ${['text-lg', 'text-xl', 'text-2xl', 'text-3xl', 'text-4xl', 'text-5xl'][6 - (block.level || 1)] || 'text-base'
+          }`}
         data-placeholder="输入标题内容..."
       />
 
@@ -343,7 +397,7 @@ export default function TitleBlockEditor({ block, onUpdate }: TitleBlockEditorPr
         <div className="inline-math-editor mt-2 p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-medium text-zinc-500">编辑行内公式</span>
-            <button 
+            <button
               onClick={() => {
                 syncParagraphFromDom();
                 setActiveInlineMath(null);
@@ -363,11 +417,10 @@ export default function TitleBlockEditor({ block, onUpdate }: TitleBlockEditorPr
                   setActiveInlineMath({ ...activeInlineMath, format: 'latex' });
                   updateInlineMathPillAttrs({ ...activeInlineMath, format: 'latex' });
                 }}
-                className={`px-2 py-1 text-xs transition-colors ${
-                  activeInlineMath.format === 'latex'
+                className={`px-2 py-1 text-xs transition-colors ${activeInlineMath.format === 'latex'
                     ? 'bg-blue-500 text-white'
                     : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                }`}
+                  }`}
               >
                 LaTeX
               </button>
@@ -377,11 +430,10 @@ export default function TitleBlockEditor({ block, onUpdate }: TitleBlockEditorPr
                   setActiveInlineMath({ ...activeInlineMath, format: 'typst' });
                   updateInlineMathPillAttrs({ ...activeInlineMath, format: 'typst' });
                 }}
-                className={`px-2 py-1 text-xs transition-colors ${
-                  activeInlineMath.format === 'typst'
+                className={`px-2 py-1 text-xs transition-colors ${activeInlineMath.format === 'typst'
                     ? 'bg-blue-500 text-white'
                     : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                }`}
+                  }`}
               >
                 Typst
               </button>

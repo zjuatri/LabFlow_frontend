@@ -39,7 +39,8 @@ export interface TypstBlock {
   language?: string; // 用于代码块语言
   width?: string; // 图片宽度 (e.g., "100%", "8cm")
   height?: string; // 图片高度 (e.g., "auto", "5cm")
-  align?: 'left' | 'center' | 'right'; // 图片对齐方式
+  align?: 'left' | 'center' | 'right'; // 图片/段落对齐方式
+  font?: string; // 段落字体 (e.g., "SimSun", "SimHei", "KaiTi", "FangSong")
 
   // Paragraph line spacing multiplier (e.g. 1, 1.2, 1.5, 2).
   // We store it as a multiplier because Typst's `par(leading:)` uses a length (default 0.65em),
@@ -57,7 +58,7 @@ export interface TypstBlock {
   mathFormat?: 'latex' | 'typst';
   mathLatex?: string;
   mathTypst?: string;
-  
+
   // Multi-line math support
   mathLines?: Array<{ latex: string; typst: string }>;
   mathBrace?: boolean; // Whether to show left brace (like cases)
