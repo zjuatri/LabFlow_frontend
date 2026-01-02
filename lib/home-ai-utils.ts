@@ -28,8 +28,7 @@ export function makeAiDebugHeader(payload: {
 export function buildUserInputJson(params: {
   outlineText: string;
   detailsText: string;
-  outlineFiles: Array<{ name: string; description?: string | null }>;
-  detailsFiles: Array<{ name: string; description?: string | null }>;
+  referenceFiles: Array<{ name: string; description?: string | null }>;
   selectedModel: string;
   thinkingEnabled: boolean;
   pdfContext?: {
@@ -52,8 +51,7 @@ export function buildUserInputJson(params: {
     user_input: {
       outlineText: params.outlineText || '',
       detailsText: params.detailsText || '',
-      outlineFiles: (params.outlineFiles ?? []).map((f) => ({ name: f.name, description: f.description ?? '' })),
-      detailsFiles: (params.detailsFiles ?? []).map((f) => ({ name: f.name, description: f.description ?? '' })),
+      referenceFiles: (params.referenceFiles ?? []).map((f) => ({ name: f.name, description: f.description ?? '' })),
       // pdf_context removed from here to separate static/dynamic parts
     },
     meta: {

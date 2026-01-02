@@ -13,9 +13,8 @@ export type AiTestUploadedFile = {
 
 export type AiTestDraft = {
   outlineText: string;
-  outlineFiles: AiTestUploadedFile[];
   detailsText: string;
-  detailsFiles: AiTestUploadedFile[];
+  referenceFiles: AiTestUploadedFile[];
   pdfFile: File | null;
   pdfUrl: string;
   pdfPageStart: string;

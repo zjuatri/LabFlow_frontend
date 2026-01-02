@@ -2,11 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import Image from 'next/image';
-import { X, Plus, Home, Trash2 } from 'lucide-react';
+import {
+  X,
+  Plus,
+  Trash2,
+  FolderOpen,
+  Calendar,
+  FileText
+} from 'lucide-react';
 
-import { clearToken, getToken } from '@/lib/auth';
+import SiteHeader from '@/components/SiteHeader';
+import { getToken } from '@/lib/auth';
 import { createProject, deleteProject, listProjects, Project } from '@/lib/api';
 
 export default function WorkspacePage() {
@@ -24,6 +30,9 @@ export default function WorkspacePage() {
   const [batchDeleting, setBatchDeleting] = useState(false);
   const [batchDeleteProgress, setBatchDeleteProgress] = useState<{ current: number; total: number } | null>(null);
 
+  const token = getToken();
+
+  // Loading Logic
   const load = async () => {
     setLoading(true);
     setError(null);
@@ -33,7 +42,7 @@ export default function WorkspacePage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : '加载失败';
       if (msg.toLowerCase().includes('not authenticated') || msg.toLowerCase().includes('invalid token')) {
-        clearToken();
+        // clearToken is handled by SiteHeader logout or explicit login redirect
         router.push('/login');
         return;
       }
@@ -44,13 +53,13 @@ export default function WorkspacePage() {
   };
 
   useEffect(() => {
-    if (!getToken()) {
+    if (!token) {
       router.push('/login');
       return;
     }
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router]);
+  }, [router, token]);
 
   const onCreate = async () => {
     if (!title.trim()) return;
@@ -71,11 +80,6 @@ export default function WorkspacePage() {
     }
   };
 
-  const onLogout = () => {
-    clearToken();
-    router.push('/login');
-  };
-
   const onConfirmDelete = async () => {
     if (!deleting) return;
     setDeleteError(null);
@@ -86,10 +90,6 @@ export default function WorkspacePage() {
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : '删除失败');
     }
-  };
-
-  const goToHome = () => {
-    router.push('/');
   };
 
   const handleToggleSelect = (id: string) => {
@@ -138,134 +138,158 @@ export default function WorkspacePage() {
     setBatchDeleteProgress(null);
   };
 
+  if (!token) return <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950/50" />;
+
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <Image src="/icon.png" alt="LabFlow" width={32} height={32} className="" />
-            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">LabFlow</h1>
-          </Link>
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 selection:bg-blue-500/20">
+
+      {/* Navbar */}
+      <SiteHeader />
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 pt-28 pb-20">
+
+        {/* Page Header */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight flex items-center gap-3">
+              My Workspace
+            </h1>
+            <p className="mt-2 text-zinc-500 dark:text-zinc-400">
+              Manage your projects and generated reports.
+            </p>
+          </div>
+
           <div className="flex items-center gap-3">
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-3 bg-red-50 dark:bg-red-950/20 px-4 py-2 rounded-lg border border-red-100 dark:border-red-900/30 animate-in fade-in slide-in-from-right-4">
+                <span className="text-sm font-medium text-red-700 dark:text-red-300">
+                  {selectedIds.size} selected
+                </span>
+                <button
+                  onClick={() => setBatchDeleting(true)}
+                  className="flex items-center gap-2 text-sm font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                >
+                  <Trash2 size={16} />
+                  Delete
+                </button>
+              </div>
+            )}
+
             <button
-              onClick={goToHome}
-              className="px-3 py-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-sm transition-colors flex items-center gap-2"
+              onClick={() => setShowModal(true)}
+              className={`
+                relative overflow-hidden group px-4 py-2.5 rounded-lg font-medium text-sm text-white shadow-lg shadow-blue-500/20 
+                bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 
+                active:scale-[0.98] transition-all flex items-center gap-2
+              `}
             >
-              <Home size={16} />
-              首页
-            </button>
-            <button
-              className="px-3 py-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-sm transition-colors"
-              onClick={onLogout}
-            >
-              退出登录
+              <Plus size={18} />
+              <span>New Project</span>
             </button>
           </div>
         </div>
-      </header>
 
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">我的工作区</h2>
-          <button
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white transition-colors flex items-center gap-2 rounded"
-            onClick={() => setShowModal(true)}
-          >
-            <Plus size={18} />
-            创建项目
-          </button>
-        </div>
-
-        <div className="mt-6">
+        {/* Content Area */}
+        <div className="min-h-[400px]">
           {loading ? (
-            <div className="text-zinc-600 dark:text-zinc-400">加载中...</div>
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+              <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-zinc-400 text-sm">Loading projects...</p>
+            </div>
           ) : projects.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-zinc-400 dark:text-zinc-600 mb-4">
-                <svg className="w-16 h-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+            <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl bg-zinc-50/50 dark:bg-zinc-900/20">
+              <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4 text-zinc-400">
+                <FolderOpen size={32} />
               </div>
-              <p className="text-zinc-600 dark:text-zinc-400 mb-4">还没有项目</p>
+              <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-100 mb-1">No projects yet</h3>
+              <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-6 max-w-xs text-center">
+                Get started by creating your first project to generate an AI experimental report.
+              </p>
               <button
                 onClick={() => setShowModal(true)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors inline-flex items-center gap-2"
+                className="px-4 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm font-medium text-zinc-900 dark:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-all shadow-sm"
               >
-                <Plus size={18} />
-                创建第一个项目
+                Create Project
               </button>
             </div>
           ) : (
             <>
-              {/* Batch action toolbar */}
-              {projects.length > 0 && (
-                <div className="mb-4 flex items-center gap-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
+              {/* Selection Bar */}
+              <div className="flex items-center justify-between mb-4 px-1">
+                <label className="flex items-center gap-2 cursor-pointer group">
+                  <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${selectedIds.size === projects.length ? 'bg-blue-600 border-blue-600' : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 group-hover:border-blue-500'}`}>
+                    {selectedIds.size === projects.length && <div className="w-2.5 h-2.5 bg-white rounded-sm" />}
                     <input
                       type="checkbox"
-                      checked={selectedIds.size === projects.length && projects.length > 0}
+                      checked={selectedIds.size === projects.length}
                       onChange={handleSelectAll}
-                      className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-600"
+                      className="hidden"
                     />
-                    <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                      {selectedIds.size === projects.length && projects.length > 0 ? '取消全选' : '全选'}
-                    </span>
-                  </label>
-                  {selectedIds.size > 0 && (
-                    <>
-                      <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                        已选中 {selectedIds.size} 个项目
-                      </span>
-                      <button
-                        onClick={() => setBatchDeleting(true)}
-                        className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-700 text-white text-sm transition-colors flex items-center gap-2"
-                      >
-                        <Trash2 size={16} />
-                        批量删除
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  </div>
+                  <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-zinc-200 transition-colors">
+                    Select All
+                  </span>
+                </label>
+                <span className="text-sm text-zinc-400">
+                  {projects.length} Projects
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {projects.map((p) => (
                   <div
                     key={p.id}
-                    className={`p-4 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors ${selectedIds.has(p.id) ? 'ring-2 ring-blue-500' : ''
-                      }`}
+                    className={`
+                      group relative bg-white dark:bg-zinc-900/50 border rounded-xl overflow-hidden transition-all duration-200
+                      hover:shadow-lg hover:border-blue-500/30 hover:-translate-y-1
+                      ${selectedIds.has(p.id) ? 'border-blue-500 ring-1 ring-blue-500 bg-blue-50/30 dark:bg-blue-900/10' : 'border-zinc-200 dark:border-zinc-800'}
+                    `}
                   >
-                    <div className="flex items-start gap-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(p.id)}
-                        onChange={() => handleToggleSelect(p.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="mt-1 w-4 h-4 rounded border-zinc-300 dark:border-zinc-600"
-                      />
-                      <button
-                        className="text-left flex-1"
-                        onClick={() => router.push(`/projects/${p.id}`)}
-                      >
-                        <div className="font-semibold text-zinc-900 dark:text-zinc-100">{p.title}</div>
-                        <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                          {new Date(p.updated_at).toLocaleString()}
+                    {/* Card Content (Clickable) */}
+                    <div
+                      onClick={() => router.push(`/projects/${p.id}`)}
+                      className="p-5 cursor-pointer h-full flex flex-col"
+                    >
+                      <div className="flex items-start justify-between gap-4 mb-4">
+                        <div className={`p-3 rounded-lg ${selectedIds.has(p.id) ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 group-hover:bg-blue-50 group-hover:text-blue-600 dark:group-hover:bg-blue-900/20 dark:group-hover:text-blue-400'} transition-colors`}>
+                          <FileText size={24} />
                         </div>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setDeleteError(null);
-                          setDeleting(p);
-                        }}
-                        className="px-2 py-2 rounded border border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                        title="删除项目"
-                        aria-label="删除项目"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+
+                        {/* Checkbox (Absolute positioning for better hit area) */}
+                        <div
+                          onClick={(e) => { e.stopPropagation(); handleToggleSelect(p.id); }}
+                          className="p-2 -mr-2 -mt-2 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors"
+                        >
+                          <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${selectedIds.has(p.id) ? 'bg-blue-600 border-blue-600' : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900'}`}>
+                            {selectedIds.has(p.id) && <div className="w-2.5 h-2.5 bg-white rounded-sm" />}
+                          </div>
+                        </div>
+                      </div>
+
+                      <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 mb-2 line-clamp-2 leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                        {p.title}
+                      </h3>
+
+                      <div className="mt-auto pt-4 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 border-t border-zinc-100 dark:border-zinc-800/50">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar size={12} />
+                          {new Date(p.updated_at).toLocaleDateString()}
+                        </div>
+
+                        {/* Single Delete Action */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteError(null);
+                            setDeleting(p);
+                          }}
+                          className="p-1.5 -mr-1.5 rounded-md hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                          title="Delete Project"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -273,146 +297,106 @@ export default function WorkspacePage() {
             </>
           )}
         </div>
-      </div>
+      </main>
 
       {/* Create Project Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowModal(false)}>
-          <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
-              <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">创建新项目</h3>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-              >
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in duration-200" onClick={() => setShowModal(false)}>
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">Create New Project</h3>
+              <button onClick={() => setShowModal(false)} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors">
                 <X size={20} />
               </button>
             </div>
-            <div className="px-6 py-4">
+
+            <div className="p-6">
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                项目名称
+                Project Name
               </label>
               <input
                 type="text"
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="请输入项目名称"
+                className="w-full px-4 py-2.5 border border-zinc-300 dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                placeholder="e.g. Physics Experiment 3"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 onKeyDown={handleKeyDown}
                 autoFocus
               />
-              {error && <div className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</div>}
-            </div>
-            <div className="px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  setShowModal(false);
-                  setTitle('');
-                  setError(null);
-                }}
-                className="px-4 py-2 rounded border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-              >
-                取消
-              </button>
-              <button
-                onClick={onCreate}
-                disabled={!title.trim()}
-                className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                创建
-              </button>
+              {error && <div className="mt-3 text-sm text-red-600 dark:text-red-400 flex items-center gap-1.5"><X size={14} />{error}</div>}
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={onCreate}
+                  disabled={!title.trim()}
+                  className="px-6 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-blue-500/20"
+                >
+                  Create Project
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete Project Modal */}
-      {deleting && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setDeleting(null)}>
-          <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
-              <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">删除项目</h3>
-              <button
-                onClick={() => setDeleting(null)}
-                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <div className="px-6 py-4">
-              <div className="text-zinc-800 dark:text-zinc-200">
-                确认删除项目：
-                <span className="font-semibold"> {deleting.title}</span>？
+      {/* Delete Confirmation Modal */}
+      {(deleting || batchDeleting) && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in duration-200" onClick={() => !batchDeleteProgress && (setDeleting(null), setBatchDeleting(false))}>
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl w-full max-w-sm mx-4 overflow-hidden animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 text-center">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 dark:text-red-400">
+                <Trash2 size={24} />
               </div>
-              <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">该操作不可恢复（项目内容与已上传图片会一并删除）。</div>
-              {deleteError && <div className="mt-3 text-sm text-red-600 dark:text-red-400">{deleteError}</div>}
-            </div>
-            <div className="px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 flex justify-end gap-3">
-              <button
-                onClick={() => setDeleting(null)}
-                className="px-4 py-2 rounded border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-              >
-                取消
-              </button>
-              <button
-                onClick={onConfirmDelete}
-                className="px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white transition-colors"
-              >
-                删除
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Batch Delete Modal */}
-      {batchDeleting && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => !batchDeleteProgress && setBatchDeleting(false)}>
-          <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
-              <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">批量删除项目</h3>
-              <button
-                onClick={() => !batchDeleteProgress && setBatchDeleting(false)}
-                disabled={!!batchDeleteProgress}
-                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <div className="px-6 py-4">
-              <div className="text-zinc-800 dark:text-zinc-200">
-                确认删除 <span className="font-semibold">{selectedIds.size}</span> 个项目？
-              </div>
-              <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">该操作不可恢复（项目内容与已上传图片会一并删除）。</div>
+              <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-2">
+                {batchDeleting ? 'Delete Selected Projects?' : 'Delete Project?'}
+              </h3>
+
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6 leading-relaxed">
+                {batchDeleting ? (
+                  <>You are about to delete <span className="font-semibold text-zinc-900 dark:text-zinc-200">{selectedIds.size}</span> projects.</>
+                ) : (
+                  <>Are you sure you want to delete <span className="font-semibold text-zinc-900 dark:text-zinc-200">"{deleting?.title}"</span>?</>
+                )}
+                <br />
+                This action cannot be undone.
+              </p>
+
               {batchDeleteProgress && (
-                <div className="mt-3 text-sm text-blue-600 dark:text-blue-400">
-                  删除进度: {batchDeleteProgress.current} / {batchDeleteProgress.total}
+                <div className="mb-4 text-xs font-medium text-blue-600 dark:text-blue-400 flex items-center justify-center gap-2">
+                  <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  Deleting: {batchDeleteProgress.current} / {batchDeleteProgress.total}
                 </div>
               )}
-              {deleteError && <div className="mt-3 text-sm text-red-600 dark:text-red-400">{deleteError}</div>}
-            </div>
-            <div className="px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 flex justify-end gap-3">
-              <button
-                onClick={() => setBatchDeleting(false)}
-                disabled={!!batchDeleteProgress}
-                className="px-4 py-2 rounded border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleBatchDelete}
-                disabled={!!batchDeleteProgress}
-                className="px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {batchDeleteProgress ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    删除中...
-                  </>
-                ) : (
-                  '删除'
-                )}
-              </button>
+
+              {deleteError && (
+                <div className="mb-4 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 p-2 rounded-lg">
+                  {deleteError}
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setDeleting(null); setBatchDeleting(false); }}
+                  disabled={!!batchDeleteProgress}
+                  className="flex-1 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={batchDeleting ? handleBatchDelete : onConfirmDelete}
+                  disabled={!!batchDeleteProgress}
+                  className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-medium shadow-lg shadow-red-500/20 transition-colors disabled:opacity-50"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         </div>

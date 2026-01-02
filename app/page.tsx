@@ -2,39 +2,50 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import Image from 'next/image';
-import { Sparkles, ArrowRight } from 'lucide-react';
+import SiteHeader from '@/components/SiteHeader';
+import {
+  Sparkles,
+  ArrowRight,
+  FileText,
+  UploadCloud,
+  Library,
+  BrainCircuit
+} from 'lucide-react';
+
 import FileUploadWithDescription from '@/components/FileUploadWithDescription';
 import PdfUploadSingle from '@/components/PdfUploadSingle';
-import { clearToken, getToken } from '@/lib/auth';
+import { getToken } from '@/lib/auth';
 import { useAiTestStore, type AiTestUploadedFile } from '@/components/AiTestStore';
 
 export default function CreateProjectPage() {
   const router = useRouter();
   const { setDraft, clearRun } = useAiTestStore();
+  const token = getToken();
+
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!token) {
+      router.push('/login');
+    }
+  }, [router, token]);
+
+  // Form State
   const [outlineText, setOutlineText] = useState('');
-  const [outlineFiles, setOutlineFiles] = useState<AiTestUploadedFile[]>([]);
   const [detailsText, setDetailsText] = useState('');
-  const [detailsFiles, setDetailsFiles] = useState<AiTestUploadedFile[]>([]);
+  const [referenceFiles, setReferenceFiles] = useState<AiTestUploadedFile[]>([]);
+
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfUrl, setPdfUrl] = useState('');
   const [pdfPageStart, setPdfPageStart] = useState('');
   const [pdfPageEnd, setPdfPageEnd] = useState('');
+
   const [parserMode, setParserMode] = useState<'local' | 'mineru'>('local');
   const [error, setError] = useState('');
   const [selectedModel, setSelectedModel] = useState<'deepseek-chat' | 'deepseek-reasoner' | 'qwen3-max'>('deepseek-chat');
   const [thinkingEnabled, setThinkingEnabled] = useState(false);
 
   useEffect(() => {
-    if (!getToken()) {
-      router.push('/login');
-    }
-  }, [router]);
-
-  useEffect(() => {
-    // Default behavior: enable thinking for R1 (reasoner), disable for V3 (chat).
-    // For qwen3-max, default to disabled.
+    // Default behavior for models
     if (selectedModel === 'deepseek-reasoner') {
       setThinkingEnabled(true);
     } else {
@@ -43,138 +54,147 @@ export default function CreateProjectPage() {
   }, [selectedModel]);
 
   const handleGenerate = async () => {
-    if (!outlineText.trim() && !detailsText.trim() && outlineFiles.length === 0 && detailsFiles.length === 0) {
-      // Allow if user has either uploaded a file OR provided a URL for MinerU
+    if (!outlineText.trim() && !detailsText.trim() && referenceFiles.length === 0) {
+      // Allow if only PDF is provided
       if (!pdfFile && !pdfUrl.trim()) return;
     }
 
     setError('');
-    // Always start a fresh run; otherwise /ai-test may restore an old snapshot (e.g. previous skipped PDF step).
     clearRun();
     setDraft({
       outlineText,
-      outlineFiles,
       detailsText,
-      detailsFiles,
+      referenceFiles,
       pdfFile,
       pdfUrl,
       pdfPageStart,
       pdfPageEnd,
-      parserMode: parserMode,
+      parserMode,
       selectedModel,
       thinkingEnabled,
     });
     router.push('/ai-test');
   };
 
-  const handleOutlineFilesChange = (newFiles: AiTestUploadedFile[]) => {
-    setOutlineFiles(newFiles);
-  };
-
-  const handleDetailsFilesChange = (newFiles: AiTestUploadedFile[]) => {
-    setDetailsFiles(newFiles);
-  };
-
-  const onLogout = () => {
-    clearToken();
-    router.push('/login');
-  };
-
-  const goToWorkspace = () => {
-    router.push('/workspace');
+  const handleFilesChange = (newFiles: AiTestUploadedFile[]) => {
+    setReferenceFiles(newFiles);
   };
 
   const canGenerate =
-    !!pdfFile || !!pdfUrl.trim() || outlineText.trim() || detailsText.trim() || outlineFiles.length > 0 || detailsFiles.length > 0;
+    !!pdfFile || !!pdfUrl.trim() || outlineText.trim() || detailsText.trim() || referenceFiles.length > 0;
+
+  if (!token) return <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950/50" />;
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <Image src="/icon.png" alt="LabFlow" width={32} height={32} className="" />
-            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">LabFlow</h1>
-          </Link>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={goToWorkspace}
-              className="px-3 py-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-sm transition-colors"
-            >
-              我的工作区
-            </button>
-            <button
-              className="px-3 py-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-sm transition-colors"
-              onClick={onLogout}
-            >
-              退出登录
-            </button>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 selection:bg-blue-500/20">
+
+      {/* Navbar (Unified Style) */}
+      <SiteHeader />
 
       {/* Main Content */}
-      <div className="max-w-5xl mx-auto px-4 py-8">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-full mb-4">
+      <main className="max-w-7xl mx-auto px-4 pt-28 pb-20">
+
+        {/* Hero Section */}
+        <div className="text-center mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-200/50 dark:border-blue-800/50 rounded-full mb-6 backdrop-blur-sm">
             <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <span className="text-sm font-medium text-blue-700 dark:text-blue-300">AI 驱动的实验报告生成</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">AI-Powered Report Generation</span>
           </div>
-          <h2 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">
-            创建新项目
-          </h2>
-          <p className="text-zinc-600 dark:text-zinc-400">
-            描述您的实验大纲和细节，或上传相关文件，AI 将帮助您生成专业的实验报告
+          <h1 className="text-4xl md:text-5xl font-bold mb-6 tracking-tight">
+            Create Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">Next Project</span>
+          </h1>
+          <p className="max-w-2xl mx-auto text-lg text-zinc-600 dark:text-zinc-400 leading-relaxed">
+            描述您的实验大纲和细节，或上传相关文件。AI 将根据上下文自动构建专业的实验报告结构与内容。
           </p>
         </div>
 
-        <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm">
-          <div className="p-6 space-y-6">
+        {/* 2-Column Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
+          {/* Left Column: Project Content Inputs */}
+          <div className="lg:col-span-7 flex flex-col gap-6">
 
-            {/* Outline Section */}
-            <div>
-              <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
-                文档大纲
-              </label>
-              <textarea
-                value={outlineText}
-                onChange={(e) => setOutlineText(e.target.value)}
-                placeholder="例如：实验目的、实验原理、实验步骤、实验结果、结论等"
-                className="w-full h-32 px-4 py-3 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              />
-              <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-2 mb-3">
-                简要描述您的文档结构和主要章节
-              </p>
+            {/* Context Card */}
+            <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm backdrop-blur-sm p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400">
+                  <FileText size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">Project Content</h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Provide the core content for your report.</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                    Document Outline (文档大纲)
+                  </label>
+                  <textarea
+                    value={outlineText}
+                    onChange={(e) => setOutlineText(e.target.value)}
+                    placeholder="例如：实验目的、实验原理、实验步骤、实验结果、结论等..."
+                    className="w-full h-32 px-4 py-3 bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-zinc-800 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-none transition-all placeholder:text-zinc-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                    Details & Observations (细节信息)
+                  </label>
+                  <textarea
+                    value={detailsText}
+                    onChange={(e) => setDetailsText(e.target.value)}
+                    placeholder="详细描述实验的背景、方法、数据、观察结果等信息..."
+                    className="w-full h-48 px-4 py-3 bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-zinc-800 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-none transition-all placeholder:text-zinc-400"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-sm">
+                {error}
+              </div>
+            )}
+          </div>
+
+          {/* Right Column: Files & Settings */}
+          <div className="lg:col-span-5 flex flex-col gap-6">
+
+            {/* Reference Files Card */}
+            <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm backdrop-blur-sm p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg text-indigo-600 dark:text-indigo-400">
+                  <UploadCloud size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">Reference Materials</h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Upload charts, data sheets, or extra text.</p>
+                </div>
+              </div>
+
               <FileUploadWithDescription
-                onFilesChange={handleOutlineFilesChange}
-                label="outline"
-                placeholder="上传大纲相关文件（可选）"
+                onFilesChange={handleFilesChange}
+                label="reference"
+                placeholder="Upload reference files (Images, Text, etc.)"
               />
             </div>
 
-            {/* Details Section */}
-            <div>
-              <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
-                细节信息
-              </label>
-              <textarea
-                value={detailsText}
-                onChange={(e) => setDetailsText(e.target.value)}
-                placeholder="详细描述实验的背景、方法、数据、观察结果等信息..."
-                className="w-full h-48 px-4 py-3 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              />
-              <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-2 mb-3">
-                提供更多细节信息以帮助 AI 生成更准确的内容
-              </p>
-              <FileUploadWithDescription
-                onFilesChange={handleDetailsFilesChange}
-                label="details"
-                placeholder="上传细节相关文件（可选）"
-              />
-            </div>
+            {/* PDF Source Card */}
+            <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm backdrop-blur-sm p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg text-amber-600 dark:text-amber-400">
+                  <Library size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">PDF Source</h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Primary source document for OCR processing.</p>
+                </div>
+              </div>
 
-            <div>
               <PdfUploadSingle
                 file={pdfFile}
                 onChange={setPdfFile}
@@ -186,124 +206,87 @@ export default function CreateProjectPage() {
                 onPageEndChange={setPdfPageEnd}
                 parserMode={parserMode}
               />
+            </div>
 
-              <div className="flex flex-col md:flex-row gap-8 mt-6 p-4 rounded-lg bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800">
-                <div className="flex-1">
-                  <label className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 block mb-3">
-                    解析引擎 (Parser Engine)
-                  </label>
-                  <div className="flex flex-col gap-2.5">
-                    <label className="flex items-center gap-2.5 text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="parserMode"
-                        value="local"
-                        checked={parserMode === 'local'}
-                        onChange={(e) => setParserMode(e.target.value as any)}
-                        className="accent-blue-600"
-                      />
-                      Local (Default)
-                      <span className="text-xs text-zinc-500">- Fast, local OCR</span>
-                    </label>
-                    <label className="flex items-center gap-2.5 text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="parserMode"
-                        value="mineru"
-                        checked={parserMode === 'mineru'}
-                        onChange={(e) => setParserMode(e.target.value as any)}
-                        className="accent-purple-600"
-                      />
-                      MinerU (Remote)
-                      <span className="text-xs text-zinc-500">- High accuracy, Markdown</span>
-                    </label>
+            {/* Settings Card */}
+            <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm backdrop-blur-sm p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg text-purple-600 dark:text-purple-400">
+                  <BrainCircuit size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">Configuration</h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Select model and processing engine.</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {/* Parser Selection */}
+                <div>
+                  <label className="text-xs font-semibold uppercase text-zinc-500 mb-3 block">Parser Engine</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setParserMode('local')}
+                      className={`px-3 py-2 rounded-lg text-sm border transition-all ${parserMode === 'local' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}
+                    >
+                      <div className="font-medium">Local OCR</div>
+                      <div className="text-[10px] opacity-70">Faster, Basic</div>
+                    </button>
+                    <button
+                      onClick={() => setParserMode('mineru')}
+                      className={`px-3 py-2 rounded-lg text-sm border transition-all ${parserMode === 'mineru' ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300' : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}
+                    >
+                      <div className="font-medium">MinerU</div>
+                      <div className="text-[10px] opacity-70">High Accuracy</div>
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex-1">
-                  <label className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 block mb-3">
-                    AI 模型 (AI Model)
-                  </label>
-                  <div className="flex flex-col gap-2.5">
-                    <label className="flex items-center gap-2.5 text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="aiModel"
-                        value="deepseek-chat"
-                        checked={selectedModel === 'deepseek-chat'}
-                        onChange={(e) => setSelectedModel(e.target.value as any)}
-                        className="accent-blue-600"
-                      />
-                      DeepSeek V3
-                      <span className="text-xs text-zinc-500">- Fast chat</span>
+                {/* Model Selection */}
+                <div>
+                  <label className="text-xs font-semibold uppercase text-zinc-500 mb-3 block">Reasoning Model</label>
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value as any)}
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 outline-none"
+                  >
+                    <option value="deepseek-chat">DeepSeek V3 (Chat)</option>
+                    <option value="deepseek-reasoner">DeepSeek R1 (Reasoning)</option>
+                    <option value="qwen3-max">Qwen3-Max</option>
+                  </select>
+
+                  <div className="mt-4 flex items-center justify-between">
+                    <span className="text-sm text-zinc-600 dark:text-zinc-400">Thinking Mode</span>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" checked={thinkingEnabled} onChange={(e) => setThinkingEnabled(e.target.checked)} className="sr-only peer" />
+                      <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                     </label>
-                    <label className="flex items-center gap-2.5 text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="aiModel"
-                        value="deepseek-reasoner"
-                        checked={selectedModel === 'deepseek-reasoner'}
-                        onChange={(e) => setSelectedModel(e.target.value as any)}
-                        className="accent-purple-600"
-                      />
-                      DeepSeek R1
-                      <span className="text-xs text-zinc-500">- Deep reasoning</span>
-                    </label>
-                    <label className="flex items-center gap-2.5 text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="aiModel"
-                        value="qwen3-max"
-                        checked={selectedModel === 'qwen3-max'}
-                        onChange={(e) => setSelectedModel(e.target.value as any)}
-                        className="accent-orange-600"
-                      />
-                      Qwen3-Max
-                    </label>
-                    <div className="pt-1 mt-1 border-t border-zinc-200 dark:border-zinc-800">
-                      <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400 cursor-pointer py-1">
-                        <input
-                          type="checkbox"
-                          checked={thinkingEnabled}
-                          onChange={(e) => setThinkingEnabled(e.target.checked)}
-                          className="accent-blue-600"
-                        />
-                        开启思考模式 (Thinking Mode)
-                      </label>
-                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Action Bar */}
-          <div className="px-6 py-4 bg-zinc-50 dark:bg-zinc-900/50 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between rounded-b-lg">
-            <div className="text-sm text-zinc-600 dark:text-zinc-400">
-              {(outlineFiles.length > 0 || detailsFiles.length > 0) && (
-                <span>已上传 {outlineFiles.length + detailsFiles.length} 个文件</span>
-              )}
-            </div>
-            <div className="flex items-center gap-3">
+            {/* Action Bar (Mobile/Desktop Stacked) */}
+            <div className="mt-2">
               <button
                 onClick={handleGenerate}
                 disabled={!canGenerate}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                className={`
+                  w-full py-3.5 rounded-xl font-semibold text-white shadow-lg shadow-blue-500/20
+                  bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 
+                  active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed
+                  flex items-center justify-center gap-2
+                `}
               >
                 <Sparkles size={18} />
-                生成项目
+                Generate Project
                 <ArrowRight size={18} />
               </button>
             </div>
+
           </div>
         </div>
-
-        {error ? (
-          <div className="mt-6 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-lg p-4 text-sm text-red-700 dark:text-red-300">
-            {error}
-          </div>
-        ) : null}
-      </div>
+      </main>
     </div>
   );
 }

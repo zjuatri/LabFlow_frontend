@@ -2,8 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import Image from 'next/image';
+import SiteHeader from '@/components/SiteHeader';
+import {
+  BrainCircuit,
+  FileText,
+  Save,
+  Table,
+  AlertTriangle,
+  Clock
+} from 'lucide-react';
 
 import { clearToken, getToken } from '@/lib/auth';
 import { getManagePrompts, updateManagePrompts } from '@/lib/api';
@@ -11,24 +18,44 @@ import { getManagePrompts, updateManagePrompts } from '@/lib/api';
 function PromptEditor(props: {
   title: string;
   subtitle?: string;
+  icon: React.ElementType;
   value: string;
   onChange: (v: string) => void;
   heightClass?: string;
+  color?: 'blue' | 'purple' | 'emerald';
 }) {
+  const colorMap = {
+    blue: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900',
+    purple: 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-900',
+    emerald: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900',
+  };
+
+  const iconStyle = props.color ? colorMap[props.color] : colorMap['blue'];
+
   return (
-    <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm">
-      <div className="p-5 border-b border-zinc-200 dark:border-zinc-800">
+    <div className="group bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm hover:shadow-md hover:border-zinc-300 dark:hover:border-zinc-700 transition-all duration-300 backdrop-blur-sm">
+      <div className="p-5 border-b border-zinc-100 dark:border-zinc-800 flex items-start gap-4">
+        <div className={`p-3 rounded-lg border ${iconStyle} transition-colors`}>
+          <props.icon size={24} />
+        </div>
         <div>
-          <div className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{props.title}</div>
-          {props.subtitle ? <div className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">{props.subtitle}</div> : null}
+          <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+            {props.title}
+          </h3>
+          {props.subtitle ? (
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
+              {props.subtitle}
+            </p>
+          ) : null}
         </div>
       </div>
-      <div className="p-5">
+      <div className="p-1">
         <textarea
           value={props.value}
           onChange={(e) => props.onChange(e.target.value)}
-          className={`w-full ${props.heightClass ?? 'h-[45vh]'} font-mono text-xs p-3 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100`}
+          className={`w-full ${props.heightClass ?? 'h-[45vh]'} block p-4 bg-zinc-50/50 dark:bg-black/20 text-sm font-mono text-zinc-800 dark:text-zinc-300 leading-relaxed outline-none resize-y rounded-b-lg focus:bg-white dark:focus:bg-black/40 transition-colors selection:bg-blue-100 dark:selection:bg-blue-900/30`}
           spellCheck={false}
+          placeholder="// 输入提示词..."
         />
       </div>
     </div>
@@ -126,92 +153,119 @@ export default function ManagePage() {
     }
   };
 
-  const onLogout = () => {
-    clearToken();
-    router.push('/login');
-  };
-
   if (!mounted) {
-    return <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900" />;
+    return <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950/50" />;
   }
   if (!token || role !== 'admin') {
-    return <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900" />;
+    return <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950/50" />;
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
-      <header className="bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <Image src="/icon.png" alt="LabFlow" width={32} height={32} />
-            <div className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">后台管理</div>
-          </Link>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => router.push('/')}
-              className="px-3 py-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-sm"
-            >
-              返回主页
-            </button>
-            <button
-              onClick={onLogout}
-              className="px-3 py-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-sm"
-            >
-              退出登录
-            </button>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 selection:bg-blue-500/20">
+      {/* Navbar with Glassmorphism */}
+      <SiteHeader />
 
-      <main className="max-w-5xl mx-auto px-4 py-6">
-        <div className="flex items-center justify-between gap-3 mb-4">
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 pt-28 pb-20">
+
+        {/* Page Header */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
           <div>
-            <div className="text-base font-semibold text-zinc-900 dark:text-zinc-100">提示词管理</div>
-            <div className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">
-              {loadedAt ? `上次更新：${loadedAt}` : '尚未更新（使用默认值）'}
+            <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight flex items-center gap-3">
+              提示词编排 <span className="px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded-full">v2.0</span>
+            </h1>
+            <div className="flex items-center gap-4 mt-3 text-sm text-zinc-500 dark:text-zinc-400 text-opacity-80">
+              <div className="flex items-center gap-1.5">
+                <Clock size={14} className="text-zinc-400" />
+                {loadedAt ? (
+                  <span>上次更新于 <span className="font-mono text-zinc-700 dark:text-zinc-300">{new Date(loadedAt).toLocaleString()}</span></span>
+                ) : (
+                  <span>尚未更新（使用 System Defaults）</span>
+                )}
+              </div>
             </div>
           </div>
-          <button
-            onClick={onSave}
-            disabled={status !== 'idle' || !prompt.trim() || !pdfOcrPrompt.trim() || !tableCellOcrPrompt.trim()}
-            className="px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm"
-          >
-            {status === 'saving' ? '保存中...' : '保存全部'}
-          </button>
-        </div>
 
-        {error ? (
-          <div className="mb-4 p-3 rounded border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-300 text-sm">
-            {error}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onSave}
+              disabled={status !== 'idle' || !prompt.trim() || !pdfOcrPrompt.trim() || !tableCellOcrPrompt.trim()}
+              className={`
+                relative overflow-hidden group px-6 py-2.5 rounded-lg font-medium text-sm text-white shadow-lg shadow-blue-500/20 
+                bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 
+                active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed
+              `}
+            >
+              <div className="flex items-center gap-2 relative z-10">
+                {status === 'saving' ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save size={18} />
+                    <span>Save Changes</span>
+                  </>
+                )}
+              </div>
+            </button>
           </div>
-        ) : null}
-
-        <div className="grid gap-4">
-          <PromptEditor
-            title="AI 提示词（主页生成）"
-            subtitle="用于主页的实验报告 blocks 生成。"
-            value={prompt}
-            onChange={setPrompt}
-            heightClass="h-[40vh]"
-          />
-          <PromptEditor
-            title="OCR 提示词（PDF 整页识别，含行内公式）"
-            subtitle="用于 /pdf/ingest?ocr_math=1 的整页 OCR。"
-            value={pdfOcrPrompt}
-            onChange={setPdfOcrPrompt}
-            heightClass="h-[35vh]"
-          />
-          <PromptEditor
-            title="OCR 提示词（表格单元格公式识别）"
-            subtitle="用于 /pdf/table/formula/vision 的单元格公式识别。"
-            value={tableCellOcrPrompt}
-            onChange={setTableCellOcrPrompt}
-            heightClass="h-[30vh]"
-          />
         </div>
 
-        <div className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
-          只有 role=admin 的账号可访问：`/manage`。
+        {error && (
+          <div className="mb-8 p-4 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20 backdrop-blur-sm flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+            <AlertTriangle className="text-red-600 dark:text-red-400 shrink-0" size={20} />
+            <div>
+              <h3 className="text-sm font-semibold text-red-900 dark:text-red-200">Changes could not be saved</h3>
+              <p className="text-sm text-red-700 dark:text-red-300/80 mt-1">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+          {/* Main AI Prompt - Full width on mobile, 7 cols on desktop */}
+          <div className="lg:col-span-12 xl:col-span-7">
+            <PromptEditor
+              title="AI 提示词 (Agent System Prompt)"
+              subtitle="控制 Core AI 生成实验报告 blocks 的逻辑。该提示词定义了 JSON 结构、Block 规范、以及内容/结果的处理逻辑。"
+              icon={BrainCircuit}
+              color="purple"
+              value={prompt}
+              onChange={setPrompt}
+              heightClass="min-h-[600px] h-[75vh]"
+            />
+          </div>
+
+          {/* OCR Prompts - Stacked column on desktop */}
+          <div className="lg:col-span-12 xl:col-span-5 flex flex-col gap-6">
+            <div className="flex-1">
+              <PromptEditor
+                title="Page OCR (Full Page PDF)"
+                subtitle="用于 /pdf/ingest?ocr_math=1 整页识别。负责提取文字与行内公式。"
+                icon={FileText}
+                color="blue"
+                value={pdfOcrPrompt}
+                onChange={setPdfOcrPrompt}
+                heightClass="h-[35vh]"
+              />
+            </div>
+
+            <div className="flex-1">
+              <PromptEditor
+                title="Cell OCR (Table Formulas)"
+                subtitle="用于 /pdf/table/formula/vision 表格单元格公式识别。专注于小区域 LaTeX 提取。"
+                icon={Table}
+                color="emerald"
+                value={tableCellOcrPrompt}
+                onChange={setTableCellOcrPrompt}
+                heightClass="h-[35vh]"
+              />
+            </div>
+          </div>
+
         </div>
       </main>
     </div>

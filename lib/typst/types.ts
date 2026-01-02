@@ -71,8 +71,8 @@ export type DocumentSettings = {
 };
 
 export const defaultDocumentSettings: DocumentSettings = {
-  tableCaptionNumbering: false,
-  imageCaptionNumbering: false,
+  tableCaptionNumbering: true,
+  imageCaptionNumbering: true,
   imageCaptionPosition: 'below',
 };
 

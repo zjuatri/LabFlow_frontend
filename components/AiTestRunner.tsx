@@ -208,10 +208,9 @@ export default function AiTestRunner() {
         }
 
         const { userInputJson, pdfContextJson } = buildUserInputJson({
-          outlineText: draft.outlineText.trim(),
-          detailsText: draft.detailsText.trim(),
-          outlineFiles: draft.outlineFiles,
-          detailsFiles: draft.detailsFiles,
+          outlineText: draft.outlineText,
+          detailsText: draft.detailsText,
+          referenceFiles: draft.referenceFiles,
           selectedModel: draft.selectedModel,
           thinkingEnabled: draft.thinkingEnabled,
           pdfContext: contextForPrompt ?? null,
