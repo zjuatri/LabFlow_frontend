@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 import SiteHeader from '@/components/SiteHeader';
-import { getToken } from '@/lib/auth';
+import { useAuth } from '@/components/AuthProvider';
 import { createProject, deleteProject, listProjects, Project } from '@/lib/api';
 
 export default function WorkspacePage() {
@@ -30,7 +30,7 @@ export default function WorkspacePage() {
   const [batchDeleting, setBatchDeleting] = useState(false);
   const [batchDeleteProgress, setBatchDeleteProgress] = useState<{ current: number; total: number } | null>(null);
 
-  const token = getToken();
+  const { token, isLoading: isAuthLoading } = useAuth();
 
   // Loading Logic
   const load = async () => {
@@ -53,13 +53,14 @@ export default function WorkspacePage() {
   };
 
   useEffect(() => {
+    if (isAuthLoading) return;
     if (!token) {
       router.push('/login');
       return;
     }
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router, token]);
+  }, [router, token, isAuthLoading]);
 
   const onCreate = async () => {
     if (!title.trim()) return;

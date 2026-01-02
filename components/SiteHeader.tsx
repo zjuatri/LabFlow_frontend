@@ -1,5 +1,3 @@
-'use client';
-
 import { useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -10,35 +8,14 @@ import {
     Library,
     LogOut
 } from 'lucide-react';
-import { clearToken, getToken } from '@/lib/auth';
-
-function decodeJwtPayload(token: string): any | null {
-    try {
-        const parts = token.split('.');
-        if (parts.length < 2) return null;
-        const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-        const json = decodeURIComponent(
-            atob(b64)
-                .split('')
-                .map((c) => `%${c.charCodeAt(0).toString(16).padStart(2, '0')}`)
-                .join('')
-        );
-        return JSON.parse(json);
-    } catch {
-        return null;
-    }
-}
+import { useAuth } from './AuthProvider';
 
 export default function SiteHeader() {
     const router = useRouter();
     const pathname = usePathname();
-    const token = getToken();
+    const { token, clearToken, isAdmin } = useAuth();
 
-    const isAdmin = useMemo(() => {
-        if (!token) return false;
-        const p = decodeJwtPayload(token);
-        return p?.role === 'admin';
-    }, [token]);
+    // Legacy decode removed as isAdmin is provided by context
 
     const onLogout = () => {
         clearToken();
