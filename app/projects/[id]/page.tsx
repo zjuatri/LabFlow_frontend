@@ -7,16 +7,12 @@ import BlockEditor from '@/components/BlockEditor';
 import {
   TypstBlock,
   blocksToTypst,
-  typstToBlocks,
-  defaultDocumentSettings,
   type DocumentSettings,
-  stripDocumentSettings,
-  injectDocumentSettings,
 } from '@/lib/typst';
 import { clearToken, getToken } from '@/lib/auth';
-import { getProject, updateProject, listProjects, type Project } from '@/lib/api';
-import { DEFAULT_TYPST_CODE } from '@/lib/typst-default';
 import { useBidirectionalScrollSync } from '@/lib/bidirectional-scroll-sync';
+import { useEditorStore } from '@/lib/stores/useEditorStore';
+import { useShallow } from 'zustand/react/shallow';
 
 // Import extracted components
 import { CoverModal } from './components/CoverModal';
@@ -27,52 +23,97 @@ import { PreviewPanel } from './components/PreviewPanel';
 // For local dev, set NEXT_PUBLIC_BACKEND_URL=http://localhost:8000.
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
 
-function extractAiDebug(typst_code: string): { debugText: string | null; rest: string } {
-  const start = typst_code.indexOf('/* LF_AI_DEBUG v1');
-  if (start < 0) return { debugText: null, rest: typst_code };
-  const end = typst_code.indexOf('*/', start);
-  if (end < 0) return { debugText: typst_code.slice(start), rest: '' };
-  const debugText = typst_code.slice(start, end + 2);
-  const rest = (typst_code.slice(0, start) + typst_code.slice(end + 2)).trimStart();
-  return { debugText, rest };
-}
-
 export default function ProjectEditorPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const projectId = params.id;
 
-  const [mode, setMode] = useState<EditorMode>('visual');
-  const [title, setTitle] = useState('');
-  const [code, setCode] = useState('');
-  const [blocks, setBlocks] = useState<TypstBlock[]>([]);
-  const [syncSource, setSyncSource] = useState<'code' | 'blocks'>('code');
+  const {
+    // state
+    mode,
+    title,
+    code,
+    blocks,
+    docSettings,
+    aiDebug,
+    showAiDebug,
+    svgPages,
+    error,
+    isRendering,
+    saveStatus,
+    showSettings,
+    showCoverModal,
+    covers,
+    loadingCovers,
+    projectType,
 
-  const [docSettings, setDocSettings] = useState<DocumentSettings>({ ...defaultDocumentSettings });
+    // actions
+    loadProject,
+    reset,
+    switchMode,
+    setTitle,
+    setCode,
+    setBlocks,
+    setDocSettings,
+    setShowAiDebug,
+    setShowSettings,
+    setShowCoverModal,
+    openCoverModal,
+    insertCover,
+    saveProject,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    setError,
+    setSvgPages,
+    setIsRendering,
+  } = useEditorStore(
+    useShallow((s) => ({
+      mode: s.mode,
+      title: s.title,
+      code: s.code,
+      blocks: s.blocks,
+      docSettings: s.docSettings,
+      aiDebug: s.aiDebug,
+      showAiDebug: s.showAiDebug,
+      svgPages: s.svgPages,
+      error: s.error,
+      isRendering: s.isRendering,
+      saveStatus: s.saveStatus,
+      showSettings: s.showSettings,
+      showCoverModal: s.showCoverModal,
+      covers: s.covers,
+      loadingCovers: s.loadingCovers,
+      projectType: s.projectType,
 
-  const [aiDebug, setAiDebug] = useState<string | null>(null);
-  const [showAiDebug, setShowAiDebug] = useState(false);
+      loadProject: s.loadProject,
+      reset: s.reset,
+      switchMode: s.switchMode,
+      setTitle: s.setTitle,
+      setCode: s.setCode,
+      setBlocks: s.setBlocks,
+      setDocSettings: s.setDocSettings,
+      setShowAiDebug: s.setShowAiDebug,
+      setShowSettings: s.setShowSettings,
+      setShowCoverModal: s.setShowCoverModal,
+      openCoverModal: s.openCoverModal,
+      insertCover: s.insertCover,
+      saveProject: s.saveProject,
+      undo: s.undo,
+      redo: s.redo,
+      canUndo: s.canUndo,
+      canRedo: s.canRedo,
+      setError: s.setError,
+      setSvgPages: s.setSvgPages,
+      setIsRendering: s.setIsRendering,
+    }))
+  );
 
-  const [svgPages, setSvgPages] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [isRendering, setIsRendering] = useState(false);
   const [activeAnchor, setActiveAnchor] = useState<{ pageIndex: number; localIndex: number } | null>(null);
   const [highlightNonce, setHighlightNonce] = useState(0);
   const [clickAnchor, setClickAnchor] = useState<{ pageIndex: number; localIndex: number } | null>(null);
-
-  const [history, setHistory] = useState<Array<{ blocks: TypstBlock[]; settings: DocumentSettings }>>([]);
-  const [historyIndex, setHistoryIndex] = useState(0);
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
-
-  const [showCoverModal, setShowCoverModal] = useState(false);
-  const [covers, setCovers] = useState<Project[]>([]);
-  const [loadingCovers, setLoadingCovers] = useState(false);
-
-  const [projectType, setProjectType] = useState<'report' | 'cover' | 'template'>('report');
-
-  const isRestoringRef = useRef(false);
 
   const previewRef = useRef<HTMLDivElement>(null);
   const editorScrollRef = useRef<HTMLDivElement>(null);
@@ -176,38 +217,13 @@ export default function ProjectEditorPage() {
 
   // load project
   useEffect(() => {
+    let cancelled = false;
+    reset();
     (async () => {
       try {
-        const p = await getProject(projectId);
-        const type = p.type as 'report' | 'cover' | 'template';
-        setProjectType(type);
-
-        const rawCode = (p.typst_code ?? '').trim() ? (p.typst_code ?? '') : DEFAULT_TYPST_CODE;
-
-        const { debugText, rest } = extractAiDebug(rawCode);
-        setAiDebug(debugText);
-
-        const raw = rest;
-        const { code: initialCode, settings } = stripDocumentSettings(raw);
-        setTitle(p.title);
-        setCode(initialCode);
-        setBlocks(typstToBlocks(initialCode));
-
-        // If it's a cover, disable numbering by default
-        if (type === 'cover') {
-          setDocSettings({
-            ...settings,
-            tableCaptionNumbering: false,
-            imageCaptionNumbering: false,
-          });
-        } else {
-          setDocSettings(settings);
-        }
-
-        // initialize history with loaded state
-        setHistory([{ blocks: typstToBlocks(initialCode), settings }]);
-        setHistoryIndex(0);
+        await loadProject(projectId);
       } catch (err) {
+        if (cancelled) return;
         const msg = err instanceof Error ? err.message : '加载项目失败';
         if (msg.toLowerCase().includes('not authenticated') || msg.toLowerCase().includes('invalid token')) {
           clearToken();
@@ -217,7 +233,12 @@ export default function ProjectEditorPage() {
         setError(msg);
       }
     })();
-  }, [projectId, router]);
+
+    return () => {
+      cancelled = true;
+      reset();
+    };
+  }, [loadProject, projectId, reset, router, setError]);
 
   const renderTypst = useCallback(async (typstCode: string) => {
     if (!typstCode.trim()) {
@@ -290,13 +311,6 @@ export default function ProjectEditorPage() {
     }
   }, [BASE_URL, blocks, docSettings, title]);
 
-  // code -> blocks
-  useEffect(() => {
-    if (syncSource === 'code' && mode === 'visual') {
-      setBlocks(typstToBlocks(code));
-    }
-  }, [code, mode, syncSource]);
-
   // Handle block click and scroll to corresponding position in preview
   const handleBlockClick = useCallback((index: number) => {
     if (!previewRef.current || svgPages.length === 0) return;
@@ -339,145 +353,6 @@ export default function ProjectEditorPage() {
     setTimeout(() => setClickAnchor(null), 1500);
   }, [svgPages]);
 
-  const cloneState = useCallback((b: TypstBlock[], s: DocumentSettings) => {
-    try {
-      const cloned = typeof structuredClone === 'function' ? structuredClone({ blocks: b, settings: s }) : null;
-      if (cloned) return cloned as { blocks: TypstBlock[]; settings: DocumentSettings };
-    } catch {
-      // ignore
-    }
-    return {
-      blocks: b.map((x) => ({ ...x })),
-      settings: { ...s },
-    };
-  }, []);
-
-  const pushHistory = useCallback((nextBlocks: TypstBlock[], nextSettings: DocumentSettings) => {
-    setHistory((prev) => {
-      const base = prev.slice(0, historyIndex + 1);
-      const snapshot = cloneState(nextBlocks, nextSettings);
-      const next = [...base, snapshot];
-      return next.slice(-50);
-    });
-    setHistoryIndex((idx) => Math.min(idx + 1, 49));
-  }, [cloneState, historyIndex]);
-
-  // blocks -> code and track undo/redo history
-  useEffect(() => {
-    if (syncSource === 'blocks') {
-      setCode(blocksToTypst(blocks, { settings: docSettings }));
-      if (!isRestoringRef.current) {
-        pushHistory(blocks, docSettings);
-      }
-    }
-  }, [blocks, docSettings, pushHistory, syncSource]);
-
-  const handleModeSwitch = (newMode: EditorMode) => {
-    if (newMode === mode) return;
-
-    if (newMode === 'visual') {
-      setBlocks(typstToBlocks(code));
-      setSyncSource('code');
-    } else {
-      setCode(blocksToTypst(blocks));
-      setSyncSource('blocks');
-    }
-
-    setMode(newMode);
-  };
-
-  const handleSave = useCallback(async () => {
-    try {
-      setSaveStatus('saving');
-      const saveCode = injectDocumentSettings(code, docSettings);
-      await updateProject(projectId, { title, typst_code: saveCode });
-      setSaveStatus('saved');
-      setTimeout(() => setSaveStatus(null), 2000);
-    } catch (err) {
-      setSaveStatus(null);
-      setError(err instanceof Error ? err.message : '保存失败');
-    }
-  }, [code, docSettings, projectId, title]);
-
-  const canUndo = historyIndex > 0;
-  const canRedo = historyIndex < history.length - 1;
-
-  const handleUndo = useCallback(() => {
-    if (!canUndo) return;
-    const nextIndex = historyIndex - 1;
-    const snap = history[nextIndex];
-    if (!snap) return;
-    isRestoringRef.current = true;
-    setBlocks(snap.blocks);
-    setDocSettings(snap.settings);
-    setSyncSource('blocks');
-    setHistoryIndex(nextIndex);
-    queueMicrotask(() => {
-      isRestoringRef.current = false;
-    });
-  }, [canUndo, history, historyIndex]);
-
-  const handleRedo = useCallback(() => {
-    if (!canRedo) return;
-    const nextIndex = historyIndex + 1;
-    const snap = history[nextIndex];
-    if (!snap) return;
-    isRestoringRef.current = true;
-    setBlocks(snap.blocks);
-    setDocSettings(snap.settings);
-    setSyncSource('blocks');
-    setHistoryIndex(nextIndex);
-    queueMicrotask(() => {
-      isRestoringRef.current = false;
-    });
-  }, [canRedo, history, historyIndex]);
-
-  const handleOpenCoverModal = useCallback(async () => {
-    setShowCoverModal(true);
-    setLoadingCovers(true);
-    try {
-      const data = await listProjects('cover');
-      setCovers(data);
-    } catch (err) {
-      console.error('Failed to load covers', err);
-    } finally {
-      setLoadingCovers(false);
-    }
-  }, []);
-
-  const handleInsertCover = useCallback(async (coverId: string, fixedOnePage: boolean) => {
-    try {
-      const coverProject = await getProject(coverId);
-      const rawCode = (coverProject.typst_code ?? '').trim() ? (coverProject.typst_code ?? '') : DEFAULT_TYPST_CODE;
-
-      // We need to parse the cover code into blocks
-      // We might need to strip settings if we don't want to override doc settings, 
-      // but usually cover might rely on some settings. 
-      // For now, let's just take the blocks.
-      const { rest } = extractAiDebug(rawCode);
-      const { code: coverBody } = stripDocumentSettings(rest);
-      const coverBlocks = typstToBlocks(coverBody);
-
-      const coverContainer: TypstBlock = {
-        id: `cover-${Date.now()}`,
-        type: 'cover',
-        content: '',
-        children: coverBlocks,
-        coverFixedOnePage: fixedOnePage,
-        uiCollapsed: true,
-      };
-
-      const newBlocks = [coverContainer, ...blocks];
-
-      setBlocks(newBlocks);
-      setSyncSource('blocks');
-      // Push mechanism to history if needed, handled by useEffect on blocks change
-      setShowCoverModal(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '插入封面失败');
-    }
-  }, [blocks]);
-
   // Close settings dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -494,19 +369,19 @@ export default function ProjectEditorPage() {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
         e.preventDefault();
-        void handleSave();
+        void saveProject();
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
         e.preventDefault();
-        handleUndo();
+        undo();
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
         e.preventDefault();
-        handleRedo();
+        redo();
       }
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [handleSave, handleRedo, handleUndo]);
+  }, [redo, saveProject, undo]);
 
   // render debounce
   useEffect(() => {
@@ -683,17 +558,17 @@ export default function ProjectEditorPage() {
 
             <EditorToolbar
               mode={mode}
-              onModeSwitch={handleModeSwitch}
+              onModeSwitch={switchMode}
               title={title}
               onTitleChange={setTitle}
               docSettings={docSettings}
               onSettingsChange={setDocSettings}
-              canUndo={canUndo}
-              canRedo={canRedo}
-              onUndo={handleUndo}
-              onRedo={handleRedo}
-              onSave={() => void handleSave()}
-              onOpenCoverModal={handleOpenCoverModal}
+              canUndo={canUndo()}
+              canRedo={canRedo()}
+              onUndo={undo}
+              onRedo={redo}
+              onSave={() => void saveProject()}
+              onOpenCoverModal={() => void openCoverModal()}
               projectType={projectType}
               showSettings={showSettings}
               onToggleSettings={() => setShowSettings(!showSettings)}
@@ -704,7 +579,6 @@ export default function ProjectEditorPage() {
                 if (coverIndex < 0) return;
                 const next = [...blocks];
                 next[coverIndex] = { ...next[coverIndex], coverFixedOnePage: fixed };
-                setSyncSource('blocks');
                 setBlocks(next);
               }}
             />
@@ -715,7 +589,6 @@ export default function ProjectEditorPage() {
           <textarea
             value={code}
             onChange={(e) => {
-              setSyncSource('code');
               setCode(e.target.value);
             }}
             className="flex-1 w-full p-4 font-mono text-sm text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-950 resize-none focus:outline-none"
@@ -744,10 +617,7 @@ export default function ProjectEditorPage() {
             })()}
             <BlockEditor
               blocks={blocks}
-              onChange={(b) => {
-                setSyncSource('blocks');
-                setBlocks(b);
-              }}
+              onChange={setBlocks}
               projectId={projectId}
               onBlockClick={handleBlockClick}
             />
@@ -760,7 +630,7 @@ export default function ProjectEditorPage() {
           <div className="bg-white/95 dark:bg-zinc-950/95 border border-zinc-300 dark:border-zinc-700 rounded shadow-sm">
             <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-700">
               <button
-                onClick={() => setShowAiDebug((v) => !v)}
+                onClick={() => setShowAiDebug(!showAiDebug)}
                 className="flex-1 px-3 py-2 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 title="显示/隐藏 AI 原始输出（调试）"
               >
@@ -811,7 +681,7 @@ export default function ProjectEditorPage() {
       <CoverModal
         show={showCoverModal}
         onClose={() => setShowCoverModal(false)}
-        onInsert={handleInsertCover}
+        onInsert={insertCover}
         loading={loadingCovers}
         covers={covers}
       />

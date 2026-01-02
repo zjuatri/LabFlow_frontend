@@ -63,7 +63,17 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
           <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
             {children.length} 个元素
           </div>
-          <div className="ml-auto flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="ml-auto flex gap-1">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddAfter();
+              }}
+              className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded"
+              title="在封面后添加块"
+            >
+              <Plus size={14} />
+            </button>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -116,6 +126,18 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
             )}
           </div>
         )}
+
+        {/* Add-after button (same behavior as other blocks) */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddAfter();
+          }}
+          className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-blue-500 hover:bg-blue-600 text-white rounded-full p-1"
+          title="在下方添加块"
+        >
+          <Plus size={14} />
+        </button>
       </div>
     );
   }
@@ -223,7 +245,7 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
           </select>
         )}
 
-        <div className="ml-auto flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="ml-auto flex gap-1">
           <button
             onClick={() => onMove('up')}
             disabled={isFirst}
