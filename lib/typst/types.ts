@@ -1,4 +1,4 @@
-export type BlockType = 'heading' | 'paragraph' | 'code' | 'math' | 'image' | 'list' | 'table' | 'chart' | 'vertical_space';
+export type BlockType = 'heading' | 'paragraph' | 'code' | 'math' | 'image' | 'list' | 'table' | 'chart' | 'vertical_space' | 'input_field';
 
 export type ChartType = 'scatter' | 'bar' | 'pie' | 'hbar';
 export type ChartDataSource = 'manual' | 'table';
@@ -63,6 +63,16 @@ export interface TypstBlock {
   // Multi-line math support
   mathLines?: Array<{ latex: string; typst: string }>;
   mathBrace?: boolean; // Whether to show left brace (like cases)
+
+  // Input field properties
+  inputLabel?: string;       // Left column: category name
+  inputValue?: string;       // Right column: user input
+  inputSeparator?: string;   // Separator between label and value (default "：")
+  inputShowUnderline?: boolean; // Whether to show underline under value
+  inputWidth?: string;       // Total width as percentage (e.g., "50%")
+  inputAlign?: 'left' | 'center' | 'right'; // Block alignment (default center)
+  inputFontSize?: string;    // Font size (e.g., "12pt")
+  inputFontFamily?: string;  // Font family (e.g., "SimSun")
 }
 
 export type DocumentSettings = {

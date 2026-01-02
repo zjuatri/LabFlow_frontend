@@ -59,6 +59,10 @@ export function blocksToTypst(blocks: TypstBlock[], opts?: { settings?: Document
         out.push(serializeVerticalSpace(block, target, settings));
         break;
 
+      case 'input_field':
+        out.push(serializeInputField(block));
+        break;
+
       default:
         out.push(block.content);
         break;
@@ -367,4 +371,59 @@ function serializeVerticalSpace(block: TypstBlock, target: 'storage' | 'preview'
   }
   // Hidden preview: use identical block but without fill
   return `#block(height: ${length}, width: 100%, above: 0pt, below: 0pt)`;
+}
+
+function serializeInputField(block: TypstBlock): string {
+  const label = block.inputLabel || '';
+  const value = block.inputValue || '';
+  const separator = block.inputSeparator ?? '：';
+  const showUnderline = block.inputShowUnderline !== false;
+  const width = block.inputWidth || '50%';
+  const align = block.inputAlign || 'center';
+  const fontSize = block.inputFontSize || '';
+  const fontFamily = (block.inputFontFamily || 'SimSun').trim();
+
+  // Encode metadata for parsing
+  const payload = {
+    label,
+    value,
+    separator,
+    showUnderline,
+    width,
+    align,
+    fontSize,
+    fontFamily,
+  };
+  const encoded = `/*LF_INPUT:${base64EncodeUtf8(JSON.stringify(payload))}*/`;
+
+  // Layout rule:
+  // Total width = (label + separator) + (remaining underline area).
+  // We use a 2-column grid: left is auto, right is 1fr (fills the remaining width).
+  // Use #box with stroke:(bottom:...) instead of #underline so the line spans full box width.
+  const leftPart = `${label}${separator}`;
+  let rightPart: string;
+  if (showUnderline) {
+    // Box with bottom stroke spans entire right column; value centered inside.
+    // Add bottom inset so text sits above the underline, not on top of it.
+    rightPart = `#box(width: 100%, stroke: (bottom: 0.5pt + black), inset: (bottom: 3pt))[#align(center)[${value}]]`;
+  } else {
+    rightPart = `#box(width: 100%)[#align(center)[${value}]]`;
+  }
+
+  let innerContent = `#grid(columns: (auto, 1fr), column-gutter: 0pt)[${leftPart}][${rightPart}]`;
+
+  // Wrap with font size/family if specified
+  const fontArgs: string[] = [];
+  if (fontSize) fontArgs.push(`size: ${fontSize}`);
+  if (fontFamily) fontArgs.push(`font: "${fontFamily}"`);
+
+  if (fontArgs.length > 0) {
+    innerContent = `#text(${fontArgs.join(', ')})[${innerContent}]`;
+  }
+
+  // Wrap in a box with specified total width
+  const boxContent = `#box(width: ${width})[${innerContent}]`;
+
+  // Wrap with alignment
+  return `#align(${align})[${boxContent}]${encoded}`;
 }

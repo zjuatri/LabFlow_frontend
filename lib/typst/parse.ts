@@ -82,6 +82,31 @@ export function typstToBlocks(code: string): TypstBlock[] {
       continue;
     }
 
+    // 输入字段
+    // Detect LF_INPUT marker
+    const inputMarker = trimmed.match(/\/\*LF_INPUT:([A-Za-z0-9+/=]+)\*\//);
+    if (inputMarker) {
+      try {
+        const payload = JSON.parse(base64DecodeUtf8(inputMarker[1]));
+        blocks.push({
+          id: generateId(),
+          type: 'input_field',
+          content: '',
+          inputLabel: payload.label || '',
+          inputValue: payload.value || '',
+          inputSeparator: payload.separator ?? '：',
+          inputShowUnderline: payload.showUnderline !== false,
+          inputWidth: payload.width || '50%',
+          inputAlign: payload.align || 'center',
+          inputFontSize: payload.fontSize || '',
+          inputFontFamily: payload.fontFamily || '',
+        });
+        continue;
+      } catch {
+        // Fallback if parse fails
+      }
+    }
+
     // 垂直间距
     // Detect either #v(...) or the #block(...) variant used for preview
     // Check for our marker first

@@ -10,6 +10,7 @@ import TableBlockEditor from './BlockEditors/TableBlockEditor';
 import MathBlockEditor from './BlockEditors/MathBlockEditor';
 import ChartBlockEditor, { type ChartRenderRequest } from './BlockEditors/ChartBlockEditor';
 import VerticalSpaceBlockEditor from './BlockEditors/VerticalSpaceBlockEditor';
+import InputFieldBlockEditor from './BlockEditors/InputFieldBlockEditor';
 
 import {
   defaultTablePayload,
@@ -91,7 +92,20 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
             if (nextType === 'vertical_space' && block.type !== 'vertical_space') {
               onUpdate({
                 type: nextType,
-                content: '1em',
+                content: '5%',
+              });
+              return;
+            }
+            if (nextType === 'input_field' && block.type !== 'input_field') {
+              onUpdate({
+                type: nextType,
+                inputLabel: '',
+                inputValue: '',
+                inputSeparator: '：',
+                inputShowUnderline: true,
+                inputWidth: '50%',
+                inputAlign: 'center',
+                inputFontSize: '',
               });
               return;
             }
@@ -107,6 +121,7 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
           <option value="table">表格</option>
           <option value="chart">图表</option>
           <option value="vertical_space">空白行</option>
+          <option value="input_field">输入</option>
         </select>
 
         {(block.type === 'paragraph') && (
@@ -178,6 +193,8 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
         <TextBlockEditor block={block} onUpdate={onUpdate} />
       ) : block.type === 'vertical_space' ? (
         <VerticalSpaceBlockEditor block={block} onUpdate={onUpdate} />
+      ) : block.type === 'input_field' ? (
+        <InputFieldBlockEditor block={block} onUpdate={onUpdate} />
       ) : (
         <input
           type="text"
@@ -210,6 +227,7 @@ function getTypeName(type: BlockType): string {
     table: '表格',
     chart: '图表',
     vertical_space: '空白行',
+    input_field: '输入',
   };
   return names[type] || '内容';
 }
