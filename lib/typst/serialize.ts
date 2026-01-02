@@ -442,9 +442,11 @@ function serializeInputField(block: TypstBlock): string {
     const leftPart = `${line.label}${separator}`;
     let rightPart: string;
     if (showUnderline) {
-      rightPart = `#box(width: 100%, stroke: (bottom: 0.5pt + black), inset: (bottom: 3pt))[#align(center)[${line.value}]]`;
+      // If the value is empty, Typst may collapse the box height, making the underline appear at the top.
+      // Force a stable line height so the bottom stroke stays at the bottom.
+      rightPart = `#box(width: 100%, height: 1.2em, stroke: (bottom: 0.5pt + black), inset: (bottom: 3pt))[#align(center + horizon)[${line.value}]]`;
     } else {
-      rightPart = `#box(width: 100%)[#align(center)[${line.value}]]`;
+      rightPart = `#box(width: 100%, height: 1.2em)[#align(center + horizon)[${line.value}]]`;
     }
     // Apply font to each grid row individually
     const gridContent = `#grid(columns: (auto, 1fr), column-gutter: 0pt)[${leftPart}][${rightPart}]`;

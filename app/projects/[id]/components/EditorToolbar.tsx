@@ -103,7 +103,7 @@ export function EditorToolbar({
             </div>
 
             <div className="flex items-center gap-3 shrink-0">
-                {projectType === 'report' && (
+                {(projectType === 'report' || projectType === 'template') && (
                     <button
                         onClick={onOpenCoverModal}
                         className="p-2 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
@@ -210,7 +210,7 @@ export function EditorToolbar({
                                         </label>
                                     </div>
 
-                                    {projectType === 'report' && hasCover && typeof onCoverFixedOnePageChange === 'function' && (
+                                    {(projectType === 'report' || projectType === 'template') && hasCover && typeof onCoverFixedOnePageChange === 'function' && (
                                         <div className="flex items-center gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
                                             <label className="flex items-center gap-2 cursor-pointer select-none text-xs">
                                                 <input
