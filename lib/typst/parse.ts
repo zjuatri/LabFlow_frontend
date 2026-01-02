@@ -1,4 +1,10 @@
-import { TypstBlock, PersistedMathPayload, PersistedTablePayload } from './types';
+/**
+ * @file parse.ts
+ * @description Main entry point for parsing Typst source code into blocks.
+ * Delegates actual parsing to modular files in ./parsers/
+ */
+
+import { TypstBlock } from './types';
 import {
   LF_TABLE_MARKER, LF_IMAGE_MARKER, LF_CHART_MARKER, LF_DOC_MARKER,
   base64DecodeUtf8, generateId,
@@ -9,9 +15,11 @@ import {
   LF_COVER_END_MARKER,
   LF_COMPOSITE_ROW_MARKER,
 } from './utils';
-import { parseMathBlock } from './parse-math';
-import { parseChartBlock, parseImageBlock } from './parse-media';
-import { parseTableFromMarker } from './parse-table';
+import { parseMathBlock } from './parsers/math';
+import { parseChartBlock, parseImageBlock } from './parsers/media';
+import { parseTableFromMarker } from './parsers/table';
+import { parseBlockList, parseListItem } from './parsers/list';
+import { shouldSkipCaptionLine } from './parsers/utils';
 
 /**
  * 将 Typst 源代码解析为块列表
@@ -566,119 +574,4 @@ export function typstToBlocks(code: string): TypstBlock[] {
     }
     return b;
   });
-}
-
-function parseBlockList(lines: string[], startIndex: number): { items: string[]; endIndex: number } {
-  const items: string[] = [];
-  let j = startIndex + 1;
-  let foundEnumOrListLine: string | null = null;
-
-  for (; j < lines.length; j++) {
-    const inner = lines[j].replace(/\r$/, '');
-    const innerTrim = inner.trim();
-    if (innerTrim === ']') break;
-    if (innerTrim === '' || innerTrim.startsWith('#set ')) continue;
-
-    if (innerTrim.startsWith('#enum(') || innerTrim.startsWith('#list(')) {
-      foundEnumOrListLine = innerTrim;
-      continue;
-    }
-
-    if (innerTrim.startsWith('-')) {
-      const body = innerTrim.substring(1).trim();
-      items.push(body.length === 0 ? '- ' : `- ${body}`);
-      continue;
-    }
-    if (innerTrim.startsWith('+')) {
-      const body = innerTrim.substring(1).trim();
-      items.push(body.length === 0 ? '1. ' : `1. ${body}`);
-      continue;
-    }
-  }
-
-  if (items.length === 0 && foundEnumOrListLine) {
-    const isEnum = foundEnumOrListLine.startsWith('#enum(');
-    const s = foundEnumOrListLine;
-    const outItems: string[] = [];
-    let idx = s.indexOf(')');
-    if (idx >= 0) {
-      idx += 1;
-      let depth = 0;
-      let start = -1;
-      for (; idx < s.length; idx++) {
-        const ch = s[idx];
-        if (ch === '[') {
-          if (depth === 0) start = idx + 1;
-          depth++;
-        } else if (ch === ']') {
-          depth--;
-          if (depth === 0 && start >= 0) {
-            const body = s.slice(start, idx).trim();
-            outItems.push(body);
-            start = -1;
-          }
-        }
-      }
-    }
-
-    for (const body of outItems) {
-      if (isEnum) {
-        items.push(body.length === 0 ? '1. ' : `1. ${body}`);
-      } else {
-        items.push(body.length === 0 ? '- ' : `- ${body}`);
-      }
-    }
-  }
-
-  if (j < lines.length && lines[j].replace(/\r$/, '').trim() === ']') {
-    return { items, endIndex: j };
-  }
-
-  return { items: [], endIndex: startIndex };
-}
-
-
-
-function parseListItem(
-  trimmed: string,
-  currentBlock: TypstBlock | null,
-  currentParagraphIsList: boolean,
-  pendingParagraphLeading: number | undefined
-): { block: TypstBlock | null; isList: boolean; shouldFlush: boolean } {
-  const content = trimmed.substring(1).trim();
-  const asText = trimmed.startsWith('-') ? `- ${content}` : `1. ${content}`;
-
-  if (currentBlock?.type === 'paragraph' && currentParagraphIsList) {
-    currentBlock.content += '\n' + asText;
-    return { block: currentBlock, isList: true, shouldFlush: false };
-  }
-
-  const newBlock: TypstBlock = {
-    id: generateId(),
-    type: 'paragraph',
-    content: asText,
-  };
-  if (typeof pendingParagraphLeading === 'number') {
-    newBlock.lineSpacing = pendingParagraphLeading;
-  }
-  return { block: newBlock, isList: true, shouldFlush: true };
-}
-
-
-
-
-
-function shouldSkipCaptionLine(lines: string[], currentIndex: number, skipNextCaption: boolean): boolean {
-  const nextFew = Array.from({ length: 6 }, (_, k) => lines[currentIndex + 1 + k])
-    .filter((x) => typeof x === 'string')
-    .map((x) => (x as string).replace(/\r$/, '').trim());
-  const prev = lines[currentIndex - 1]?.replace(/\r$/, '').trim() ?? '';
-
-  if (nextFew.some((x) => x.includes(LF_TABLE_MARKER))) return true;
-  if (nextFew.some((x) => x.includes(LF_IMAGE_MARKER))) return true;
-  if (nextFew.some((x) => x.includes(LF_CHART_MARKER))) return true;
-  if (skipNextCaption && prev.includes(LF_IMAGE_MARKER)) return true;
-  if (skipNextCaption && prev.includes(LF_CHART_MARKER)) return true;
-
-  return false;
 }

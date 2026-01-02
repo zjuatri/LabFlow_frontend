@@ -53,7 +53,7 @@ export default function InputFieldBlockEditor({ block, onUpdate }: InputFieldBlo
                         value={line.label}
                         onChange={(e) => updateLine(index, 'label', e.target.value)}
                         placeholder="类别"
-                        className="w-20 px-2 py-1 text-sm border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800"
+                        className="w-32 px-2 py-1 text-sm border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800"
                     />
                     <span className="text-sm text-zinc-500">{separator}</span>
                     <div className={`flex-1 px-2 py-1 text-sm text-center border-b ${showUnderline ? 'border-zinc-500' : 'border-transparent'} bg-white dark:bg-zinc-800`}>
