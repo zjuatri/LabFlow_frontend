@@ -99,5 +99,45 @@ export function serializeParagraph(block: TypstBlock): string {
 }
 
 export function serializeList(block: TypstBlock): string {
-    return block.content.split('\n').map(line => `- ${line}`).join('\n');
+    const lines = (block.content ?? '').split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length === 0) return '';
+
+    // Detect if it's an ordered list (starts with "1." "2." etc) or unordered (starts with "-" or "*")
+    const firstLine = lines[0];
+    const isOrdered = /^\d+[.)]\s*/.test(firstLine);
+
+    // Process items and sanitize inline math
+    const processItem = (item: string): string => {
+        return sanitizeTypstInlineMath(item);
+    };
+
+    let listExpr: string;
+    if (isOrdered) {
+        // Extract content after the number prefix for each line
+        const items = lines.map(line => {
+            const match = line.match(/^\d+[.)]\s*([\s\S]*)$/);
+            return match ? match[1].trim() : line;
+        }).filter(item => item.length > 0);
+        
+        if (items.length === 0) return '';
+        const children = items.map(item => `[${processItem(item)}]`).join('');
+        listExpr = `#enum(tight: true)${children}`;
+    } else {
+        // Unordered list - strip leading "-" or "*" if present
+        const items = lines.map(line => {
+            const match = line.match(/^[-*]\s*([\s\S]*)$/);
+            return match ? match[1].trim() : line;
+        }).filter(item => item.length > 0);
+
+        if (items.length === 0) return '';
+        const children = items.map(item => `[${processItem(item)}]`).join('');
+        listExpr = `#list(tight: true)${children}`;
+    }
+
+    // Apply font if set (default to SimSun like paragraph for consistency)
+    const font = (block.font ?? 'SimSun').trim();
+    if (font) {
+        return `#text(font: "${font}")[${listExpr}]`;
+    }
+    return listExpr;
 }

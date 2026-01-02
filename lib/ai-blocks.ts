@@ -183,6 +183,34 @@ function normalizeListToOrderedParagraph(rawList: unknown): string {
     .join('\n');
 }
 
+/**
+ * Check if content is purely a list (all non-empty lines start with list markers).
+ * Returns 'ordered' | 'unordered' | false
+ */
+function detectPureListContent(text: string): 'ordered' | 'unordered' | false {
+  const normalized = text.replace(/\r\n/g, '\n').trim();
+  if (!normalized) return false;
+
+  const lines = normalized
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  if (lines.length === 0) return false;
+
+  // Check if ALL lines are ordered list items (1. 2. 3. etc)
+  const orderedPattern = /^\d+[.)]\s+/;
+  const allOrdered = lines.every((l) => orderedPattern.test(l));
+  if (allOrdered) return 'ordered';
+
+  // Check if ALL lines are unordered list items (- or * or •)
+  const unorderedPattern = /^[-*•]\s+/;
+  const allUnordered = lines.every((l) => unorderedPattern.test(l));
+  if (allUnordered) return 'unordered';
+
+  return false;
+}
+
 function looksLikeMultiLineListParagraph(text: string): boolean {
   // Heuristic: if a paragraph contains multiple non-empty lines, it's usually a list
   // (e.g., 实验目的 1/2/3/4). Converting to an ordered list is acceptable and improves structure.
@@ -267,8 +295,19 @@ function normalizeBlockMany(raw: unknown, getNextId: () => string, projectId: st
     ];
   }
 
+  // Convert paragraph with pure list content to list type
+  // This prevents serializeParagraph from wrapping list in #text(font: ...)[#block[#enum(...)]]
+  if (normalizedType === 'paragraph') {
+    const listType = detectPureListContent(finalContent);
+    if (listType) {
+      normalizedType = 'list';
+      // Normalize the content format for list
+      finalContent = normalizeListToOrderedParagraph(finalContent);
+    }
+  }
+
+  // Normalize list content but keep it as list type (don't convert to paragraph)
   if (normalizedType === 'list') {
-    normalizedType = 'paragraph';
     finalContent = normalizeListToOrderedParagraph(finalContent);
   }
 
@@ -408,14 +447,20 @@ export function normalizeAiBlocksResponse(args: {
     if (Array.isArray(nb) && nb.length > 0) {
       blocks.push(...nb);
     } else {
-      console.warn('[normalizeAiBlocksResponse] block returned empty:', b);
+      console.warn('[normalizeAiBlocksResponse] block returned empty:', JSON.stringify(b));
     }
   }
 
-  // Debug: log all table blocks
-  const tableBlocks = blocks.filter(b => b.type === 'table');
-  console.log('[normalizeAiBlocksResponse] total blocks:', blocks.length, 'table blocks:', tableBlocks.length);
-  tableBlocks.forEach(tb => console.log('  table id:', tb.id, 'content length:', tb.content?.length));
+  // Debug: log block processing summary
+  console.log('[normalizeAiBlocksResponse] input blocks:', blocksRaw.length, '-> output blocks:', blocks.length);
+  if (blocks.length !== blocksRaw.length) {
+    console.warn('[normalizeAiBlocksResponse] Some blocks were filtered out!');
+    // Log types of all input vs output
+    const inputTypes = blocksRaw.map((b: unknown) => isObject(b) ? asString((b as Record<string, unknown>).type) : 'invalid');
+    const outputTypes = blocks.map(b => b.type);
+    console.log('  Input types:', inputTypes.join(', '));
+    console.log('  Output types:', outputTypes.join(', '));
+  }
 
   if (blocks.length === 0) {
     throw new Error('AI 输出的 blocks 均无效（请检查 type/id/content 字段）');

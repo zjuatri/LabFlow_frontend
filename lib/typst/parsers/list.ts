@@ -1,6 +1,72 @@
 import { TypstBlock } from '../types';
 import { generateId } from '../utils';
 
+/**
+ * Parse inline enum/list syntax: #enum(tight: true)[item1][item2]...
+ * Also handles font wrapper: #text(font: "...")[#enum(...)]
+ * Returns null if not matching this format
+ */
+export function parseInlineEnumOrList(trimmed: string): TypstBlock | null {
+    // Try to unwrap #text(font: "...")[...] first
+    let content = trimmed;
+    let font: string | undefined;
+
+    const textWrapMatch = content.match(/^#text\s*\(\s*font\s*:\s*"([^"]+)"\s*\)\s*\[([\s\S]*)\]$/);
+    if (textWrapMatch) {
+        font = textWrapMatch[1];
+        content = textWrapMatch[2].trim();
+    }
+
+    // Now check for #enum(...)[...][...] or #list(...)[...][...]
+    const enumMatch = content.match(/^#enum\s*\([^)]*\)((?:\[[^\]]*\])+)$/);
+    const listMatch = content.match(/^#list\s*\([^)]*\)((?:\[[^\]]*\])+)$/);
+
+    if (!enumMatch && !listMatch) return null;
+
+    const isOrdered = !!enumMatch;
+    const bracketPart = (enumMatch || listMatch)![1];
+
+    // Extract items from [item1][item2][item3]...
+    const items: string[] = [];
+    let depth = 0;
+    let start = -1;
+    for (let idx = 0; idx < bracketPart.length; idx++) {
+        const ch = bracketPart[idx];
+        if (ch === '[') {
+            if (depth === 0) start = idx + 1;
+            depth++;
+        } else if (ch === ']') {
+            depth--;
+            if (depth === 0 && start >= 0) {
+                items.push(bracketPart.slice(start, idx).trim());
+                start = -1;
+            }
+        }
+    }
+
+    if (items.length === 0) return null;
+
+    // Convert to list content format
+    const listContent = items.map((item, idx) => {
+        if (isOrdered) {
+            return `${idx + 1}. ${item}`;
+        } else {
+            return `- ${item}`;
+        }
+    }).join('\n');
+
+    const block: TypstBlock = {
+        id: generateId(),
+        type: 'list',
+        content: listContent,
+    };
+    if (font) {
+        block.font = font;
+    }
+
+    return block;
+}
+
 export function parseBlockList(lines: string[], startIndex: number): { items: string[]; endIndex: number } {
     const items: string[] = [];
     let j = startIndex + 1;

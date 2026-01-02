@@ -19,6 +19,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { CoverModal } from './components/CoverModal';
 import { EditorToolbar, type EditorMode } from './components/EditorToolbar';
 import { PreviewPanel } from './components/PreviewPanel';
+import { AiAssistantPlugin } from '@/components/plugins/AiAssistantPlugin';
 
 // In production/Docker we typically proxy /api/* through the same origin.
 // For local dev, set NEXT_PUBLIC_BACKEND_URL=http://localhost:8000.
@@ -36,8 +37,6 @@ export default function ProjectEditorPage() {
     code,
     blocks,
     docSettings,
-    aiDebug,
-    showAiDebug,
     svgPages,
     error,
     isRendering,
@@ -56,7 +55,6 @@ export default function ProjectEditorPage() {
     setCode,
     setBlocks,
     setDocSettings,
-    setShowAiDebug,
     setShowSettings,
     setShowCoverModal,
     openCoverModal,
@@ -69,6 +67,8 @@ export default function ProjectEditorPage() {
     setError,
     setSvgPages,
     setIsRendering,
+    showAiSidebar,
+    setShowAiSidebar,
   } = useEditorStore(
     useShallow((s) => ({
       mode: s.mode,
@@ -76,8 +76,6 @@ export default function ProjectEditorPage() {
       code: s.code,
       blocks: s.blocks,
       docSettings: s.docSettings,
-      aiDebug: s.aiDebug,
-      showAiDebug: s.showAiDebug,
       svgPages: s.svgPages,
       error: s.error,
       isRendering: s.isRendering,
@@ -95,7 +93,6 @@ export default function ProjectEditorPage() {
       setCode: s.setCode,
       setBlocks: s.setBlocks,
       setDocSettings: s.setDocSettings,
-      setShowAiDebug: s.setShowAiDebug,
       setShowSettings: s.setShowSettings,
       setShowCoverModal: s.setShowCoverModal,
       openCoverModal: s.openCoverModal,
@@ -108,6 +105,8 @@ export default function ProjectEditorPage() {
       setError: s.setError,
       setSvgPages: s.setSvgPages,
       setIsRendering: s.setIsRendering,
+      showAiSidebar: s.showAiSidebar,
+      setShowAiSidebar: s.setShowAiSidebar,
     }))
   );
 
@@ -577,6 +576,7 @@ export default function ProjectEditorPage() {
               showSettings={showSettings}
               onToggleSettings={() => setShowSettings(!showSettings)}
               onCloseSettings={() => setShowSettings(false)}
+              onToggleAiSidebar={() => setShowAiSidebar(!showAiSidebar)}
               hasCover={hasCover}
               coverFixedOnePage={coverFixedOnePage}
               onCoverFixedOnePageChange={(fixed) => {
@@ -629,44 +629,7 @@ export default function ProjectEditorPage() {
         )}
       </div>
 
-      {aiDebug ? (
-        <div className="absolute left-3 bottom-3 z-20 max-w-[48%]">
-          <div className="bg-white/95 dark:bg-zinc-950/95 border border-zinc-300 dark:border-zinc-700 rounded shadow-sm">
-            <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-700">
-              <button
-                onClick={() => setShowAiDebug(!showAiDebug)}
-                className="flex-1 px-3 py-2 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                title="显示/隐藏 AI 原始输出（调试）"
-              >
-                {showAiDebug ? '隐藏 AI 调试信息' : '显示 AI 调试信息'}
-              </button>
-              {showAiDebug && (
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(aiDebug);
-                    // Provide brief visual feedback (optional: could add state for this)
-                    const btn = document.activeElement as HTMLButtonElement;
-                    if (btn) {
-                      const orig = btn.textContent;
-                      btn.textContent = '已复制!';
-                      setTimeout(() => { btn.textContent = orig; }, 1000);
-                    }
-                  }}
-                  className="px-2 py-1 mr-2 text-xs rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                  title="复制调试信息到剪贴板"
-                >
-                  复制
-                </button>
-              )}
-            </div>
-            {showAiDebug && (
-              <pre className="max-h-[40vh] overflow-auto px-3 pb-3 text-[11px] text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">
-                {aiDebug}
-              </pre>
-            )}
-          </div>
-        </div>
-      ) : null}
+
 
       <PreviewPanel
         error={error}
@@ -680,6 +643,25 @@ export default function ProjectEditorPage() {
         onDownloadPdf={() => void downloadPdf()}
         previewRef={previewRef}
       />
+
+      {showAiSidebar && (
+        <div className="w-[380px] h-full border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0 z-10 transition-all duration-300">
+          <AiAssistantPlugin
+            projectId={projectId}
+            existingBlocks={blocks}
+            onInsertBlocks={(newBlocks) => {
+              // Append new blocks to existing blocks
+              // Maybe ask user where to insert? For now, append to end or after last non-cover block?
+              // Let's simple append for now.
+              // Or maybe we can try to be smart?
+              // If we append, we should probably append before any closing "references" or similar sections if possible.
+              // But simplest is just concat.
+              setBlocks([...blocks, ...newBlocks]);
+            }}
+            onClose={() => setShowAiSidebar(false)}
+          />
+        </div>
+      )}
 
       {/* Cover Selection Modal */}
       <CoverModal

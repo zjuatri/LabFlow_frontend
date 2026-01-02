@@ -31,8 +31,10 @@ export function parseChartBlock(trimmed: string, markerB64: string): TypstBlock 
 }
 
 export function parseImageBlock(trimmed: string): TypstBlock | null {
-    // Handle new placeholder block format: #block(...)[...]/*LF_IMAGE:...*/
-    const placeholderMatch = trimmed.match(/^#block\(.*\)\[.*\](?:\/\*LF_IMAGE:([A-Za-z0-9+/=]+)\*\/)$/);
+    // Handle placeholder block format (may be wrapped in #align):
+    // - Old: #block(...)[...]/*LF_IMAGE:...*/
+    // - New: #align(...)[#block(...)[...]]/*LF_IMAGE:...*/
+    const placeholderMatch = trimmed.match(/^(?:#align\([^)]*\)\[)?#block\(.*\)\[.*\]\]?(?:\/\*LF_IMAGE:([A-Za-z0-9+/=]+)\*\/)$/);
     if (placeholderMatch) {
         try {
             const payload = JSON.parse(base64DecodeUtf8(placeholderMatch[1])) as {

@@ -31,6 +31,7 @@ export function buildUserInputJson(params: {
   referenceFiles: Array<{ name: string; description?: string | null }>;
   selectedModel: string;
   thinkingEnabled: boolean;
+  existingBlocks?: TypstBlock[] | null;
   pdfContext?: {
     ocr_text_pages?: Array<{ page: number; text: string; error?: string | null }> | null;
     tables?: Array<{
@@ -46,7 +47,7 @@ export function buildUserInputJson(params: {
     images?: Array<{ filename: string; url: string; page?: number | null; source?: 'embedded' | 'page_render' | string }> | null;
     table_formula_vision?: unknown;
   } | null;
-}): { userInputJson: string; pdfContextJson: string } {
+}): { userInputJson: string; pdfContextJson: string; existingBlocksJson: string } {
   const userInputObj = {
     user_input: {
       outlineText: params.outlineText || '',
@@ -61,18 +62,21 @@ export function buildUserInputJson(params: {
   };
 
   const pdfContextObj = params.pdfContext ?? null;
+  const existingBlocksObj = params.existingBlocks ?? [];
 
   return {
     userInputJson: JSON.stringify(userInputObj, null, 2),
     pdfContextJson: JSON.stringify(pdfContextObj, null, 2),
+    existingBlocksJson: JSON.stringify(existingBlocksObj, null, 2),
   };
 }
 
-export function applyPromptTemplate(template: string, vars: { USER_INPUT_JSON: string; PDF_CONTEXT_JSON: string; PROJECT_ID: string }): string {
+export function applyPromptTemplate(template: string, vars: { USER_INPUT_JSON: string; PDF_CONTEXT_JSON: string; PROJECT_ID: string; EXISTING_BLOCKS_JSON?: string }): string {
   return template
     .replaceAll('{{USER_INPUT_JSON}}', vars.USER_INPUT_JSON)
     .replaceAll('{{PDF_CONTEXT_JSON}}', vars.PDF_CONTEXT_JSON)
-    .replaceAll('{{PROJECT_ID}}', vars.PROJECT_ID);
+    .replaceAll('{{PROJECT_ID}}', vars.PROJECT_ID)
+    .replaceAll('{{EXISTING_BLOCKS_JSON}}', vars.EXISTING_BLOCKS_JSON ?? '[]');
 }
 
 export type NormalizedAiResult = {

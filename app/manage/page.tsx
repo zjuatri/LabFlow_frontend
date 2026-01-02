@@ -9,7 +9,8 @@ import {
   Save,
   Table,
   AlertTriangle,
-  Clock
+  Clock,
+  Sparkles
 } from 'lucide-react';
 
 import { useAuth } from '@/components/AuthProvider';
@@ -67,6 +68,7 @@ export default function ManagePage() {
   const { token, isLoading: isAuthLoading, isAdmin, clearToken } = useAuth();
 
   const [prompt, setPrompt] = useState('');
+  const [assistantPrompt, setAssistantPrompt] = useState('');
   const [pdfOcrPrompt, setPdfOcrPrompt] = useState('');
   const [tableCellOcrPrompt, setTableCellOcrPrompt] = useState('');
   const [loadedAt, setLoadedAt] = useState<string | null>(null);
@@ -91,6 +93,7 @@ export default function ManagePage() {
         setError('');
         const data = await getManagePrompts();
         setPrompt(data.ai_prompt ?? '');
+        setAssistantPrompt(data.ai_assistant_prompt ?? '');
         setPdfOcrPrompt(data.pdf_page_ocr_prompt ?? '');
         setTableCellOcrPrompt(data.table_cell_ocr_prompt ?? '');
         setLoadedAt(data.updated_at ?? null);
@@ -114,6 +117,7 @@ export default function ManagePage() {
       setError('');
       const data = await updateManagePrompts({
         ai_prompt: prompt,
+        ai_assistant_prompt: assistantPrompt,
         pdf_page_ocr_prompt: pdfOcrPrompt,
         table_cell_ocr_prompt: tableCellOcrPrompt,
       });
@@ -161,7 +165,7 @@ export default function ManagePage() {
           <div className="flex items-center gap-3">
             <button
               onClick={onSave}
-              disabled={status !== 'idle' || !prompt.trim() || !pdfOcrPrompt.trim() || !tableCellOcrPrompt.trim()}
+              disabled={status !== 'idle' || !prompt.trim() || !assistantPrompt.trim() || !pdfOcrPrompt.trim() || !tableCellOcrPrompt.trim()}
               className={`
                 relative overflow-hidden group px-6 py-2.5 rounded-lg font-medium text-sm text-white shadow-lg shadow-blue-500/20 
                 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 
@@ -198,44 +202,53 @@ export default function ManagePage() {
         {/* Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-          {/* Main AI Prompt - Full width on mobile, 7 cols on desktop */}
-          <div className="lg:col-span-12 xl:col-span-7">
+          <div className="lg:col-span-12 xl:col-span-6">
             <PromptEditor
               title="AI 提示词 (Agent System Prompt)"
-              subtitle="控制 Core AI 生成实验报告 blocks 的逻辑。该提示词定义了 JSON 结构、Block 规范、以及内容/结果的处理逻辑。"
+              subtitle="控制 Core AI 生成实验报告 blocks 的逻辑。"
               icon={BrainCircuit}
               color="purple"
               value={prompt}
               onChange={setPrompt}
-              heightClass="min-h-[600px] h-[75vh]"
+              heightClass="min-h-[400px] h-[55vh]"
             />
           </div>
 
-          {/* OCR Prompts - Stacked column on desktop */}
-          <div className="lg:col-span-12 xl:col-span-5 flex flex-col gap-6">
-            <div className="flex-1">
-              <PromptEditor
-                title="Page OCR (Full Page PDF)"
-                subtitle="用于 /pdf/ingest?ocr_math=1 整页识别。负责提取文字与行内公式。"
-                icon={FileText}
-                color="blue"
-                value={pdfOcrPrompt}
-                onChange={setPdfOcrPrompt}
-                heightClass="h-[35vh]"
-              />
-            </div>
+          <div className="lg:col-span-12 xl:col-span-6">
+            <PromptEditor
+              title="AI 侧边栏提示词 (Assistant Prompt)"
+              subtitle="控制编辑器侧边栏 AI 续写的逻辑。建议与主提示词保持结构一致。"
+              icon={Sparkles}
+              color="emerald"
+              value={assistantPrompt}
+              onChange={setAssistantPrompt}
+              heightClass="min-h-[400px] h-[55vh]"
+            />
+          </div>
 
-            <div className="flex-1">
-              <PromptEditor
-                title="Cell OCR (Table Formulas)"
-                subtitle="用于 /pdf/table/formula/vision 表格单元格公式识别。专注于小区域 LaTeX 提取。"
-                icon={Table}
-                color="emerald"
-                value={tableCellOcrPrompt}
-                onChange={setTableCellOcrPrompt}
-                heightClass="h-[35vh]"
-              />
-            </div>
+          {/* OCR Prompts - Side by side on desktop */}
+          <div className="lg:col-span-12 xl:col-span-6">
+            <PromptEditor
+              title="Page OCR (Full Page PDF)"
+              subtitle="用于 /pdf/ingest?ocr_math=1 整页识别。负责提取文字与行内公式。"
+              icon={FileText}
+              color="blue"
+              value={pdfOcrPrompt}
+              onChange={setPdfOcrPrompt}
+              heightClass="h-[35vh]"
+            />
+          </div>
+
+          <div className="lg:col-span-12 xl:col-span-6">
+            <PromptEditor
+              title="Cell OCR (Table Formulas)"
+              subtitle="用于 /pdf/table/formula/vision 表格单元格公式识别。专注于小区域 LaTeX 提取。"
+              icon={Table}
+              color="emerald"
+              value={tableCellOcrPrompt}
+              onChange={setTableCellOcrPrompt}
+              heightClass="h-[35vh]"
+            />
           </div>
 
         </div>

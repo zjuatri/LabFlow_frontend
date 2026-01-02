@@ -82,12 +82,7 @@ export type Project = {
 };
 
 export type PromptResponse = { ai_prompt: string; updated_at?: string | null };
-export type PromptsResponse = {
-  ai_prompt: string;
-  pdf_page_ocr_prompt: string;
-  table_cell_ocr_prompt: string;
-  updated_at?: string | null;
-};
+// Redundant type moved below with additional fields
 
 export async function register(email: string, password: string): Promise<TokenResponse> {
   return request<TokenResponse>('/api/auth/register', {
@@ -202,8 +197,20 @@ export async function chatWithDeepSeekStream(
   );
 }
 
+export type PromptsResponse = {
+  ai_prompt: string;
+  ai_assistant_prompt: string;
+  pdf_page_ocr_prompt: string;
+  table_cell_ocr_prompt: string;
+  updated_at?: string | null;
+};
+
 export async function getManagePrompt(): Promise<PromptResponse> {
   return request<PromptResponse>('/api/manage/prompt');
+}
+
+export async function getAssistantPrompt(): Promise<PromptResponse> {
+  return request<PromptResponse>('/api/manage/assistant-prompt');
 }
 
 export async function updateManagePrompt(ai_prompt: string): Promise<PromptResponse> {
@@ -219,6 +226,7 @@ export async function getManagePrompts(): Promise<PromptsResponse> {
 
 export async function updateManagePrompts(payload: {
   ai_prompt?: string;
+  ai_assistant_prompt?: string;
   pdf_page_ocr_prompt?: string;
   table_cell_ocr_prompt?: string;
 }): Promise<PromptsResponse> {

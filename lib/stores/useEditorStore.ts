@@ -40,9 +40,8 @@ interface EditorState {
     syncSource: SyncSource;
     docSettings: DocumentSettings;
 
-    // AI debug info (from generated projects)
-    aiDebug: string | null;
-    showAiDebug: boolean;
+    // AI Sidebar state
+    showAiSidebar: boolean;
 
     // Editor mode
     mode: EditorMode;
@@ -84,7 +83,7 @@ interface EditorActions {
     // UI toggles
     setShowSettings: (show: boolean) => void;
     setShowCoverModal: (show: boolean) => void;
-    setShowAiDebug: (show: boolean) => void;
+    setShowAiSidebar: (show: boolean) => void;
     setError: (error: string | null) => void;
 
     // Cover modal
@@ -109,17 +108,15 @@ interface EditorActions {
 type EditorStore = EditorState & EditorActions;
 
 // ---------------------------------------------------------------------------
-// Helper: Extract AI debug comment
+// Helper: Extract AI debug comment (Legacy support for stripping)
 // ---------------------------------------------------------------------------
 
-function extractAiDebug(typstCode: string): { debugText: string | null; rest: string } {
+function stripAiDebug(typstCode: string): string {
     const start = typstCode.indexOf('/* LF_AI_DEBUG v1');
-    if (start < 0) return { debugText: null, rest: typstCode };
+    if (start < 0) return typstCode;
     const end = typstCode.indexOf('*/', start);
-    if (end < 0) return { debugText: typstCode.slice(start), rest: '' };
-    const debugText = typstCode.slice(start, end + 2);
-    const rest = (typstCode.slice(0, start) + typstCode.slice(end + 2)).trimStart();
-    return { debugText, rest };
+    if (end < 0) return '';
+    return (typstCode.slice(0, start) + typstCode.slice(end + 2)).trimStart();
 }
 
 // ---------------------------------------------------------------------------
@@ -141,11 +138,12 @@ const initialState: EditorState = {
     syncSource: 'code',
     docSettings: { ...defaultDocumentSettings },
 
-    aiDebug: null,
-    showAiDebug: false,
+    showAiSidebar: false,
 
+    // Editor mode
     mode: 'visual',
 
+    // UI state
     showSettings: false,
     showCoverModal: false,
     covers: [],
@@ -183,7 +181,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
                 ? (project.typst_code ?? '')
                 : DEFAULT_TYPST_CODE;
 
-            const { debugText, rest } = extractAiDebug(rawCode);
+            // Strip legacy AI debug info if present, but don't store it
+            const rest = stripAiDebug(rawCode);
             const { code: initialCode, settings } = stripDocumentSettings(rest);
 
             const blocks = typstToBlocks(initialCode);
@@ -201,7 +200,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
                 code: initialCode,
                 blocks,
                 docSettings,
-                aiDebug: debugText,
                 syncSource: 'code',
                 history: [{ blocks, settings: docSettings }],
                 historyIndex: 0,
@@ -279,7 +277,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
     setShowSettings: (showSettings) => set({ showSettings }),
     setShowCoverModal: (showCoverModal) => set({ showCoverModal }),
-    setShowAiDebug: (showAiDebug) => set({ showAiDebug }),
+    setShowAiSidebar: (showAiSidebar) => set({ showAiSidebar }),
     setError: (error) => set({ error }),
 
     // -------------------------------------------------------------------------
@@ -304,7 +302,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
                 ? (coverProject.typst_code ?? '')
                 : DEFAULT_TYPST_CODE;
 
-            const { rest } = extractAiDebug(rawCode);
+            const rest = stripAiDebug(rawCode);
             const { code: coverBody } = stripDocumentSettings(rest);
             const coverBlocks = typstToBlocks(coverBody);
 

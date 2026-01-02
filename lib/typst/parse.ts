@@ -18,7 +18,7 @@ import {
 import { parseMathBlock } from './parsers/math';
 import { parseChartBlock, parseImageBlock } from './parsers/media';
 import { parseTableFromMarker } from './parsers/table';
-import { parseBlockList, parseListItem } from './parsers/list';
+import { parseBlockList, parseListItem, parseInlineEnumOrList } from './parsers/list';
 import { shouldSkipCaptionLine } from './parsers/utils';
 
 /**
@@ -117,6 +117,19 @@ export function typstToBlocks(code: string): TypstBlock[] {
         currentBlock = null;
         currentParagraphIsList = false;
         i = result.endIndex;
+        continue;
+      }
+    }
+
+    // 解析单行 #enum(...)/#list(...) 格式，包括 #text(font: "...")[#enum(...)]
+    if (trimmed.startsWith('#enum(') || trimmed.startsWith('#list(') || 
+        (trimmed.startsWith('#text(') && (trimmed.includes('#enum(') || trimmed.includes('#list(')))) {
+      const listBlock = parseInlineEnumOrList(trimmed);
+      if (listBlock) {
+        if (currentBlock) blocks.push(currentBlock);
+        blocks.push(listBlock);
+        currentBlock = null;
+        currentParagraphIsList = false;
         continue;
       }
     }
