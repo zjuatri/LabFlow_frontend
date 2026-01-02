@@ -157,22 +157,26 @@ export function EditorToolbar({
                                     />
                                 </div>
                                 <div className="border-t border-zinc-300 dark:border-zinc-600 pt-3">
-                                    <label className="flex items-center gap-2 select-none cursor-pointer mb-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={docSettings.tableCaptionNumbering}
-                                            onChange={(e) => onSettingsChange({ ...docSettings, tableCaptionNumbering: e.target.checked })}
-                                        />
-                                        表格排序
-                                    </label>
-                                    <label className="flex items-center gap-2 select-none cursor-pointer mb-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={docSettings.imageCaptionNumbering}
-                                            onChange={(e) => onSettingsChange({ ...docSettings, imageCaptionNumbering: e.target.checked })}
-                                        />
-                                        图片排序
-                                    </label>
+                                    {projectType !== 'cover' && (
+                                        <>
+                                            <label className="flex items-center gap-2 select-none cursor-pointer mb-2">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={docSettings.tableCaptionNumbering}
+                                                    onChange={(e) => onSettingsChange({ ...docSettings, tableCaptionNumbering: e.target.checked })}
+                                                />
+                                                表格排序
+                                            </label>
+                                            <label className="flex items-center gap-2 select-none cursor-pointer mb-2">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={docSettings.imageCaptionNumbering}
+                                                    onChange={(e) => onSettingsChange({ ...docSettings, imageCaptionNumbering: e.target.checked })}
+                                                />
+                                                图片排序
+                                            </label>
+                                        </>
+                                    )}
                                     <div className="flex items-center gap-2">
                                         <label className="select-none cursor-pointer">图片标题位置</label>
                                         <select

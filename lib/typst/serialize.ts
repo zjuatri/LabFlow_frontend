@@ -84,7 +84,15 @@ function serializeCover(block: TypstBlock, opts?: { settings?: DocumentSettings,
   const begin = `${LF_COVER_BEGIN_MARKER}${base64EncodeUtf8(JSON.stringify(payload))}*/`;
   const end = `${LF_COVER_END_MARKER}`;
   const children = Array.isArray(block.children) ? block.children : [];
-  const body = children.length > 0 ? blocksToTypst(children, opts) : '';
+
+  // Cover images should NOT participate in the report's image numbering.
+  // We force-disable caption numbering inside the cover regardless of the global setting.
+  const baseSettings = opts?.settings ?? defaultDocumentSettings;
+  const coverSettings: DocumentSettings = {
+    ...baseSettings,
+    imageCaptionNumbering: false,
+  };
+  const body = children.length > 0 ? blocksToTypst(children, { ...opts, settings: coverSettings }) : '';
 
   const parts: string[] = [begin];
   if (body.trim()) parts.push(body);
