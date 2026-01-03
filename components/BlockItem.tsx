@@ -35,8 +35,8 @@ interface BlockItemProps {
   onClick: () => void;
   /** Width unit for images: 'percent' (default) or 'pt' (for composite blocks) */
   imageWidthUnit?: 'percent' | 'pt';
-  /** Callback to move an existing block into a composite row */
-  onMoveBlockToComposite?: (compositeBlockId: string, blockIdToMove: string) => void;
+  /** Callback to move existing block(s) into a composite row */
+  onMoveBlockToComposite?: (compositeBlockId: string, blockIdToMove: string | string[]) => void;
 }
 
 function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdate, onDelete, onAddAfter, onMove, onUploadImage, onTableSelectionSnapshot, lastTableSelection, onRenderChart, onClick, imageWidthUnit = 'percent', onMoveBlockToComposite }: BlockItemProps) {

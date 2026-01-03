@@ -49,8 +49,10 @@ export function parseImageBlock(trimmed: string): TypstBlock | null {
             return {
                 id: generateId(),
                 type: 'image',
-                // Critical: Restore original placeholder src if available, otherwise fallback
-                content: payload.src || '[[IMAGE_PLACEHOLDER]]',
+                // Critical: Restore original src from payload. 
+                // Empty string '' means intentionally empty (user hasn't uploaded yet)
+                // undefined/missing means legacy format, fallback to placeholder marker
+                content: payload.src !== undefined ? payload.src : '[[IMAGE_PLACEHOLDER]]',
                 align: 'center',
                 width: (payload.width ?? widthMatch?.[1] ?? '50%'),
                 height: 'auto',
@@ -157,11 +159,11 @@ export function parseImageBlock(trimmed: string): TypstBlock | null {
         const pathMatch = trimmed.match(/image\(\s*"([^"]+)"/);
         if (pathMatch) {
             const imagePath = pathMatch[1];
-            
+
             // Extract width
             const widthMatch = trimmed.match(/width\s*:\s*([^,)\s]+)/);
             const width = widthMatch?.[1]?.trim() || '50%';
-            
+
             // Extract caption using balanced bracket matching
             let caption = '';
             let captionFont: string | undefined = undefined;
@@ -196,7 +198,7 @@ export function parseImageBlock(trimmed: string): TypstBlock | null {
                 }
                 caption = capContent;
             }
-            
+
             // Extract align from outer wrapper if present
             const alignMatch = trimmed.match(/^#align\(\s*(left|center|right)\s*\)/);
             const align = (alignMatch?.[1] as 'left' | 'center' | 'right') ?? 'center';

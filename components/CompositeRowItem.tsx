@@ -41,8 +41,8 @@ interface CompositeRowItemProps {
     onClick: () => void;
     // Pass BlockItem component to avoid circular dependency
     BlockItemComponent: BlockItemComponent;
-    /** Callback to move an existing block from the parent into this composite row */
-    onMoveBlockToComposite?: (blockId: string) => void;
+    /** Callback to move existing block(s) from the parent into this composite row */
+    onMoveBlockToComposite?: (blockIds: string | string[]) => void;
 }
 
 const JUSTIFY_OPTIONS = [
@@ -75,6 +75,7 @@ export default function CompositeRowItem({
     onMoveBlockToComposite,
 }: CompositeRowItemProps) {
     const [showImportPopup, setShowImportPopup] = useState(false);
+    const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(new Set());
 
     const collapsed = block.uiCollapsed !== false;
     const children = Array.isArray(block.children) ? block.children : [];
@@ -263,35 +264,182 @@ export default function CompositeRowItem({
                         <Trash2 size={14} />
                     </button>
 
-                    {/* Import popup dropdown */}
+                    {/* Import Modal */}
                     {showImportPopup && (
                         <div
-                            className="absolute top-full right-0 mt-1 z-50 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg shadow-lg max-h-60 overflow-y-auto min-w-[240px]"
-                            onClick={(e) => e.stopPropagation()}
+                            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowImportPopup(false);
+                                setSelectedBlockIds(new Set());
+                            }}
                         >
-                            <div className="px-3 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-700">
-                                选择要导入的块
-                            </div>
-                            {importableBlocks.map((b) => (
-                                <button
-                                    key={b.id}
-                                    onClick={() => {
-                                        if (onMoveBlockToComposite) {
-                                            onMoveBlockToComposite(b.id);
-                                        }
-                                        setShowImportPopup(false);
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-900/30 border-b border-zinc-100 dark:border-zinc-700 last:border-b-0 truncate"
-                                    title={getBlockPreview(b)}
-                                >
-                                    {getBlockPreview(b) || `[${b.type}] (空)`}
-                                </button>
-                            ))}
-                            {importableBlocks.length === 0 && (
-                                <div className="px-3 py-2 text-xs text-zinc-400 dark:text-zinc-500">
-                                    没有可导入的块
+                            <div
+                                className="bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-xl shadow-2xl max-h-[70vh] overflow-hidden min-w-[320px] max-w-[480px] w-full mx-4 flex flex-col"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <div className="px-4 py-3 bg-indigo-50 dark:bg-indigo-900/30 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between shrink-0">
+                                    <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">导入已有块到复合行</span>
+                                    <button
+                                        onClick={() => {
+                                            setShowImportPopup(false);
+                                            setSelectedBlockIds(new Set());
+                                        }}
+                                        className="text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 text-lg leading-none"
+                                    >
+                                        ×
+                                    </button>
                                 </div>
-                            )}
+
+                                {/* Select All / Clear All */}
+                                {importableBlocks.length > 0 && (
+                                    <div className="px-4 py-2 border-b border-zinc-100 dark:border-zinc-700 flex items-center gap-2 shrink-0">
+                                        <button
+                                            onClick={() => {
+                                                const maxToSelect = 4 - children.length;
+                                                if (selectedBlockIds.size === Math.min(importableBlocks.length, maxToSelect)) {
+                                                    setSelectedBlockIds(new Set());
+                                                } else {
+                                                    const newSelected = new Set(
+                                                        importableBlocks.slice(0, maxToSelect).map(b => b.id)
+                                                    );
+                                                    setSelectedBlockIds(newSelected);
+                                                }
+                                            }}
+                                            className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline"
+                                        >
+                                            {selectedBlockIds.size === Math.min(importableBlocks.length, 4 - children.length) ? '取消全选' : `全选 (最多${4 - children.length}个)`}
+                                        </button>
+                                        {selectedBlockIds.size > 0 && (
+                                            <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                                                已选 {selectedBlockIds.size} 个
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+
+                                <div className="p-2 flex-1 overflow-y-auto">
+                                    {importableBlocks.length === 0 ? (
+                                        <div className="px-4 py-8 text-center text-sm text-zinc-400 dark:text-zinc-500">
+                                            没有可导入的块
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-1">
+                                            {importableBlocks.map((b) => {
+                                                // Define colors for each block type
+                                                const typeColors: Record<string, { bg: string; text: string; border: string }> = {
+                                                    heading: { bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-200 dark:border-purple-700' },
+                                                    paragraph: { bg: 'bg-zinc-100 dark:bg-zinc-700', text: 'text-zinc-700 dark:text-zinc-300', border: 'border-zinc-200 dark:border-zinc-600' },
+                                                    code: { bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-700' },
+                                                    math: { bg: 'bg-blue-100 dark:bg-blue-900/40', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-700' },
+                                                    image: { bg: 'bg-green-100 dark:bg-green-900/40', text: 'text-green-700 dark:text-green-300', border: 'border-green-200 dark:border-green-700' },
+                                                    table: { bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-200 dark:border-orange-700' },
+                                                    chart: { bg: 'bg-cyan-100 dark:bg-cyan-900/40', text: 'text-cyan-700 dark:text-cyan-300', border: 'border-cyan-200 dark:border-cyan-700' },
+                                                    vertical_space: { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-600 dark:text-gray-400', border: 'border-gray-200 dark:border-gray-600' },
+                                                    input_field: { bg: 'bg-pink-100 dark:bg-pink-900/40', text: 'text-pink-700 dark:text-pink-300', border: 'border-pink-200 dark:border-pink-700' },
+                                                    list: { bg: 'bg-teal-100 dark:bg-teal-900/40', text: 'text-teal-700 dark:text-teal-300', border: 'border-teal-200 dark:border-teal-700' },
+                                                };
+                                                const typeLabels: Record<string, string> = {
+                                                    heading: '标题', paragraph: '段落', code: '代码', math: '数学',
+                                                    image: '图片', table: '表格', chart: '图表', vertical_space: '空白',
+                                                    input_field: '输入', list: '列表',
+                                                };
+                                                const colors = typeColors[b.type] || typeColors.paragraph;
+                                                const typeLabel = typeLabels[b.type] || b.type;
+                                                const isSelected = selectedBlockIds.has(b.id);
+                                                const canSelect = isSelected || (selectedBlockIds.size < (4 - children.length));
+
+                                                // Get content preview
+                                                let preview = '';
+                                                if (b.type === 'image') {
+                                                    if (!b.content) preview = '(未上传)';
+                                                    else if (b.content.startsWith('[[')) {
+                                                        const match = b.content.match(/\[\[\s*IMAGE_PLACEHOLDER\s*:\s*(.*?)\s*\]\]/i);
+                                                        preview = match?.[1] || '占位符';
+                                                    } else {
+                                                        preview = b.caption || '已上传图片';
+                                                    }
+                                                } else {
+                                                    preview = (b.content || '').slice(0, 40).replace(/\n/g, ' ');
+                                                    if ((b.content?.length ?? 0) > 40) preview += '...';
+                                                }
+
+                                                return (
+                                                    <button
+                                                        key={b.id}
+                                                        onClick={() => {
+                                                            if (!canSelect) return;
+                                                            const newSet = new Set(selectedBlockIds);
+                                                            if (isSelected) {
+                                                                newSet.delete(b.id);
+                                                            } else {
+                                                                newSet.add(b.id);
+                                                            }
+                                                            setSelectedBlockIds(newSet);
+                                                        }}
+                                                        disabled={!canSelect}
+                                                        className={`w-full text-left px-3 py-2 rounded-lg border transition-all flex items-center gap-2 group ${isSelected
+                                                            ? 'border-indigo-400 dark:border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 shadow-sm'
+                                                            : `${colors.border} ${canSelect ? 'hover:shadow-md' : 'opacity-50 cursor-not-allowed'}`
+                                                            }`}
+                                                        title={getBlockPreview(b)}
+                                                    >
+                                                        {/* Checkbox */}
+                                                        <span className={`shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${isSelected
+                                                            ? 'bg-indigo-500 border-indigo-500 text-white'
+                                                            : 'border-zinc-300 dark:border-zinc-600'
+                                                            }`}>
+                                                            {isSelected && <span className="text-[10px]">✓</span>}
+                                                        </span>
+                                                        <span className={`shrink-0 px-2 py-0.5 text-[10px] font-semibold rounded ${colors.bg} ${colors.text}`}>
+                                                            {typeLabel}
+                                                        </span>
+                                                        <span className="text-xs text-zinc-600 dark:text-zinc-400 truncate flex-1">
+                                                            {preview || '(空)'}
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Footer with confirm button */}
+                                <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-700 flex items-center justify-between shrink-0">
+                                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                                        共 {importableBlocks.length} 个块 · 复合行已有 {children.length}/4 子块
+                                    </span>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => {
+                                                setShowImportPopup(false);
+                                                setSelectedBlockIds(new Set());
+                                            }}
+                                            className="px-3 py-1.5 text-xs rounded bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                                        >
+                                            取消
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                if (onMoveBlockToComposite && selectedBlockIds.size > 0) {
+                                                    // Import blocks in order they appear in the document
+                                                    const orderedIds = importableBlocks
+                                                        .filter(b => selectedBlockIds.has(b.id))
+                                                        .map(b => b.id);
+                                                    // Pass all IDs at once for batch import
+                                                    onMoveBlockToComposite(orderedIds);
+                                                }
+                                                setShowImportPopup(false);
+                                                setSelectedBlockIds(new Set());
+                                            }}
+                                            disabled={selectedBlockIds.size === 0}
+                                            className="px-4 py-1.5 text-xs rounded bg-indigo-500 text-white hover:bg-indigo-600 transition-colors disabled:bg-indigo-300 disabled:cursor-not-allowed font-medium"
+                                        >
+                                            导入 {selectedBlockIds.size > 0 ? `(${selectedBlockIds.size})` : ''}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>

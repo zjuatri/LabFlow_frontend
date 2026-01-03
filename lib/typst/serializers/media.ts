@@ -77,7 +77,9 @@ export function serializeImage(block: TypstBlock, imageIndex: number, settings: 
 
     // If image path is empty, output a placeholder text instead of image("") which causes compilation error
     // Trim and remove zero-width spaces which might be left over from editing
-    const imagePath = (block.content ?? '').replace(/[\u200B\u200C\u200D\uFEFF]/g, '').trim();
+    // Also strip query parameters (e.g., ?t=123456 for cache busting) since Typst treats paths as filesystem paths
+    const imagePathRaw = (block.content ?? '').replace(/[\u200B\u200C\u200D\uFEFF]/g, '').trim();
+    const imagePath = imagePathRaw.split('?')[0]; // Strip query parameters for Typst
     if (!imagePath) {
         // Show a styled placeholder box similar to [[IMAGE_PLACEHOLDER]] style
         const placeholderText = captionText || '待上传图片';
@@ -101,15 +103,20 @@ export function serializeImage(block: TypstBlock, imageIndex: number, settings: 
     // Valid paths should already exist in the project's images folder
     // Hallucinated paths often have Chinese characters or non-standard patterns
     const isLikelyHallucinated = (path: string): boolean => {
+        // Strip query parameters (e.g., ?t=123456 for cache busting) before checking
+        const pathWithoutQuery = path.split('?')[0];
+        const filename = pathWithoutQuery.split('/').pop() || '';
+
         // Check for common hallucination patterns:
         // 1. Chinese characters in filename (DeepSeek often invents these)
-        // 2. Paths that don't start with /static/projects/ but look like static paths
-        // 3. Placeholder-like names
-        const hasChineseInFilename = /[\u4e00-\u9fa5]/.test(path.split('/').pop() || '');
-        const looksLikePlaceholder = /\[\[.*\]\]|待.*图|占位/.test(path);
-        const hasIllegalChars = /[<>"|?*]/.test(path);
+        // 2. Placeholder-like names
+        // 3. Illegal filesystem characters in the path (excluding query string)
+        const hasChineseInFilename = /[\u4e00-\u9fa5]/.test(filename);
+        const looksLikePlaceholder = /\[\[.*\]\]|待.*图|占位/.test(pathWithoutQuery);
+        const hasIllegalChars = /[<>"|*]/.test(pathWithoutQuery); // Removed ? since it's valid in query string
         return hasChineseInFilename || looksLikePlaceholder || hasIllegalChars;
     };
+
 
     // Explicitly handle [[IMAGE_PLACEHOLDER...]] tags as a valid placeholder state
     // Relaxed regex to catch various spacing or casing
@@ -140,16 +147,19 @@ export function serializeImage(block: TypstBlock, imageIndex: number, settings: 
 
     // If path looks hallucinated, output a styled placeholder instead
     if (isLikelyHallucinated(imagePath)) {
-        const warningText = captionText || '(图片路径无效)';
-        const pathDisplay = imagePath.length > 60 ? imagePath.slice(0, 60) + '...' : imagePath;
-        return `#block(width: 100%, fill: rgb("#FEF2F2"), stroke: rgb("#FCA5A5"), inset: 12pt, radius: 4pt)[
-  #align(center)[
-    #text(fill: rgb("#DC2626"), weight: "bold")[图片缺失]
-    #linebreak()
-    #text(size: 0.8em, fill: rgb("#991B1B"))[路径: ${pathDisplay}]
-  ]
-]${encoded}`;
+        const warningText = captionText || '图片路径无效';
+        // Escape special characters for Typst and truncate path
+        const pathDisplay = (imagePath.length > 50 ? imagePath.slice(0, 50) + '…' : imagePath)
+            .replace(/\\/g, '\\\\')
+            .replace(/\[/g, '\\[')
+            .replace(/\]/g, '\\]')
+            .replace(/"/g, '\\"');
+
+        // Use single-line format to avoid parsing issues when nested in other blocks
+        const textContent = `#text(fill: rgb("#DC2626"), weight: "bold")[图片缺失] #h(1em) #text(size: 0.8em, fill: rgb("#991B1B"))[${warningText}]`;
+        return `#block(width: 100%, fill: rgb("#FEF2F2"), stroke: rgb("#FCA5A5"), inset: 12pt, radius: 4pt)[#align(center)[${textContent}]]${encoded}`;
     }
+
 
     // Use Typst native #figure for automatic numbering and consistent layout
     // This resolves issues where manual counting logic falls out of sync

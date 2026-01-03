@@ -42,19 +42,29 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
     }
   }, [showColorPicker]);
 
+  // Track last synced content to detect external changes (e.g., undo/redo)
+  const lastSyncedContentRef = useRef<string>(block.content ?? '');
+
   useEffect(() => {
     // Keep editor in sync when not actively editing.
     // IMPORTANT: while editing an inline formula, do not overwrite the DOM;
     // otherwise the pill node gets replaced and edits appear to "disappear".
-    if (isEditingParagraph) return;
-    if (activeInlineMath) return;
+
+    // CRITICAL: If content changed externally (e.g., undo/redo), we MUST update
+    // even if user is editing, otherwise undo appears to not work in the editor.
+    const currentContent = block.content ?? '';
+    const contentChangedExternally = currentContent !== lastSyncedContentRef.current;
+
+    // Skip only if we're editing AND content hasn't changed externally
+    if ((isEditingParagraph || activeInlineMath) && !contentChangedExternally) return;
+
     if (!paragraphEditorRef.current) return;
 
     // Skip list auto-detection if:
     // 1. Block type is explicitly 'list', OR
     // 2. Content looks like a pure list (all lines start with numbers or bullets)
     // This prevents double numbering when content already has "1. xxx" format
-    const content = block.content ?? '';
+    const content = currentContent;
     const lines = content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     const allNumbered = lines.length > 0 && lines.every(l => /^\d+[.)]\s/.test(l));
     const allBulleted = lines.length > 0 && lines.every(l => /^[-*•]\s/.test(l));
@@ -64,12 +74,18 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
     if (paragraphEditorRef.current.innerHTML !== html) {
       paragraphEditorRef.current.innerHTML = html;
     }
+
+    // Update the ref to track that we've synced this content
+    lastSyncedContentRef.current = currentContent;
   }, [block.content, block.type, isEditingParagraph, activeInlineMath]);
 
   const syncParagraphFromDom = () => {
     if (!paragraphEditorRef.current) return;
     const newTypst = htmlToTypstInline(paragraphEditorRef.current);
     if (newTypst !== block.content) {
+      // Update ref BEFORE calling onUpdate to prevent the useEffect from
+      // thinking this is an external change and rewriting the DOM (which kills cursor position).
+      lastSyncedContentRef.current = newTypst;
       onUpdate({ content: newTypst });
     }
   };

@@ -142,31 +142,41 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
   };
 
   /**
-   * Moves an existing block from the document into a composite row's children array.
-   * The block is removed from the top-level blocks and added as a child of the composite row.
+   * Moves existing blocks from the document into a composite row's children array.
+   * The blocks are removed from the top-level blocks and added as children of the composite row.
+   * Supports both single blockId (string) and multiple blockIds (string[]).
    */
-  const moveBlockToComposite = (compositeBlockId: string, blockIdToMove: string) => {
-    const blockToMove = blocks.find(b => b.id === blockIdToMove);
+  const moveBlockToComposite = (compositeBlockId: string, blockIdToMove: string | string[]) => {
+    const blockIds = Array.isArray(blockIdToMove) ? blockIdToMove : [blockIdToMove];
     const compositeBlock = blocks.find(b => b.id === compositeBlockId && b.type === 'composite_row');
 
-    if (!blockToMove || !compositeBlock) return;
-
-    // Don't allow moving covers or composite rows into composite rows
-    if (blockToMove.type === 'cover' || blockToMove.type === 'composite_row') return;
+    if (!compositeBlock) return;
 
     const currentChildren = Array.isArray(compositeBlock.children) ? compositeBlock.children : [];
+    const availableSlots = 4 - currentChildren.length;
 
-    // Check if composite row already has 4 children (max limit)
-    if (currentChildren.length >= 4) return;
+    if (availableSlots <= 0) return;
 
-    // Remove the block from top-level and add it to composite row's children
+    // Find all blocks to move (filter out covers and composite rows)
+    const blocksToMove = blockIds
+      .slice(0, availableSlots) // Limit to available slots
+      .map(id => blocks.find(b => b.id === id))
+      .filter((b): b is TypstBlock =>
+        b !== undefined && b.type !== 'cover' && b.type !== 'composite_row'
+      );
+
+    if (blocksToMove.length === 0) return;
+
+    const idsToRemove = new Set(blocksToMove.map(b => b.id));
+
+    // Remove the blocks from top-level and add them to composite row's children
     const newBlocks = blocks
-      .filter(b => b.id !== blockIdToMove)
+      .filter(b => !idsToRemove.has(b.id))
       .map(b => {
         if (b.id === compositeBlockId) {
           return {
             ...b,
-            children: [...currentChildren, blockToMove],
+            children: [...currentChildren, ...blocksToMove],
           };
         }
         return b;
@@ -174,6 +184,7 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
 
     onChange(newBlocks);
   };
+
 
 
   const uploadImage = async (file: File, blockId: string) => {

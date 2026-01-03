@@ -32,6 +32,26 @@ export default function ImageBlockEditor({ block, onUpdate, onUploadImage, width
     setImageError(true);
   };
 
+  // Shared handler for file upload to auto-set caption
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        // Auto-set caption from filename if empty
+        if (!block.caption || block.caption.trim() === '') {
+          // Remove extension from filename
+          const filename = file.name.replace(/\.[^/.]+$/, "");
+          onUpdate({ caption: filename });
+        }
+
+        await onUploadImage(file);
+        setImageError(false);
+      } catch (err) {
+        alert(err instanceof Error ? err.message : '上传失败');
+      }
+    }
+  };
+
   return (
     <div className="flex flex-col gap-3">
       {/* 图片预览 */}
@@ -49,17 +69,7 @@ export default function ImageBlockEditor({ block, onUpdate, onUploadImage, width
               <input
                 type="file"
                 accept="image/*"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    try {
-                      await onUploadImage(file);
-                      setImageError(false);
-                    } catch (err) {
-                      alert(err instanceof Error ? err.message : '上传失败');
-                    }
-                  }
-                }}
+                onChange={handleFileChange}
                 className="hidden"
               />
               上传图片
@@ -79,17 +89,7 @@ export default function ImageBlockEditor({ block, onUpdate, onUploadImage, width
               <input
                 type="file"
                 accept="image/*"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    try {
-                      await onUploadImage(file);
-                      setImageError(false);
-                    } catch (err) {
-                      alert(err instanceof Error ? err.message : '上传失败');
-                    }
-                  }
-                }}
+                onChange={handleFileChange}
                 className="hidden"
               />
               上传替换图片
@@ -119,16 +119,7 @@ export default function ImageBlockEditor({ block, onUpdate, onUploadImage, width
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      try {
-                        await onUploadImage(file);
-                      } catch (err) {
-                        alert(err instanceof Error ? err.message : '上传失败');
-                      }
-                    }
-                  }}
+                  onChange={handleFileChange}
                   className="hidden"
                 />
                 更换图片
@@ -141,16 +132,7 @@ export default function ImageBlockEditor({ block, onUpdate, onUploadImage, width
           <input
             type="file"
             accept="image/*"
-            onChange={async (e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                try {
-                  await onUploadImage(file);
-                } catch (err) {
-                  alert(err instanceof Error ? err.message : '上传失败');
-                }
-              }
-            }}
+            onChange={handleFileChange}
             className="hidden"
           />
           <div className="text-blue-500 dark:text-blue-400 font-medium">选择图片</div>

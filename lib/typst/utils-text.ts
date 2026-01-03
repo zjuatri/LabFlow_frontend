@@ -442,7 +442,7 @@ export function sanitizeTypstMathSegment(segment: string): string {
     // 4. Quote unknown multi-letter variables (e.g. Kv -> "Kv", Mp -> "Mp")
     // BUT: Skip content already inside quotes!
     // We need to process the string while respecting quoted regions.
-    
+
     // First, extract and protect quoted strings
     const quotedStrings: string[] = [];
     let protected_s = s.replace(/"[^"]*"/g, (match) => {
@@ -495,7 +495,17 @@ export function sanitizeTypstMathSegment(segment: string): string {
 }
 
 export function sanitizeTypstInlineMath(input: string): string {
-    const s = input ?? '';
+    let s = input ?? '';
+
+    // CRITICAL: Strip internal LaTeX markers before outputting to Typst
+    // These markers (/*LF_LATEX:...*/') are editor-internal and should NOT appear in compiled output
+    s = s
+        .replace(/\/\*LF_LATEX:[A-Za-z0-9+/=]*\*\//g, '')
+        .replace(/\/\*LF_LATEX:[A-Za-z0-9+/=]*/g, '')
+        .replace(/\/LF_LATEX:[A-Za-z0-9+/=]*\//g, '')
+        .replace(/\/\*?LFLATEX:[A-Za-z0-9+/=]*\*?\/?/g, '')
+        .replace(/\/?L\s*F\s*_?\s*L\s*A\s*T\s*E\s*X\s*:[A-Za-z0-9+/=\s]*\/?/gi, '');
+
     if (!s.includes('$')) return s;
 
     let out = '';

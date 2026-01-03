@@ -244,7 +244,12 @@ export function latexToTypstMath(latex: string): string {
   // Convert literal forward slashes (/) to escaped slashes (\/)
   // In Typst math, / is a fraction operator. To render a literal slash, we use a quoted string "/".
   // Using \/ is incorrect because \ creates a linebreak (array of content), causing errors in some contexts.
-  s = s.replace(/\//g, ' "/" ');
+  // CRITICAL: Do NOT replace slashes inside protected blocks (\uE000...\uE001, typically from \text{...}).
+  // NOTE: We use "/" without surrounding spaces to keep units like "rad/s" compact.
+  s = s.replace(/(\uE000[^\uE001]*\uE001)|(\/)/g, (match, protectedContent, slash) => {
+    if (protectedContent) return protectedContent;
+    return '"/"';
+  });
 
   // Handle \mathbf{X} -> bold(X) in Typst
   s = s.replace(/\\mathbf\{([^}]+)\}/g, 'bold($1)');

@@ -399,8 +399,33 @@ export const typstInlineToHtml = (typst: string, opts?: { skipListDetection?: bo
       }
 
       // *bold*
+      // IMPORTANT: We need to be careful not to match asterisks that are part of comment markers /*...*/ 
       if (ch === '*') {
-        const end = input.indexOf('*', i + 1);
+        // Check if this is part of a comment marker /*
+        if (i > 0 && input[i - 1] === '/') {
+          // This is likely a comment opening /*, skip this *
+          out += escapeHtml(ch);
+          continue;
+        }
+
+        // Find closing * but skip any * that is part of /*...*/ pattern
+        let end = -1;
+        for (let j = i + 1; j < input.length; j++) {
+          if (input[j] === '*') {
+            // Check if this * is preceded by / (comment open /*) - skip it
+            if (j > 0 && input[j - 1] === '/') {
+              continue;
+            }
+            // Check if this * is followed by / (comment close */) - skip it
+            if (j + 1 < input.length && input[j + 1] === '/') {
+              j++; // Skip past the /
+              continue;
+            }
+            end = j;
+            break;
+          }
+        }
+
         if (end !== -1) {
           const inner = input.slice(i + 1, end);
           out += `<strong>${parse(inner, inDisplayMode)}</strong>`;
@@ -410,7 +435,14 @@ export const typstInlineToHtml = (typst: string, opts?: { skipListDetection?: bo
       }
 
       // _italic_
+      // Similar fix for underscore in LF_LATEX marker
       if (ch === '_') {
+        // Check if this is part of LF_LATEX marker
+        if (input.slice(Math.max(0, i - 2), i + 1).includes('LF_')) {
+          out += escapeHtml(ch);
+          continue;
+        }
+
         const end = input.indexOf('_', i + 1);
         if (end !== -1) {
           const inner = input.slice(i + 1, end);
@@ -462,13 +494,33 @@ export const typstInlineToHtml = (typst: string, opts?: { skipListDetection?: bo
             }
           }
           const id = generateInlineMathId();
-          const inferredLatex = latex || typstToLatexMath(inner);
+
+          // CRITICAL: Clean up any existing markers from both inner and latex to prevent accumulation
+          // Match all variations of the marker (with/without asterisks, with/without underscore)
+          // Patterns: /*LF_LATEX:...*/  /LF_LATEX:.../  /LFLATEX:.../  etc.
+          const markerCleanup = (s: string): string => {
+            return s
+              // Standard format: /*LF_LATEX:base64*/
+              .replace(/\/\*LF_LATEX:[A-Za-z0-9+/=]*\*\//g, '')
+              // Without closing */
+              .replace(/\/\*LF_LATEX:[A-Za-z0-9+/=]*/g, '')
+              // Without asterisks: /LF_LATEX:base64/
+              .replace(/\/LF_LATEX:[A-Za-z0-9+/=]*\//g, '')
+              // Without underscore: /LFLATEX:base64/
+              .replace(/\/\*?LFLATEX:[A-Za-z0-9+/=]*\*?\/?/g, '')
+              // Any remaining LF_LATEX or LFLATEX patterns
+              .replace(/\/?L\s*F\s*_?\s*L\s*A\s*T\s*E\s*X\s*:[A-Za-z0-9+/=\s]*\/?/gi, '')
+              .trim();
+          };
+          const cleanLatex = markerCleanup(latex || typstToLatexMath(inner));
+          const cleanInner = markerCleanup(inner);
+
           // When we have stored LaTeX, re-convert to get correct Typst (fixes old corrupted data)
-          const correctTypst = latex ? latexToTypstMath(latex) : inner;
+          const correctTypst = latex ? latexToTypstMath(cleanLatex) : cleanInner;
           /* Use a zero-width space wrapper span before the pill to allow cursor positioning before inline math at line start.
              The wrapper span ensures the ZWSP stays on the same line and provides a clickable target. */
           const displayAttr = isDisplay ? ' data-display-mode="true"' : '';
-          out += `<span class="inline-math-spacer">\u200B</span><span class="inline-math-pill" data-inline-math-id="${escapeHtml(id)}" data-format="latex" data-typst="${escapeHtml(correctTypst)}" data-latex="${escapeHtml(inferredLatex)}"${displayAttr} contenteditable="false">∑</span>\u200B`;
+          out += `<span class="inline-math-spacer">\u200B</span><span class="inline-math-pill" data-inline-math-id="${escapeHtml(id)}" data-format="latex" data-typst="${escapeHtml(correctTypst)}" data-latex="${escapeHtml(cleanLatex)}"${displayAttr} contenteditable="false">∑</span>\u200B`;
           i = nextIdx - 1;
           continue;
         }
@@ -581,11 +633,25 @@ export const htmlToTypstInline = (root: HTMLElement): string => {
 
     if (el.classList.contains('inline-math-pill')) {
       const typst = (el.getAttribute('data-typst') ?? '').trim();
-      const latex = (el.getAttribute('data-latex') ?? '').trim();
+      let latex = (el.getAttribute('data-latex') ?? '').trim();
       const isDisplay = el.getAttribute('data-display-mode') === 'true';
+
+      // CRITICAL: Strip any existing LF_LATEX markers to prevent marker accumulation
+      // Match all variations (with/without asterisks, with/without underscore)
+      const markerCleanup = (s: string): string => {
+        return s
+          .replace(/\/\*LF_LATEX:[A-Za-z0-9+/=]*\*\//g, '')
+          .replace(/\/\*LF_LATEX:[A-Za-z0-9+/=]*/g, '')
+          .replace(/\/LF_LATEX:[A-Za-z0-9+/=]*\//g, '')
+          .replace(/\/\*?LFLATEX:[A-Za-z0-9+/=]*\*?\/?/g, '')
+          .replace(/\/?L\s*F\s*_?\s*L\s*A\s*T\s*E\s*X\s*:[A-Za-z0-9+/=\s]*\/?/gi, '')
+          .trim();
+      };
+      latex = markerCleanup(latex);
+
       // When we have stored LaTeX, ALWAYS re-convert from LaTeX to get correct Typst
       // This fixes issues where old conversions had bugs (e.g., pm -> plus.minus, text splitting)
-      const resolvedTypst = latex ? latexToTypstMath(latex) : typst;
+      const resolvedTypst = latex ? latexToTypstMath(latex) : markerCleanup(typst);
       const latexMarker = latex ? `${INLINE_MATH_LATEX_MARKER}${base64EncodeUtf8(latex)}*/` : '';
 
       // For display mode, escape top-level commas (not inside parentheses) as ","
