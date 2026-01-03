@@ -141,6 +141,41 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
     }
   };
 
+  /**
+   * Moves an existing block from the document into a composite row's children array.
+   * The block is removed from the top-level blocks and added as a child of the composite row.
+   */
+  const moveBlockToComposite = (compositeBlockId: string, blockIdToMove: string) => {
+    const blockToMove = blocks.find(b => b.id === blockIdToMove);
+    const compositeBlock = blocks.find(b => b.id === compositeBlockId && b.type === 'composite_row');
+
+    if (!blockToMove || !compositeBlock) return;
+
+    // Don't allow moving covers or composite rows into composite rows
+    if (blockToMove.type === 'cover' || blockToMove.type === 'composite_row') return;
+
+    const currentChildren = Array.isArray(compositeBlock.children) ? compositeBlock.children : [];
+
+    // Check if composite row already has 4 children (max limit)
+    if (currentChildren.length >= 4) return;
+
+    // Remove the block from top-level and add it to composite row's children
+    const newBlocks = blocks
+      .filter(b => b.id !== blockIdToMove)
+      .map(b => {
+        if (b.id === compositeBlockId) {
+          return {
+            ...b,
+            children: [...currentChildren, blockToMove],
+          };
+        }
+        return b;
+      });
+
+    onChange(newBlocks);
+  };
+
+
   const uploadImage = async (file: File, blockId: string) => {
     const token = getToken();
     const form = new FormData();
@@ -257,6 +292,7 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
               return url;
             }}
             onClick={() => onBlockClick?.(index)}
+            onMoveBlockToComposite={moveBlockToComposite}
           />
         </div>
       ))}

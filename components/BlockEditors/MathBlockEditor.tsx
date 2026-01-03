@@ -70,13 +70,63 @@ export default function MathBlockEditor({ block, onUpdate }: MathBlockEditorProp
                 content: combinedTypst,
               });
             } else {
-              // Convert to multi-line
-              const currentLatex = block.mathLatex ?? '';
-              const currentTypst = block.mathTypst ?? block.content ?? '';
-              onUpdate({
-                mathLines: [{ latex: currentLatex, typst: currentTypst }],
-                mathBrace: false,
-              });
+              // Convert to multi-line - detect and split multiple $$...$$ blocks
+              let currentLatex = (block.mathLatex ?? '').trim();
+              let currentTypst = (block.mathTypst ?? block.content ?? '').trim();
+              
+              // Helper to strip outer $ or $$ delimiters
+              const stripDollarSigns = (s: string): string => {
+                s = s.trim();
+                if (s.startsWith('$$') && s.endsWith('$$')) {
+                  return s.slice(2, -2).trim();
+                }
+                if (s.startsWith('$') && s.endsWith('$')) {
+                  return s.slice(1, -1).trim();
+                }
+                return s;
+              };
+
+              // Try to split LaTeX by multiple $$...$$ blocks
+              const latexBlockRegex = /\$\$([\s\S]*?)\$\$/g;
+              const latexMatches = [...currentLatex.matchAll(latexBlockRegex)];
+              
+              if (latexMatches.length > 1) {
+                // Multiple $$...$$ blocks found - split into lines
+                const lines = latexMatches.map(m => {
+                  const latex = m[1].trim();
+                  const typst = latexToTypstMath(latex);
+                  return { latex, typst };
+                });
+                onUpdate({
+                  mathLines: lines,
+                  mathBrace: false,
+                });
+              } else {
+                // Single block or no delimiters - just strip $ signs if present
+                currentLatex = stripDollarSigns(currentLatex);
+                currentTypst = stripDollarSigns(currentTypst);
+                // Also try splitting by \\ (LaTeX line break)
+                const latexParts = currentLatex.split(/\s*\\\\\s*/).filter(p => p.trim());
+                const typstParts = currentTypst.split(/\s*\\\s*/).filter(p => p.trim());
+                
+                if (latexParts.length > 1 || typstParts.length > 1) {
+                  // Has line breaks - split into multiple lines
+                  const lines = latexParts.map((latex, i) => ({
+                    latex: latex.trim(),
+                    typst: typstParts[i]?.trim() || latexToTypstMath(latex.trim()),
+                  }));
+                  onUpdate({
+                    mathLines: lines,
+                    mathBrace: false,
+                  });
+                } else {
+                  // Single line
+                  onUpdate({
+                    mathLines: [{ latex: currentLatex, typst: currentTypst || latexToTypstMath(currentLatex) }],
+                    mathBrace: false,
+                  });
+                }
+              }
             }
           }}
           className="px-2 py-1 text-xs rounded bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300"

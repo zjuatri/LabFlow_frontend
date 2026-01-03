@@ -151,18 +151,41 @@ export function latexToTypstMath(latex: string): string {
   let s = (latex ?? '').trim();
   if (!s) return '';
 
-  console.log('[latexToTypstMath] Input:', JSON.stringify(s));
+  // Detect multiple display math blocks (e.g. $$A$$$$B$$ or \[A\]\[B\])
+  // If we find these delimiters, we split and process each block separately.
+  const displayBlocks: string[] = [];
+  let hasDelimiters = false;
+
+  // Regex to match $$...$$ or \[...\]
+  // We use a global regex to find all occurrences
+  const delimiterRegex = /(\$\$([\s\S]*?)\$\$|\\\[([\s\S]*?)\\\])/g;
+  let match;
+
+  while ((match = delimiterRegex.exec(s)) !== null) {
+    hasDelimiters = true;
+    const inner = match[2] || match[3]; // group 2 is $$...$$, group 3 is \[...\]
+    if (inner && inner.trim()) {
+      displayBlocks.push(inner.trim());
+    }
+  }
+
+  // If we found matched blocks (and the string is mostly composed of them), use them.
+  // Process each block recursively (without delimiters) and join with line break
+  // Note: Don't wrap with display() here - that's handled at the serialization level
+  if (hasDelimiters && displayBlocks.length > 0) {
+    const convertedBlocks = displayBlocks.map(b => latexToTypstMath(b));
+    // Join with math line break (for multi-line equations)
+    return convertedBlocks.join(' \\ ');
+  }
 
   // Normalize escaped backslashes: \\command -> \command
   // This handles cases where LaTeX was stored with escaped backslashes (e.g., \\pm -> \pm)
   s = s.replace(/\\\\([a-zA-Z]+)/g, '\\$1');
-  console.log('[latexToTypstMath] After normalize backslashes:', JSON.stringify(s));
 
   // FIRST: Convert \text{...} to Typst quoted strings immediately
   // Use a unique Unicode marker to protect them from splitLetters
   // We use \uE000-\uE001 (private use area) as delimiters
   s = s.replace(/\\text\{([^}]+)\}/g, (_, content) => `\uE000${content}\uE001`);
-  console.log('[latexToTypstMath] After \\text protection:', JSON.stringify(s));
 
   // Handle matrix environments first (bmatrix, pmatrix, vmatrix, matrix)
   // Convert \begin{bmatrix}...\end{bmatrix} to mat(delim: "[", ...)
@@ -219,8 +242,9 @@ export function latexToTypstMath(latex: string): string {
   s = s.replace(/\\\\/g, ' \\ ');
 
   // Convert literal forward slashes (/) to escaped slashes (\/)
-  // In Typst math, / is a fraction operator. To render a literal slash, we must escape it.
-  s = s.replace(/\//g, ' \\/ ');
+  // In Typst math, / is a fraction operator. To render a literal slash, we use a quoted string "/".
+  // Using \/ is incorrect because \ creates a linebreak (array of content), causing errors in some contexts.
+  s = s.replace(/\//g, ' "/" ');
 
   // Handle \mathbf{X} -> bold(X) in Typst
   s = s.replace(/\\mathbf\{([^}]+)\}/g, 'bold($1)');
@@ -329,7 +353,9 @@ export function latexToTypstMath(latex: string): string {
     // Relational operators
     'approx', 'sim', 'cong', 'neq', 'leq', 'geq',
     // Display mode
-    'display'
+    'display',
+    // Units (common)
+    'rad'
   ]);
 
   const splitLetters = (text: string): string => {
@@ -501,9 +527,47 @@ export function typstToLatexMath(typst: string): string {
     s = s.replace(re, replacement);
   }
 
-
-  s = s.replace(/\\\//g, '/');
+  // Handle specific quoted slash back to literal token
+  s = s.replace(/"\/"/g, '/');
 
   s = s.replace(/\s+/g, ' ').trim();
   return s;
 }
+
+export function convertTypstContentToLatex(text: string): string {
+  let result = '';
+  let i = 0;
+  while (i < text.length) {
+    const dollar = text.indexOf('$', i);
+    if (dollar === -1) {
+      result += text.slice(i);
+      break;
+    }
+
+    // Append text before dollar
+    result += text.slice(i, dollar);
+
+    // Find closing dollar
+    const nextDollar = text.indexOf('$', dollar + 1);
+
+    // If no closing dollar, treat as literal text
+    if (nextDollar === -1) {
+      result += text.slice(dollar);
+      break;
+    }
+
+    // Check if it's double dollar (display math) - strict check
+    // If it is `$$...$$`, we treat as display math.
+    // However, Typst typically uses `$ ... $` with spaces for display, or block extraction.
+    // Here we just handle inline `$...$` mostly.
+    // If we encounter `$$`, we might want to handle it? 
+    // Let's stick to simple pair matching for now.
+
+    const inner = text.slice(dollar + 1, nextDollar);
+    const latex = typstToLatexMath(inner);
+    result += `$${latex}$`;
+    i = nextDollar + 1;
+  }
+  return result;
+}
+

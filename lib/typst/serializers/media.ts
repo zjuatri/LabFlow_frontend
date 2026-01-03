@@ -11,7 +11,7 @@ export function serializeImage(block: TypstBlock, imageIndex: number, settings: 
     const label = shouldNumber ? `图${imageIndex} ` : '';
     const captionText = captionRaw ? (label + captionRaw).trim() : '';
     const alignValue = align === 'left' ? 'left' : align === 'right' ? 'right' : 'center';
-    
+
     // Helper to strip #text(font:...) wrappers - needed for both payload and output
     const stripTextWrapper = (s: string): string | null => {
         const prefixMatch = s.match(/^#text\(font:\s*"[^"]+"\)\s*\[/);
@@ -33,7 +33,7 @@ export function serializeImage(block: TypstBlock, imageIndex: number, settings: 
         if (end !== s.length - 1 && s.slice(end + 1).trim() !== '') return null;
         return s.slice(bracketStart + 1, end);
     };
-    
+
     const stripMalformedTextWrapper = (s: string): string => {
         const prefixMatch = s.match(/^#text\(font:\s*"[^"]+"\)\s*\[/);
         if (!prefixMatch) return s;
@@ -53,7 +53,7 @@ export function serializeImage(block: TypstBlock, imageIndex: number, settings: 
         if (end === -1) return afterPrefix;
         return afterPrefix.slice(0, end);
     };
-    
+
     // Clean caption for storage in LF_IMAGE marker (should be plain text, not wrapped)
     let cleanCaptionForPayload = captionRaw;
     while (true) {
@@ -67,7 +67,7 @@ export function serializeImage(block: TypstBlock, imageIndex: number, settings: 
     if (cleanCaptionForPayload.startsWith('#text(font:')) {
         cleanCaptionForPayload = stripMalformedTextWrapper(cleanCaptionForPayload);
     }
-    
+
     const payload = {
         caption: cleanCaptionForPayload,
         width,
@@ -76,11 +76,26 @@ export function serializeImage(block: TypstBlock, imageIndex: number, settings: 
     const encoded = `${LF_IMAGE_MARKER}${base64EncodeUtf8(JSON.stringify(payload))}*/`;
 
     // If image path is empty, output a placeholder text instead of image("") which causes compilation error
-    const imagePath = (block.content ?? '').trim();
+    // Trim and remove zero-width spaces which might be left over from editing
+    const imagePath = (block.content ?? '').replace(/[\u200B\u200C\u200D\uFEFF]/g, '').trim();
     if (!imagePath) {
-        const placeholderText = captionText || '(待上传图片)';
-        return `#align(${alignValue})[${placeholderText}]${encoded}`;
+        // Show a styled placeholder box similar to [[IMAGE_PLACEHOLDER]] style
+        const placeholderText = captionText || '待上传图片';
+        const textContent = `#text(fill: rgb("#3B82F6"), weight: "bold", size: 1.5em)[+] #text(fill: rgb("#3B82F6"), size: 0.9em)[${placeholderText}]`;
+        const blockContent = `#align(${alignValue} + horizon)[${textContent}]`;
+
+        // Store the original empty state with caption in the payload for round-tripping
+        const emptyPayload = {
+            caption: cleanCaptionForPayload,
+            width,
+            height,
+            src: '' // Empty src indicates it needs upload
+        };
+        const emptyEncoded = `${LF_IMAGE_MARKER}${base64EncodeUtf8(JSON.stringify(emptyPayload))}*/`;
+
+        return `#align(${alignValue})[#block(width: ${width}, height: 8em, fill: rgb("#EFF6FF"), stroke: rgb("#93C5FD"), radius: 4pt, inset: 12pt)[${blockContent}]]${emptyEncoded}`;
     }
+
 
     // Check if the path looks like a placeholder or hallucinated path that won't exist
     // Valid paths should already exist in the project's images folder

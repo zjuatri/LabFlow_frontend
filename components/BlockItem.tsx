@@ -35,9 +35,11 @@ interface BlockItemProps {
   onClick: () => void;
   /** Width unit for images: 'percent' (default) or 'pt' (for composite blocks) */
   imageWidthUnit?: 'percent' | 'pt';
+  /** Callback to move an existing block into a composite row */
+  onMoveBlockToComposite?: (compositeBlockId: string, blockIdToMove: string) => void;
 }
 
-function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdate, onDelete, onAddAfter, onMove, onUploadImage, onTableSelectionSnapshot, lastTableSelection, onRenderChart, onClick, imageWidthUnit = 'percent' }: BlockItemProps) {
+function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdate, onDelete, onAddAfter, onMove, onUploadImage, onTableSelectionSnapshot, lastTableSelection, onRenderChart, onClick, imageWidthUnit = 'percent', onMoveBlockToComposite }: BlockItemProps) {
 
   const effectiveText = (block.content ?? '').replace(/\u200B/g, '').trim();
   const isAnswerBlank = block.type === 'paragraph' && !!block.placeholder && effectiveText.length === 0;
@@ -150,6 +152,7 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
     return (
       <CompositeRowItem
         block={block}
+        allBlocks={allBlocks}
         availableTables={availableTables}
         onUpdate={onUpdate}
         onDelete={onDelete}
@@ -160,6 +163,7 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
         onRenderChart={onRenderChart}
         onClick={onClick}
         BlockItemComponent={BlockItem}
+        onMoveBlockToComposite={onMoveBlockToComposite ? (blockIdToMove) => onMoveBlockToComposite(block.id, blockIdToMove) : undefined}
       />
     );
   }

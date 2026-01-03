@@ -167,13 +167,13 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
     const br = document.createElement('br');
     range.deleteContents();
     range.insertNode(br);
-    
+
     // Check if cursor is at the end of the contenteditable or the br is the last visible element
     const nextSibling = br.nextSibling;
-    const isAtEnd = !nextSibling || 
+    const isAtEnd = !nextSibling ||
       (nextSibling.nodeType === Node.TEXT_NODE && (nextSibling.textContent ?? '').replace(/\u200B/g, '') === '') ||
       (nextSibling.nodeName === 'BR');
-    
+
     if (isAtEnd) {
       // Insert a second <br> to make the line break visible
       const br2 = document.createElement('br');
@@ -182,7 +182,7 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
     } else {
       range.setStartAfter(br);
     }
-    
+
     range.collapse(true);
     sel.removeAllRanges();
     sel.addRange(range);
@@ -298,12 +298,16 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
       pill.setAttribute('data-format', 'latex');
       pill.setAttribute('data-latex', latexContent);
       pill.setAttribute('data-typst', typstContent);
+      pill.setAttribute('data-display-mode', 'true');
       pill.contentEditable = 'false';
       pill.textContent = '∑';
       fragment.appendChild(pill);
 
       // Add ZWSP after pill
       fragment.appendChild(document.createTextNode('\u200B'));
+
+      // For display math (implied by $$...$$), add a line break to ensure it sits on its own line
+      fragment.appendChild(document.createElement('br'));
 
       lastIndex = match.index + match[0].length;
     }

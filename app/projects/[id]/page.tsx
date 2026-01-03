@@ -10,6 +10,7 @@ import {
   type DocumentSettings,
   generateCjkStylePreamble,
 } from '@/lib/typst';
+import { convertTypstContentToLatex } from '@/lib/math-convert';
 import { clearToken, getToken } from '@/lib/auth';
 import { useBidirectionalScrollSync } from '@/lib/bidirectional-scroll-sync';
 import { useEditorStore } from '@/lib/stores/useEditorStore';
@@ -428,7 +429,8 @@ export default function ProjectEditorPage() {
           textToCopy = block.content || '';
         }
       } else {
-        textToCopy = block.content || '';
+        // Automatically convert inline Typst math to LaTeX for clipboard
+        textToCopy = convertTypstContentToLatex(block.content || '');
       }
 
       if (textToCopy) {

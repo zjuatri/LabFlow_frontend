@@ -1,7 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { TypstBlock } from '@/lib/typst';
-import { Trash2, Plus, ChevronDown, ChevronRight } from 'lucide-react';
+import { Trash2, Plus, ChevronDown, ChevronRight, Download } from 'lucide-react';
 import type { ChartRenderRequest } from './BlockEditors/ChartBlockEditor';
 
 // Forward declaration - will be resolved by parent import
@@ -27,6 +28,8 @@ interface BlockItemProps {
 
 interface CompositeRowItemProps {
     block: TypstBlock;
+    /** All blocks in the parent document (for importing existing blocks) */
+    allBlocks: TypstBlock[];
     availableTables: Array<{ id: string; label: string }>;
     onUpdate: (updates: Partial<TypstBlock>) => void;
     onDelete: () => void;
@@ -38,6 +41,8 @@ interface CompositeRowItemProps {
     onClick: () => void;
     // Pass BlockItem component to avoid circular dependency
     BlockItemComponent: BlockItemComponent;
+    /** Callback to move an existing block from the parent into this composite row */
+    onMoveBlockToComposite?: (blockId: string) => void;
 }
 
 const JUSTIFY_OPTIONS = [
@@ -56,6 +61,7 @@ const NEEDS_GAP = new Set(['flex-start', 'flex-end', 'center']);
 
 export default function CompositeRowItem({
     block,
+    allBlocks,
     availableTables,
     onUpdate,
     onDelete,
@@ -66,12 +72,60 @@ export default function CompositeRowItem({
     onRenderChart,
     onClick,
     BlockItemComponent,
+    onMoveBlockToComposite,
 }: CompositeRowItemProps) {
+    const [showImportPopup, setShowImportPopup] = useState(false);
+
     const collapsed = block.uiCollapsed !== false;
     const children = Array.isArray(block.children) ? block.children : [];
     const justify = block.compositeJustify || 'space-between';
     const gap = block.compositeGap || '8pt';
     const verticalAlign = block.compositeVerticalAlign || 'top';
+
+    // Get blocks that can be imported (exclude self, covers, and composite rows)
+    const childIds = new Set(children.map(c => c.id));
+    const importableBlocks = allBlocks.filter(b =>
+        b.id !== block.id &&
+        b.type !== 'cover' &&
+        b.type !== 'composite_row' &&
+        !childIds.has(b.id)
+    );
+
+    // Helper to get a short preview of a block for the import list
+    const getBlockPreview = (b: TypstBlock): string => {
+        const typeLabels: Record<string, string> = {
+            heading: '标题',
+            paragraph: '段落',
+            code: '代码',
+            math: '数学',
+            image: '图片',
+            table: '表格',
+            chart: '图表',
+            vertical_space: '空白',
+            input_field: '输入',
+            list: '列表',
+        };
+        const typeLabel = typeLabels[b.type] || b.type;
+
+        // Special handling for image blocks
+        if (b.type === 'image') {
+            if (!b.content) {
+                return `[${typeLabel}] (未上传)`;
+            }
+            if (b.content.startsWith('[[')) {
+                // AI-generated placeholder
+                const match = b.content.match(/\[\[\s*IMAGE_PLACEHOLDER\s*:\s*(.*?)\s*\]\]/i);
+                return `[${typeLabel}] ${match?.[1] || '占位符'}`;
+            }
+            // Uploaded image - show caption if available
+            return `[${typeLabel}] ${b.caption || '已上传图片'}`;
+        }
+
+        const contentSnippet = (b.content || '').slice(0, 30).replace(/\n/g, ' ');
+        return `[${typeLabel}] ${contentSnippet}${(b.content?.length ?? 0) > 30 ? '...' : ''}`;
+    };
+
+
 
     return (
         <div
@@ -169,20 +223,34 @@ export default function CompositeRowItem({
                     </button>
                 </div>
 
-                <div className="ml-auto flex gap-1">
+                <div className="ml-auto flex gap-1 relative">
                     {children.length < 4 && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                const nextId = `composite-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-                                const nextChildren = [...children, { id: nextId, type: 'paragraph', content: '' } as TypstBlock];
-                                onUpdate({ children: nextChildren });
-                            }}
-                            className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded"
-                            title="添加子块"
-                        >
-                            <Plus size={14} />
-                        </button>
+                        <>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    const nextId = `composite-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                                    const nextChildren = [...children, { id: nextId, type: 'paragraph', content: '' } as TypstBlock];
+                                    onUpdate({ children: nextChildren });
+                                }}
+                                className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded"
+                                title="添加新子块"
+                            >
+                                <Plus size={14} />
+                            </button>
+                            {onMoveBlockToComposite && importableBlocks.length > 0 && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowImportPopup(!showImportPopup);
+                                    }}
+                                    className={`p-1 rounded transition-colors ${showImportPopup ? 'bg-indigo-100 dark:bg-indigo-800 text-indigo-600 dark:text-indigo-300' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
+                                    title="导入已有块"
+                                >
+                                    <Download size={14} />
+                                </button>
+                            )}
+                        </>
                     )}
                     <button
                         onClick={(e) => {
@@ -194,13 +262,46 @@ export default function CompositeRowItem({
                     >
                         <Trash2 size={14} />
                     </button>
+
+                    {/* Import popup dropdown */}
+                    {showImportPopup && (
+                        <div
+                            className="absolute top-full right-0 mt-1 z-50 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg shadow-lg max-h-60 overflow-y-auto min-w-[240px]"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="px-3 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-700">
+                                选择要导入的块
+                            </div>
+                            {importableBlocks.map((b) => (
+                                <button
+                                    key={b.id}
+                                    onClick={() => {
+                                        if (onMoveBlockToComposite) {
+                                            onMoveBlockToComposite(b.id);
+                                        }
+                                        setShowImportPopup(false);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-900/30 border-b border-zinc-100 dark:border-zinc-700 last:border-b-0 truncate"
+                                    title={getBlockPreview(b)}
+                                >
+                                    {getBlockPreview(b) || `[${b.type}] (空)`}
+                                </button>
+                            ))}
+                            {importableBlocks.length === 0 && (
+                                <div className="px-3 py-2 text-xs text-zinc-400 dark:text-zinc-500">
+                                    没有可导入的块
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
             {!collapsed && (
                 <div className="pl-4 border-l-2 border-indigo-200 dark:border-indigo-700 space-y-2">
                     {children.length === 0 ? (
-                        <div className="text-xs text-zinc-500 dark:text-zinc-400">(空复合行 - 点击上方 + 添加子块)</div>
+                        <div className="text-xs text-zinc-500 dark:text-zinc-400">(空复合行 - 点击上方 + 添加子块，或点击 ↓ 导入已有块)</div>
+
                     ) : (
                         children.map((child, idx) => (
                             <div key={child.id} className="cursor-default relative" onClick={(e) => e.stopPropagation()}>

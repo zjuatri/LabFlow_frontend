@@ -12,7 +12,8 @@ export function serializeMath(block: TypstBlock): string {
     const encoded = `${LF_MATH_MARKER}${base64EncodeUtf8(JSON.stringify(payload))}*/`;
 
     if (block.mathLines && block.mathLines.length > 0) {
-        const lines = block.mathLines.map(line => line.typst.trim()).filter(l => l);
+        // Sanitize each line to handle unknown variables like 'rad' -> "rad"
+        const lines = block.mathLines.map(line => sanitizeTypstMathSegment(line.typst.trim())).filter(l => l);
         if (lines.length === 0) {
             return '';
         }
