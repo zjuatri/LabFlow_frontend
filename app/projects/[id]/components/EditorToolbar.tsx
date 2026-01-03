@@ -19,7 +19,7 @@ interface EditorToolbarProps {
     onSave: () => void;
     onOpenCoverModal: () => void;
     projectType: 'report' | 'cover' | 'template';
-    showSettings: boolean;
+    showSettings: boolean; // Now used to highlight the button if matching modal is open
     onToggleSettings: () => void;
     onCloseSettings: () => void;
 
@@ -59,7 +59,7 @@ export function EditorToolbar({
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
             if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
-                onCloseSettings();
+                // onCloseSettings(); // No longer needed as modal handles its own outside click
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -130,6 +130,7 @@ export function EditorToolbar({
                 >
                     <Redo2 size={16} />
                 </button>
+
                 <button
                     onClick={onSave}
                     className="p-2 rounded bg-blue-600 hover:bg-blue-700 text-white"
@@ -138,99 +139,13 @@ export function EditorToolbar({
                     <Save size={16} />
                 </button>
 
-                <div className="relative" ref={settingsRef}>
-                    <button
-                        onClick={onToggleSettings}
-                        className="p-2 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                        title="设置"
-                    >
-                        <Settings size={16} />
-                    </button>
-                    {showSettings && (
-                        <div className="absolute right-0 mt-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded shadow-lg z-10 min-w-max">
-                            <div className="px-4 py-3 space-y-3 text-xs text-zinc-700 dark:text-zinc-300">
-                                <div className="mb-2">
-                                    <label className="block text-xs font-semibold mb-2">项目标题</label>
-                                    <input
-                                        type="text"
-                                        value={title}
-                                        onChange={(e) => onTitleChange(e.target.value)}
-                                        placeholder="项目标题"
-                                        className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-xs"
-                                    />
-                                </div>
-                                <div className="border-t border-zinc-300 dark:border-zinc-600 pt-3">
-                                    {projectType !== 'cover' && (
-                                        <>
-                                            <label className="flex items-center gap-2 select-none cursor-pointer mb-2">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={docSettings.tableCaptionNumbering}
-                                                    onChange={(e) => onSettingsChange({ ...docSettings, tableCaptionNumbering: e.target.checked })}
-                                                />
-                                                表格排序
-                                            </label>
-                                            <label className="flex items-center gap-2 select-none cursor-pointer mb-2">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={docSettings.imageCaptionNumbering}
-                                                    onChange={(e) => onSettingsChange({ ...docSettings, imageCaptionNumbering: e.target.checked })}
-                                                />
-                                                图片排序
-                                            </label>
-                                        </>
-                                    )}
-                                    <div className="flex items-center gap-2">
-                                        <label className="select-none cursor-pointer">图片标题位置</label>
-                                        <select
-                                            value={docSettings.imageCaptionPosition}
-                                            onChange={(e) =>
-                                                onSettingsChange({
-                                                    ...docSettings,
-                                                    imageCaptionPosition: e.target.value === 'above' ? 'above' : 'below',
-                                                })
-                                            }
-                                            className="text-xs px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-900"
-                                        >
-                                            <option value="above">上方</option>
-                                            <option value="below">下方</option>
-                                        </select>
-                                    </div>
-                                    <div className="flex items-center gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
-                                        <label className="flex items-center gap-2 cursor-pointer select-none text-xs">
-                                            <input
-                                                type="checkbox"
-                                                checked={docSettings.verticalSpaceVisible}
-                                                onChange={(e) =>
-                                                    onSettingsChange({
-                                                        ...docSettings,
-                                                        verticalSpaceVisible: e.target.checked,
-                                                    })
-                                                }
-                                                className="rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
-                                            />
-                                            显示空白行辅助块
-                                        </label>
-                                    </div>
-
-                                    {(projectType === 'report' || projectType === 'template') && hasCover && typeof onCoverFixedOnePageChange === 'function' && (
-                                        <div className="flex items-center gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
-                                            <label className="flex items-center gap-2 cursor-pointer select-none text-xs">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={!!coverFixedOnePage}
-                                                    onChange={(e) => onCoverFixedOnePageChange(e.target.checked)}
-                                                    className="rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
-                                                />
-                                                封面固定占据一页
-                                            </label>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
+                <button
+                    onClick={onToggleSettings}
+                    className={`p-2 rounded border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors ${showSettings ? 'bg-zinc-200 dark:bg-zinc-700' : 'bg-white dark:bg-zinc-900'}`}
+                    title="设置"
+                >
+                    <Settings size={16} />
+                </button>
             </div>
         </div>
     );

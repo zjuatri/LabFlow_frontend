@@ -1,7 +1,9 @@
-import { useEffect, useRef } from 'react';
-import { Download } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Download, ChevronDown, FileText, Image as ImageIcon, FileCode } from 'lucide-react';
 import { SvgPage } from '../SvgPage';
 import { PluginMenu } from './PluginMenu';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 
 interface PreviewPanelProps {
     error: string | null;
@@ -17,6 +19,7 @@ interface PreviewPanelProps {
     projectId: string;
     onToggleAiSidebar: () => void;
     isAiSidebarOpen: boolean;
+    title?: string;
 }
 
 export function PreviewPanel({
@@ -33,8 +36,11 @@ export function PreviewPanel({
     projectId,
     onToggleAiSidebar,
     isAiSidebarOpen,
+    title,
 }: PreviewPanelProps) {
     const hasRestoredRef = useRef(false);
+    const [showExportMenu, setShowExportMenu] = useState(false);
+    const exportMenuRef = useRef<HTMLDivElement>(null);
 
     // Reset restored flag when project changes
     useEffect(() => {
@@ -86,6 +92,73 @@ export function PreviewPanel({
         };
     }, [projectId, previewRef]);
 
+    // Close export menu on click outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+                setShowExportMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const handleExportSvg = async () => {
+        if (svgPages.length === 0) return;
+        const zip = new JSZip();
+        svgPages.forEach((svg, index) => {
+            zip.file(`page-${index + 1}.svg`, svg);
+        });
+        const content = await zip.generateAsync({ type: 'blob' });
+        saveAs(content, `${title || 'export'}-svg.zip`);
+        setShowExportMenu(false);
+    };
+
+    const handleExportPng = async () => {
+        if (svgPages.length === 0) return;
+        const zip = new JSZip();
+
+        await Promise.all(svgPages.map(async (svg, index) => {
+            return new Promise<void>((resolve) => {
+                const img = new Image();
+                const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+                const url = URL.createObjectURL(svgBlob);
+
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    // Use a slightly higher scale for better quality
+                    const scale = 2;
+                    canvas.width = img.width * scale;
+                    canvas.height = img.height * scale;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.scale(scale, scale);
+                        ctx.drawImage(img, 0, 0);
+                        canvas.toBlob((blob) => {
+                            if (blob) {
+                                zip.file(`page-${index + 1}.png`, blob);
+                            }
+                            URL.revokeObjectURL(url);
+                            resolve();
+                        }, 'image/png');
+                    } else {
+                        URL.revokeObjectURL(url);
+                        resolve();
+                    }
+                };
+                img.onerror = () => {
+                    URL.revokeObjectURL(url);
+                    resolve();
+                };
+                img.src = url;
+            });
+        }));
+
+        const content = await zip.generateAsync({ type: 'blob' });
+        saveAs(content, `${title || 'export'}-png.zip`);
+        setShowExportMenu(false);
+    };
+
     return (
         <div className="flex flex-col w-full h-full relative bg-zinc-50/50 dark:bg-zinc-900/50 backdrop-blur-sm">
             <div className="absolute inset-0 bg-grid-zinc-200/50 dark:bg-grid-zinc-800/50 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))] pointer-events-none" />
@@ -95,7 +168,7 @@ export function PreviewPanel({
                 <div className="flex items-center gap-2">
                     <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 uppercase tracking-wide opacity-80">预览</h2>
                     <span className="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600" />
-                    <span className="text-xs text-zinc-500 dark:text-zinc-400 font-mono">PDF</span>
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400 font-mono">Multiformat</span>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -106,14 +179,45 @@ export function PreviewPanel({
 
                     <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
 
-                    <button
-                        onClick={onDownloadPdf}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 transition-colors shadow-sm hover:shadow-md"
-                        title="下载 PDF"
-                    >
-                        <Download size={16} />
-                        <span>导出</span>
-                    </button>
+                    <div className="relative" ref={exportMenuRef}>
+                        <button
+                            onClick={() => setShowExportMenu(!showExportMenu)}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 transition-colors shadow-sm hover:shadow-md"
+                            title="导出选项"
+                        >
+                            <Download size={16} />
+                            <span>导出</span>
+                            <ChevronDown size={14} className={`transition-transform duration-200 ${showExportMenu ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {showExportMenu && (
+                            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-50">
+                                <div className="p-1">
+                                    <button
+                                        onClick={() => { onDownloadPdf(); setShowExportMenu(false); }}
+                                        className="flex items-center gap-3 w-full px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700/50 rounded-lg transition-colors"
+                                    >
+                                        <FileText size={16} className="text-red-500" />
+                                        <span>导出 PDF</span>
+                                    </button>
+                                    <button
+                                        onClick={handleExportSvg}
+                                        className="flex items-center gap-3 w-full px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700/50 rounded-lg transition-colors"
+                                    >
+                                        <FileCode size={16} className="text-orange-500" />
+                                        <span>导出 SVG (ZIP)</span>
+                                    </button>
+                                    <button
+                                        onClick={handleExportPng}
+                                        className="flex items-center gap-3 w-full px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700/50 rounded-lg transition-colors"
+                                    >
+                                        <ImageIcon size={16} className="text-blue-500" />
+                                        <span>导出 PNG (ZIP)</span>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
