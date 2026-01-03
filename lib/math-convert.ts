@@ -45,6 +45,18 @@ const LATEX_TO_TYPST_TOKENS: Record<string, string> = {
   '\\forall': 'forall',
   '\\exists': 'exists',
 
+  // arrows
+  '\\Rightarrow': '=>',
+  '\\rightarrow': '->',
+  '\\Leftarrow': 'arrow.l.double',
+  '\\leftarrow': '<-',
+  '\\Leftrightarrow': '<=>',
+  '\\leftrightarrow': '<->',
+  '\\longrightarrow': '-->',
+  '\\Longrightarrow': '==>',
+  '\\mapsto': '|->',
+  '\\to': '->',
+
   // dots
   '\\dots': 'dots',
   '\\ldots': 'dots',
@@ -93,6 +105,11 @@ const LATEX_TO_TYPST_TOKENS: Record<string, string> = {
 const TYPST_TO_LATEX_TOKENS: Record<string, string> = Object.fromEntries(
   Object.entries(LATEX_TO_TYPST_TOKENS).map(([k, v]) => [v, k])
 );
+
+
+function escapeRegExp(string: string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 function findMatchingBrace(input: string, openIndex: number): number {
   let depth = 0;
@@ -200,6 +217,10 @@ export function latexToTypstMath(latex: string): string {
   // Convert line breaks (\\) to single backslash for Typst
   // In Typst math, single \ is used for line breaks
   s = s.replace(/\\\\/g, ' \\ ');
+
+  // Convert literal forward slashes (/) to escaped slashes (\/)
+  // In Typst math, / is a fraction operator. To render a literal slash, we must escape it.
+  s = s.replace(/\//g, ' \\/ ');
 
   // Handle \mathbf{X} -> bold(X) in Typst
   s = s.replace(/\\mathbf\{([^}]+)\}/g, 'bold($1)');
@@ -317,7 +338,7 @@ export function latexToTypstMath(latex: string): string {
     // 2. Preserve content inside quotes (like "rad/s")
     // 3. Preserve compound symbols like 'plus.minus'
     // 4. Preserve \uE000...\uE001 protected text blocks
-    
+
     let result = '';
     let i = 0;
     while (i < text.length) {
@@ -330,7 +351,7 @@ export function latexToTypstMath(latex: string): string {
           continue;
         }
       }
-      
+
       // Skip quoted strings entirely
       if (text[i] === '"') {
         const endQuote = text.indexOf('"', i + 1);
@@ -340,7 +361,7 @@ export function latexToTypstMath(latex: string): string {
           continue;
         }
       }
-      
+
       // Check for letter sequences
       if (/[a-zA-Z]/.test(text[i])) {
         // Collect the full word (including dots for compound symbols like plus.minus)
@@ -350,11 +371,11 @@ export function latexToTypstMath(latex: string): string {
           word += text[j];
           j++;
         }
-        
+
         // Check if it's a known word or compound symbol
         const parts = word.split('.');
         const allPartsKnown = parts.every(p => knownWords.has(p) || p.length <= 1 || p === '');
-        
+
         if (allPartsKnown || knownWords.has(word)) {
           result += word;
         } else if (word.length === 1) {
@@ -366,7 +387,7 @@ export function latexToTypstMath(latex: string): string {
         i = j;
         continue;
       }
-      
+
       result += text[i];
       i++;
     }
@@ -456,10 +477,32 @@ export function typstToLatexMath(typst: string): string {
 
   // Token replacements (reverse)
   // Replace whole-word tokens where possible
-  for (const [typstTok, latexTok] of Object.entries(TYPST_TO_LATEX_TOKENS)) {
-    const re = new RegExp(`(?<![\\w])${typstTok}(?![\\w])`, 'g');
-    s = s.replace(re, latexTok);
+  // Fix: Sort by length desc to match longer symbols (e.g. `-->`) before shorter (`->`)
+  const typstEntries = Object.entries(TYPST_TO_LATEX_TOKENS).sort((a, b) => b[0].length - a[0].length);
+
+  for (const [typstTok, latexTok] of typstEntries) {
+    const isWord = /^[a-zA-Z]+$/.test(typstTok);
+    const escapedTok = escapeRegExp(typstTok);
+
+    // If it's a word (like "sin"), we need word boundaries.
+    // If it's a symbol (like "|->"), we generally DON'T want word boundaries (e.g. `|->` can touch `M`).
+    const pattern = isWord
+      ? `(?<![\\w])${escapedTok}(?![\\w])`
+      : escapedTok;
+
+    const re = new RegExp(pattern, 'g');
+
+    // If the replacement is a LaTeX command (starts with \ and is letters), add a space.
+    // This prevents `\mapsto` + `M` becoming `\mapstoM`.
+    // But don't add space if latexTok is just a symbol like `=` or `+` (though those usually aren't in this map).
+    const isLatexCommand = /^(\\[a-zA-Z]+)$/.test(latexTok);
+    const replacement = isLatexCommand ? `${latexTok} ` : latexTok;
+
+    s = s.replace(re, replacement);
   }
+
+
+  s = s.replace(/\\\//g, '/');
 
   s = s.replace(/\s+/g, ' ').trim();
   return s;
