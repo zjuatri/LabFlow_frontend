@@ -13,13 +13,13 @@ import { useEditorStore } from '@/lib/stores/useEditorStore';
 import { useShallow } from 'zustand/react/shallow';
 
 // Import extracted components
-import { CoverModal } from './components/CoverModal';
-import { EditorToolbar } from './components/EditorToolbar';
-import { PreviewPanel } from './components/PreviewPanel';
-import { AiAssistantPlugin } from '@/components/plugins/AiAssistantPlugin';
-import { ProjectSettingsModal } from './components/ProjectSettingsModal';
-import { VisualEditorPane } from './components/VisualEditorPane';
-import { SourceEditorPane } from './components/SourceEditorPane';
+import { CoverModal } from './_components/CoverModal';
+import { EditorToolbar } from './_components/EditorToolbar';
+import { PreviewPanel } from './_components/PreviewPanel';
+import { AiAssistantPlugin } from '@/components/editor/plugins/AiAssistantPlugin';
+import { ProjectSettingsModal } from './_components/ProjectSettingsModal';
+import { VisualEditorPane } from './_components/VisualEditorPane';
+import { SourceEditorPane } from './_components/SourceEditorPane';
 
 // In production/Docker we typically proxy /api/* through the same origin.
 // For local dev, set NEXT_PUBLIC_BACKEND_URL=http://localhost:8000.

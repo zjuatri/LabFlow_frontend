@@ -1,7 +1,7 @@
 // 共享类型和工具函数
 import { TypstBlock } from '@/lib/typst';
-import { parseTablePayload, normalizeTablePayload } from '@/components/BlockEditor-utils/table-utils';
-import { typstInlineToPlainText } from '@/components/BlockEditor-utils/utils';
+import { parseTablePayload, normalizeTablePayload } from '@/components/editor/BlockEditor-utils/table-utils';
+import { typstInlineToPlainText } from '@/components/editor/BlockEditor-utils/utils';
 
 export type ChartType = 'scatter' | 'bar' | 'pie' | 'hbar';
 export type TableAxisMode = 'cols' | 'rows';

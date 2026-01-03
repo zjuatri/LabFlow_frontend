@@ -2,8 +2,8 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import SiteHeader from '@/components/SiteHeader';
-import { useAuth } from '@/components/AuthProvider';
+import SiteHeader from '@/components/common/SiteHeader';
+import { useAuth } from '@/components/auth/AuthProvider';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 
 // Sub-components

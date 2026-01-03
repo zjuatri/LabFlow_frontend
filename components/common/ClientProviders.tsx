@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { AiTestStoreProvider } from './AiTestStore';
-import { AuthProvider } from './AuthProvider';
+import { AiTestStoreProvider } from '@/app/ai-test/_components/AiTestStore';
+import { AuthProvider } from '@/components/auth/AuthProvider';
 
 export default function ClientProviders({ children }: { children: React.ReactNode }) {
   return (

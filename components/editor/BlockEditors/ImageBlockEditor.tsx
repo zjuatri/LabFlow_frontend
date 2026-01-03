@@ -3,7 +3,7 @@
 import { TypstBlock } from '@/lib/typst';
 import Image from 'next/image';
 import { useState } from 'react';
-import ImageCropModal from '../ImageCropModal';
+import ImageCropModal from '@/components/common/ImageCropModal';
 import { ImageOff } from 'lucide-react';
 
 interface ImageBlockEditorProps {

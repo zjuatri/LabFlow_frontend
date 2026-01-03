@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import SiteHeader from '@/components/SiteHeader';
+import SiteHeader from '@/components/common/SiteHeader';
 import {
   Sparkles,
   ArrowRight,
@@ -12,10 +12,10 @@ import {
   BrainCircuit
 } from 'lucide-react';
 
-import FileUploadWithDescription from '@/components/FileUploadWithDescription';
-import PdfUploadSingle from '@/components/PdfUploadSingle';
+import FileUploadWithDescription from '@/components/common/FileUploadWithDescription';
+import PdfUploadSingle from '@/components/common/PdfUploadSingle';
 import { getToken } from '@/lib/auth';
-import { useAiTestStore, type AiTestUploadedFile } from '@/components/AiTestStore';
+import { useAiTestStore, type AiTestUploadedFile } from '@/app/ai-test/_components/AiTestStore';
 
 export default function CreateProjectPage() {
   const router = useRouter();

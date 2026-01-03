@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { InlineMathState } from '../../components/BlockEditor-utils/types';
+import { InlineMathState } from '@/components/editor/BlockEditor-utils/types';
 
 interface TableState {
     // blockId of the table currently being edited

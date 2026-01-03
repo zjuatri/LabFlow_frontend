@@ -1,5 +1,5 @@
 import { useRef, useCallback } from 'react';
-import BlockEditor from '@/components/BlockEditor';
+import BlockEditor from '@/components/editor/BlockEditor';
 import { useEditorStore } from '@/lib/stores/useEditorStore';
 import { useShallow } from 'zustand/react/shallow';
 

@@ -8,7 +8,7 @@ import {
     Library,
     LogOut
 } from 'lucide-react';
-import { useAuth } from './AuthProvider';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 export default function SiteHeader() {
     const router = useRouter();

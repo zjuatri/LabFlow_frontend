@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import SiteHeader from '@/components/SiteHeader';
+import SiteHeader from '@/components/common/SiteHeader';
 import {
   BrainCircuit,
   FileText,
@@ -13,7 +13,7 @@ import {
   Sparkles
 } from 'lucide-react';
 
-import { useAuth } from '@/components/AuthProvider';
+import { useAuth } from '@/components/auth/AuthProvider';
 import { getManagePrompts, updateManagePrompts } from '@/lib/api';
 
 function PromptEditor(props: {
