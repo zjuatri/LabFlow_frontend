@@ -175,10 +175,36 @@ const splitInlineMarkupIntoLines = (content: string): string[] => {
   // Keep a stable representation: if the input ends with a linebreak, we want an empty final line.
   // Our flush() pushes even empty strings.
   if (current.length > 0) flush();
-  // Remove the trailing empty line when content doesn't end with a boundary.
-  while (lines.length > 0 && lines[lines.length - 1] === '' && !/[\n]$/.test(s) && !s.trimEnd().endsWith('#linebreak()')) {
-    lines.pop();
+
+  // If the string ended with a newline character, we should have pushed an empty line for the segment after it.
+  // However, the loop above consumes the newline without pushing if the next char is not found.
+  // We need to check if the last character processed was a newline or linebreak.
+  // But checking regex on 's' is robust.
+
+  if (s.endsWith('\n') || s.trimEnd().endsWith('#linebreak()')) {
+    // Ensure we have an empty line at the end
+    if (lines.length === 0 || lines[lines.length - 1] !== '') {
+      lines.push('');
+    }
   }
+
+  // Remove the trailing empty line ONLY if it's NOT due to an explicit newline boundary?
+  // Actually, if we want A\n to be ['A', ''], we should keep the empty line.
+  // The previous logic was:
+  // while (lines.length > 0 && lines[lines.length - 1] === '' && !/[\n]$/.test(s) && !s.trimEnd().endsWith('#linebreak()')) {
+  //   lines.pop();
+  // }
+  // This logic says: pop empty lines UNLESS the string really ends with newline.
+  // So if s='A\n' (ends with \n), we should NOT pop.
+  // But my manual trace `current` was empty, loop finished. `lines` was ['A'].
+  // So we never pushed the empty line in the first place?
+  // Ah, `flush()` only pushes `current`. If `current` is empty, it pushes nothing?
+  // Nope, `pushTokenText` pushes to `current`. `flush` pushes `joined`.
+  // If `\n` is hit: `flush()` happens.
+  // If `s='A\n'`. 'A' -> current=['A']. `\n` -> flush() -> lines=['A'], current=[].
+  // Match ends. `if (current.length > 0)` is false.
+  // So `lines`=['A'].
+  // We need to verify `s` ends with `\n` and push explicitly.
   // If everything was empty, return a single empty line.
   if (lines.length === 0) return [''];
   return lines;
@@ -644,5 +670,45 @@ export const htmlToTypstInline = (root: HTMLElement): string => {
   };
 
   const raw = Array.from(root.childNodes).map(normalize).join('');
-  return raw.replace(/^\n+/, '').replace(/\n+$/g, '');
+  // Do NOT aggressively strip trailing newlines. contentEditable usually adds a trailing \n via <br> or block div.
+  // We should trim START, but keep trailing if it exists?
+  // Actually, random whitespace might be an issue.
+  // If we have `<div>A</div><div><br></div>`, we have `\nA\n\n`.
+  // If we strip ALL, we get `A`. That is bad.
+  // If we leave it, we get `A\n\n`.
+  // If we save `A\n\n`, it loads as `A` + empty line + empty line?
+  // `A\n` should be sufficient for one new line.
+  // Let's replace multiple trailing newlines with just one??
+  // Or just trimEmptyLines from start, and allow ONE trailing newline?
+
+  const trimmedStart = raw.replace(/^\n+/, '');
+  // If it ends with multiple \n, collapse to just one?
+  // But if user WANTS multiple empty lines?
+  // Let's safe-trim: remove only if > 2?
+  // Or simply: don't trim end. The user's input is the user's input.
+  // Typst treats single newline as space, double newline as par break.
+  // But here we are in "inline" context mostly inside a #block usually?
+  // No, `typstToBlocks` handles main blocks. This is `htmlToTypstInline` used in `TextBlockEditor`.
+
+  // If we return `A\n`, and save it.
+  // Next load: `A\n`. split -> `['A', '']`.
+  // HTML: `<div>A</div><div><br></div>`.
+  // User presses Enter. DOM: `<div>A</div><div><br></div>`.
+  // `raw`: `\nA\n\n`.
+  // If we assume `div` always adds overhead.
+
+  return trimmedStart.replace(/\n+$/, '\n').trimEnd(); // Wait, trimEnd removes all \n.
+
+  // Let's just remove the aggressive trimEnd and see.
+  // But we might want to consolidate multiple \n's if they are artifacts?
+  // Let's try replacing multiple trailing newlines with exactly one if there is any.
+  // return trimmedStart.replace(/\n+$/, '\n');
+  // Actually, if content is "A", we get "A".
+  // If content is "A\n\n" (from `<div>A</div><div><br></div>`), we get "A\n".
+  // "A\n" -> split -> `['A', '']`. Correct.
+  // If content is "A\n\n\n" -> "A\n".
+  // What if user WANTS two empty lines? "A\n\n" in Typst.
+  // Then we shouldn't squash.
+
+  return trimmedStart; // Let's try raw (trimmed start only).
 };

@@ -161,10 +161,28 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
       return;
     }
 
+    // For plain text (non-list), insert <br> for line break.
+    // ContentEditable quirk: a single <br> at the end of a line is often "collapsed" by the browser,
+    // so we need to check if we're at the end and add an extra <br> or a zero-width space after it.
     const br = document.createElement('br');
     range.deleteContents();
     range.insertNode(br);
-    range.setStartAfter(br);
+    
+    // Check if cursor is at the end of the contenteditable or the br is the last visible element
+    const nextSibling = br.nextSibling;
+    const isAtEnd = !nextSibling || 
+      (nextSibling.nodeType === Node.TEXT_NODE && (nextSibling.textContent ?? '').replace(/\u200B/g, '') === '') ||
+      (nextSibling.nodeName === 'BR');
+    
+    if (isAtEnd) {
+      // Insert a second <br> to make the line break visible
+      const br2 = document.createElement('br');
+      br.after(br2);
+      range.setStartAfter(br);
+    } else {
+      range.setStartAfter(br);
+    }
+    
     range.collapse(true);
     sel.removeAllRanges();
     sel.addRange(range);
