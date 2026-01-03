@@ -179,7 +179,7 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
       onClick={onClick}
     >
       {/* 工具栏 */}
-      <div className="flex items-center gap-2 mb-2">
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
         <select
           value={block.type === 'list' ? 'paragraph' : block.type}
           onChange={(e) => {

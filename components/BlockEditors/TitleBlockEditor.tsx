@@ -212,7 +212,7 @@ export default function TitleBlockEditor({ block, onUpdate }: TitleBlockEditorPr
   return (
     <div className="flex flex-col gap-3">
       {/* 标题级别选择器 */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <label className="text-xs text-zinc-600 dark:text-zinc-400">级别</label>
         <select
           value={block.level || 1}
@@ -283,7 +283,7 @@ export default function TitleBlockEditor({ block, onUpdate }: TitleBlockEditorPr
       </div>
 
       {/* 格式工具栏 - 移到文本框上方 */}
-      <div className="flex gap-1 pb-2 border-b border-zinc-200 dark:border-zinc-700">
+      <div className="flex gap-1 pb-2 border-b border-zinc-200 dark:border-zinc-700 flex-wrap">
         <button
           type="button"
           onMouseDown={(e) => {
@@ -418,8 +418,8 @@ export default function TitleBlockEditor({ block, onUpdate }: TitleBlockEditorPr
                   updateInlineMathPillAttrs({ ...activeInlineMath, format: 'latex' });
                 }}
                 className={`px-2 py-1 text-xs transition-colors ${activeInlineMath.format === 'latex'
-                    ? 'bg-blue-500 text-white'
-                    : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  ? 'bg-blue-500 text-white'
+                  : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                   }`}
               >
                 LaTeX
@@ -431,8 +431,8 @@ export default function TitleBlockEditor({ block, onUpdate }: TitleBlockEditorPr
                   updateInlineMathPillAttrs({ ...activeInlineMath, format: 'typst' });
                 }}
                 className={`px-2 py-1 text-xs transition-colors ${activeInlineMath.format === 'typst'
-                    ? 'bg-blue-500 text-white'
-                    : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  ? 'bg-blue-500 text-white'
+                  : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                   }`}
               >
                 Typst

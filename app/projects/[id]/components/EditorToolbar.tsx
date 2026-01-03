@@ -22,7 +22,7 @@ interface EditorToolbarProps {
     showSettings: boolean;
     onToggleSettings: () => void;
     onCloseSettings: () => void;
-    onToggleAiSidebar: () => void;
+
 
     // Cover-specific settings (only relevant when editing a report that contains a cover block)
     hasCover?: boolean;
@@ -47,7 +47,7 @@ export function EditorToolbar({
     showSettings,
     onToggleSettings,
     onCloseSettings,
-    onToggleAiSidebar,
+
     hasCover,
     coverFixedOnePage,
     onCoverFixedOnePageChange,
@@ -137,27 +137,7 @@ export function EditorToolbar({
                 >
                     <Save size={16} />
                 </button>
-                <button
-                    onClick={onToggleAiSidebar}
-                    className="p-2 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2 group"
-                    title="AI 助手"
-                >
-                    <div className="w-4 h-4 flex items-center justify-center">
-                        <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="w-4 h-4 text-blue-500 group-hover:animate-pulse"
-                        >
-                            <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
-                            <path d="M17 4a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2" />
-                            <path d="M19 11h2m-1 -1v2" />
-                        </svg>
-                    </div>
-                </button>
+
                 <div className="relative" ref={settingsRef}>
                     <button
                         onClick={onToggleSettings}

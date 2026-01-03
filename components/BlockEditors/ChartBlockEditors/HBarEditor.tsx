@@ -301,11 +301,10 @@ export default function HBarEditor({
 					<button
 						type="button"
 						onClick={() => setChartSelectionMode((v) => !v)}
-						className={`px-2 py-1 text-xs rounded flex items-center gap-1 border border-zinc-300 dark:border-zinc-600 transition-colors ${
-							chartSelectionMode
+						className={`px-2 py-1 text-xs rounded flex items-center gap-1 border border-zinc-300 dark:border-zinc-600 transition-colors ${chartSelectionMode
 								? 'bg-blue-500 hover:bg-blue-600 text-white'
 								: 'bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300'
-						}`}
+							}`}
 						title={chartSelectionMode ? '已开启：点击两次即可框选' : '开启：无需按 Shift 框选区域'}
 					>
 						<MousePointer2 size={14} />
@@ -335,9 +334,8 @@ export default function HBarEditor({
 												<td
 													key={c}
 													onMouseDown={(e) => pickCell(e, r, c)}
-													className={`border border-zinc-200 dark:border-zinc-700 px-2 py-1 select-none cursor-pointer ${
-														active ? 'bg-blue-100 dark:bg-blue-900/25' : 'bg-white dark:bg-zinc-950'
-													}`}
+													className={`border border-zinc-200 dark:border-zinc-700 px-2 py-1 select-none cursor-pointer ${active ? 'bg-blue-100 dark:bg-blue-900/25' : 'bg-white dark:bg-zinc-950'
+														}`}
 													title={`R${r + 1}C${c + 1}`}
 												>
 													{getCellPlain(tablePayload, r, c)}
@@ -479,11 +477,10 @@ export default function HBarEditor({
 					<button
 						type="button"
 						onClick={() => setChartSelectionMode((v) => !v)}
-						className={`px-2 py-1 text-xs rounded flex items-center gap-1 border border-zinc-300 dark:border-zinc-600 transition-colors ${
-							chartSelectionMode
+						className={`px-2 py-1 text-xs rounded flex items-center gap-1 border border-zinc-300 dark:border-zinc-600 transition-colors ${chartSelectionMode
 								? 'bg-blue-500 hover:bg-blue-600 text-white'
 								: 'bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300'
-						}`}
+							}`}
 						title={chartSelectionMode ? '已开启：点击两次即可框选' : '开启：无需按 Shift 框选区域'}
 					>
 						<MousePointer2 size={14} />
@@ -513,9 +510,8 @@ export default function HBarEditor({
 												<td
 													key={c}
 													onMouseDown={(e) => pickCell(e, r, c)}
-													className={`border border-zinc-200 dark:border-zinc-700 px-2 py-1 select-none cursor-pointer ${
-														active ? 'bg-blue-100 dark:bg-blue-900/25' : 'bg-white dark:bg-zinc-950'
-													}`}
+													className={`border border-zinc-200 dark:border-zinc-700 px-2 py-1 select-none cursor-pointer ${active ? 'bg-blue-100 dark:bg-blue-900/25' : 'bg-white dark:bg-zinc-950'
+														}`}
 													title={`R${r + 1}C${c + 1}`}
 												>
 													{getCellPlain(tablePayload, r, c)}
@@ -584,7 +580,7 @@ export default function HBarEditor({
 
 			{safeSeries.map((s, idx) => (
 				<div key={idx} className="border border-zinc-200 dark:border-zinc-700 rounded p-2 flex flex-col gap-2">
-					<div className="flex items-center gap-2">
+					<div className="flex items-center gap-2 flex-wrap">
 						<span className="text-xs text-zinc-600 dark:text-zinc-400">系列 {idx + 1}</span>
 						<input
 							type="text"

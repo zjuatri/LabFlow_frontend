@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Download } from 'lucide-react';
 import { SvgPage } from '../SvgPage';
+import { PluginMenu } from './PluginMenu';
 
 interface PreviewPanelProps {
     error: string | null;
@@ -14,6 +15,8 @@ interface PreviewPanelProps {
     onDownloadPdf: () => void;
     previewRef: React.RefObject<HTMLDivElement | null>;
     projectId: string;
+    onToggleAiSidebar: () => void;
+    isAiSidebarOpen: boolean;
 }
 
 export function PreviewPanel({
@@ -28,6 +31,8 @@ export function PreviewPanel({
     onDownloadPdf,
     previewRef,
     projectId,
+    onToggleAiSidebar,
+    isAiSidebarOpen,
 }: PreviewPanelProps) {
     const hasRestoredRef = useRef(false);
 
@@ -50,9 +55,6 @@ export function PreviewPanel({
                     previewRef.current.scrollTop = top;
                     hasRestoredRef.current = true;
                 } else {
-                    // Content shorter than saved scroll? 
-                    // Just set to max? Or wait? 
-                    // Let's set it anyway
                     previewRef.current.scrollTop = top;
                     hasRestoredRef.current = true;
                 }
@@ -85,25 +87,48 @@ export function PreviewPanel({
     }, [projectId, previewRef]);
 
     return (
-        <div className="flex flex-col w-1/2">
-            <div className="px-4 py-3 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 flex items-center justify-between gap-3">
-                <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">预览</h2>
-                <button
-                    onClick={onDownloadPdf}
-                    className="p-2 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                    title="下载 PDF"
-                >
-                    <Download size={16} />
-                </button>
+        <div className="flex flex-col w-1/2 relative bg-zinc-50/50 dark:bg-zinc-900/50 backdrop-blur-sm">
+            <div className="absolute inset-0 bg-grid-zinc-200/50 dark:bg-grid-zinc-800/50 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))] pointer-events-none" />
+
+            {/* Header */}
+            <div className="px-5 py-3 border-b border-zinc-200/60 dark:border-zinc-800/60 flex items-center justify-between gap-3 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl sticky top-0 z-20 supports-[backdrop-filter]:bg-white/60">
+                <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 uppercase tracking-wide opacity-80">预览</h2>
+                    <span className="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600" />
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400 font-mono">PDF</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <PluginMenu
+                        onToggleAiSidebar={onToggleAiSidebar}
+                        isAiSidebarOpen={isAiSidebarOpen}
+                    />
+
+                    <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
+
+                    <button
+                        onClick={onDownloadPdf}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 transition-colors shadow-sm hover:shadow-md"
+                        title="下载 PDF"
+                    >
+                        <Download size={16} />
+                        <span>导出</span>
+                    </button>
+                </div>
             </div>
-            <div className="flex-1 overflow-auto bg-zinc-200 dark:bg-zinc-900 p-4 relative" ref={previewRef as any}>
+
+            {/* Content Area */}
+            <div className="flex-1 overflow-auto p-6 relative z-10" ref={previewRef as any}>
                 {error ? (
-                    <div className="p-4 bg-red-100 dark:bg-red-900/20 border border-red-400 dark:border-red-700 rounded">
-                        <p className="text-sm font-semibold text-red-800 dark:text-red-300">Error:</p>
-                        <pre className="mt-2 text-xs text-red-700 dark:text-red-400 whitespace-pre-wrap">{error}</pre>
+                    <div className="p-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-xl max-w-2xl mx-auto mt-10">
+                        <p className="text-sm font-semibold text-red-600 dark:text-red-400 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                            渲染错误
+                        </p>
+                        <pre className="mt-3 text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap font-mono bg-red-100/50 dark:bg-red-950/30 p-3 rounded-lg border border-red-200/50 dark:border-red-800/30">{error}</pre>
                     </div>
                 ) : svgPages.length > 0 ? (
-                    <div className="flex flex-col items-center gap-6">
+                    <div className="flex flex-col items-center gap-8 pb-20">
                         {svgPages.map((svgContent, index) => (
                             <SvgPage
                                 key={index}
@@ -118,8 +143,18 @@ export function PreviewPanel({
                         ))}
                     </div>
                 ) : (
-                    <div className="flex items-center justify-center h-full text-zinc-500 dark:text-zinc-400">
-                        {isRendering ? '正在渲染...' : '预览内容将在此显示'}
+                    <div className="flex flex-col items-center justify-center h-full text-zinc-400 dark:text-zinc-600 gap-4">
+                        {isRendering ? (
+                            <>
+                                <div className="w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin text-blue-500" />
+                                <p className="text-sm font-medium animate-pulse">正在生成预览...</p>
+                            </>
+                        ) : (
+                            <div className="text-center">
+                                <p className="text-sm">暂无预览内容</p>
+                                <p className="text-xs mt-1 opacity-70">请在左侧编辑器输入内容</p>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

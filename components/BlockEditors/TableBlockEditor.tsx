@@ -285,7 +285,7 @@ export default function TableBlockEditor({ block, onUpdate, onTableSelectionSnap
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-zinc-600 dark:text-zinc-400">表格标题</span>
         <input
           type="text"
@@ -474,7 +474,7 @@ export default function TableBlockEditor({ block, onUpdate, onTableSelectionSnap
 
       {isActive && myActiveCell && active && !active.hidden && (
         <div className="mt-2">
-          <div className="flex gap-1 mb-2 pb-2 border-b border-zinc-200 dark:border-zinc-700">
+          <div className="flex gap-1 mb-2 pb-2 border-b border-zinc-200 dark:border-zinc-700 flex-wrap">
             <button
               onMouseDown={(e) => { e.preventDefault(); applyFormatToTableCell('bold'); }}
               className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"

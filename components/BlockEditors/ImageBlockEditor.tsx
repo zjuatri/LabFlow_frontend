@@ -141,7 +141,7 @@ export default function ImageBlockEditor({ block, onUpdate, onUploadImage, width
       )}
 
       {/* 图片说明 */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <input
           type="text"
           value={block.caption ?? ''}
@@ -166,7 +166,7 @@ export default function ImageBlockEditor({ block, onUpdate, onUploadImage, width
 
       {/* 对齐方式 */}
       {block.content && (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <label className="text-xs text-zinc-600 dark:text-zinc-400">对齐：</label>
           <div className="flex gap-1">
             <button

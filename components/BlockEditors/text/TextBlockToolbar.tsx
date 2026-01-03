@@ -24,7 +24,7 @@ export default function TextBlockToolbar({
     colorPickerRef
 }: TextBlockToolbarProps) {
     return (
-        <div className="flex gap-1 pb-2 border-b border-zinc-200 dark:border-zinc-700">
+        <div className="flex gap-1 pb-2 border-b border-zinc-200 dark:border-zinc-700 flex-wrap">
             <button
                 type="button"
                 onMouseDown={(e) => {

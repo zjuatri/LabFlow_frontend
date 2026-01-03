@@ -12,7 +12,7 @@ interface MathBlockEditorProps {
 export default function MathBlockEditor({ block, onUpdate }: MathBlockEditorProps) {
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-zinc-600 dark:text-zinc-400">公式格式</span>
         <div className="flex bg-white dark:bg-zinc-900 rounded border border-zinc-300 dark:border-zinc-600 overflow-hidden">
           <button
@@ -26,11 +26,10 @@ export default function MathBlockEditor({ block, onUpdate }: MathBlockEditorProp
                 content: currentTypst,
               });
             }}
-            className={`px-2 py-1 text-xs transition-colors ${
-              (block.mathFormat ?? 'latex') === 'latex'
+            className={`px-2 py-1 text-xs transition-colors ${(block.mathFormat ?? 'latex') === 'latex'
                 ? 'bg-blue-500 text-white'
                 : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-            }`}
+              }`}
           >
             LaTeX
           </button>
@@ -46,11 +45,10 @@ export default function MathBlockEditor({ block, onUpdate }: MathBlockEditorProp
                 content: currentTypst,
               });
             }}
-            className={`px-2 py-1 text-xs transition-colors ${
-              (block.mathFormat ?? 'latex') === 'typst'
+            className={`px-2 py-1 text-xs transition-colors ${(block.mathFormat ?? 'latex') === 'typst'
                 ? 'bg-blue-500 text-white'
                 : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-            }`}
+              }`}
           >
             Typst
           </button>
@@ -73,7 +71,7 @@ export default function MathBlockEditor({ block, onUpdate }: MathBlockEditorProp
               // Convert to multi-line - detect and split multiple $$...$$ blocks
               let currentLatex = (block.mathLatex ?? '').trim();
               let currentTypst = (block.mathTypst ?? block.content ?? '').trim();
-              
+
               // Helper to strip outer $ or $$ delimiters
               const stripDollarSigns = (s: string): string => {
                 s = s.trim();
@@ -89,7 +87,7 @@ export default function MathBlockEditor({ block, onUpdate }: MathBlockEditorProp
               // Try to split LaTeX by multiple $$...$$ blocks
               const latexBlockRegex = /\$\$([\s\S]*?)\$\$/g;
               const latexMatches = [...currentLatex.matchAll(latexBlockRegex)];
-              
+
               if (latexMatches.length > 1) {
                 // Multiple $$...$$ blocks found - split into lines
                 const lines = latexMatches.map(m => {
@@ -108,7 +106,7 @@ export default function MathBlockEditor({ block, onUpdate }: MathBlockEditorProp
                 // Also try splitting by \\ (LaTeX line break)
                 const latexParts = currentLatex.split(/\s*\\\\\s*/).filter(p => p.trim());
                 const typstParts = currentTypst.split(/\s*\\\s*/).filter(p => p.trim());
-                
+
                 if (latexParts.length > 1 || typstParts.length > 1) {
                   // Has line breaks - split into multiple lines
                   const lines = latexParts.map((latex, i) => ({
@@ -137,11 +135,10 @@ export default function MathBlockEditor({ block, onUpdate }: MathBlockEditorProp
           <button
             type="button"
             onClick={() => onUpdate({ mathBrace: !block.mathBrace })}
-            className={`px-2 py-1 text-xs rounded transition-colors ${
-              block.mathBrace
+            className={`px-2 py-1 text-xs rounded transition-colors ${block.mathBrace
                 ? 'bg-blue-500 text-white'
                 : 'bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300'
-            }`}
+              }`}
             title="左侧大括号"
           >
             {block.mathBrace ? '{ }' : '[ ]'}

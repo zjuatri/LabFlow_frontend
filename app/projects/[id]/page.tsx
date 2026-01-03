@@ -399,7 +399,7 @@ export default function ProjectEditorPage() {
     if (!editorScrollRef.current) return;
 
     // Suppress editor-to-preview sync to prevent the preview from scrolling back
-    suppressEditorSync(600);
+    suppressEditorSync(2000);
 
     let globalIndex = 0;
     for (let i = 0; i < pageIndex; i++) {
@@ -551,8 +551,8 @@ export default function ProjectEditorPage() {
   }, [svgPages, blocks, suppressEditorSync]);
 
   return (
-    <div className="flex h-screen w-full bg-zinc-50 dark:bg-zinc-900">
-      <div className="flex flex-col w-1/2 border-r border-zinc-300 dark:border-zinc-700">
+    <div className="flex h-screen w-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
+      <div className="flex flex-col w-1/2 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
 
         {(() => {
           const coverIndex = blocks.findIndex((b) => b.type === 'cover');
@@ -560,7 +560,6 @@ export default function ProjectEditorPage() {
           const coverFixedOnePage = hasCover ? !!blocks[coverIndex]?.coverFixedOnePage : false;
 
           return (
-
             <EditorToolbar
               mode={mode}
               onModeSwitch={switchMode}
@@ -578,7 +577,6 @@ export default function ProjectEditorPage() {
               showSettings={showSettings}
               onToggleSettings={() => setShowSettings(!showSettings)}
               onCloseSettings={() => setShowSettings(false)}
-              onToggleAiSidebar={() => setShowAiSidebar(!showAiSidebar)}
               hasCover={hasCover}
               coverFixedOnePage={coverFixedOnePage}
               onCoverFixedOnePageChange={(fixed) => {
@@ -597,24 +595,24 @@ export default function ProjectEditorPage() {
             onChange={(e) => {
               setCode(e.target.value);
             }}
-            className="flex-1 w-full p-4 font-mono text-sm text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-950 resize-none focus:outline-none"
+            className="flex-1 w-full p-6 font-mono text-sm text-zinc-900 dark:text-zinc-100 bg-transparent resize-none focus:outline-none leading-relaxed"
             placeholder="Type your Typst code here..."
             spellCheck={false}
           />
         ) : (
-          <div className="flex-1 overflow-y-auto bg-white dark:bg-zinc-950" ref={editorScrollRef}>
+          <div className="flex-1 overflow-y-auto bg-amber-50/10 dark:bg-zinc-950/50" ref={editorScrollRef}>
             {(() => {
               const blanks = findAnswerBlankIndexes();
               if (blanks.length === 0) return null;
               return (
-                <div className="sticky top-0 z-10 px-4 py-2 bg-amber-50/95 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 flex items-center justify-between gap-3">
+                <div className="sticky top-0 z-10 px-4 py-2 bg-amber-50/95 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 flex items-center justify-between gap-3 backdrop-blur-sm">
                   <div className="text-xs text-amber-800 dark:text-amber-200">
                     发现 {blanks.length} 处“待填写答案”。虚线框段落为答案区。
                   </div>
                   <button
                     type="button"
                     onClick={jumpToNextBlank}
-                    className="text-xs px-2 py-1 rounded border border-amber-300 dark:border-amber-700 bg-white/80 dark:bg-zinc-950/40 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                    className="text-xs px-2 py-1 rounded border border-amber-300 dark:border-amber-700 bg-white/80 dark:bg-zinc-950/40 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
                   >
                     跳到下一处
                   </button>
@@ -631,8 +629,6 @@ export default function ProjectEditorPage() {
         )}
       </div>
 
-
-
       <PreviewPanel
         error={error}
         svgPages={svgPages}
@@ -645,10 +641,12 @@ export default function ProjectEditorPage() {
         onDownloadPdf={() => void downloadPdf()}
         previewRef={previewRef}
         projectId={projectId}
+        onToggleAiSidebar={() => setShowAiSidebar(!showAiSidebar)}
+        isAiSidebarOpen={showAiSidebar}
       />
 
       {showAiSidebar && (
-        <div className="w-[380px] h-full border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0 z-10 transition-all duration-300">
+        <div className="w-[400px] h-full border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0 z-30 shadow-2xl animate-in slide-in-from-right duration-300">
           <AiAssistantPlugin
             projectId={projectId}
             existingBlocks={blocks}
