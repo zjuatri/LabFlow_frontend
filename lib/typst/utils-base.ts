@@ -87,8 +87,37 @@ export function unwrapBlockDecorators(input: string): {
 
     // Safety break to prevent infinite loops (though regex matching should be safe)
     let ops = 0;
-    while (ops++ < 10) {
+    while (ops++ < 20) {
         let changed = false;
+
+        // Strip empty #block[] or #block() at start or anywhere
+        if (current.startsWith('#block[]') || current.startsWith('#block()')) {
+            current = current.slice('#block[]'.length).trim();
+            changed = true;
+            continue;
+        }
+
+        // Strip trailing empty #text(font: "...")[]] patterns
+        // These appear as: #text(font: "SimSun")[]]] at the end
+        const trailingEmptyTextMatch = current.match(/#text\s*\([^)]*\)\s*\[\s*\](\]*)$/);
+        if (trailingEmptyTextMatch) {
+            const beforeIdx = current.lastIndexOf('#text');
+            current = current.slice(0, beforeIdx).trim() + trailingEmptyTextMatch[1];
+            changed = true;
+            continue;
+        }
+
+        // Strip trailing unmatched closing brackets (from malformed nesting)
+        // But be careful - only strip if we have an excess
+        if (current.endsWith(']]')) {
+            const openCount = (current.match(/\[/g) || []).length;
+            const closeCount = (current.match(/\]/g) || []).length;
+            if (closeCount > openCount) {
+                current = current.slice(0, -1).trim();
+                changed = true;
+                continue;
+            }
+        }
 
         // Match #align(pos)[content] or #align(pos, content)
         // We use a simplified regex that assumes balanced brackets for the most common generated cases.
@@ -123,6 +152,22 @@ export function unwrapBlockDecorators(input: string): {
             continue;
         }
 
+        // Case 3: #block[...] wrapper - unwrap it
+        const blockMatch = current.match(/^#block\s*\[([\s\S]*)\]$/);
+        if (blockMatch) {
+            current = blockMatch[1].trim();
+            changed = true;
+            continue;
+        }
+
+        // Case 4: #block(...)[...] with args - unwrap it
+        const blockArgsMatch = current.match(/^#block\s*\([^)]*\)\s*\[([\s\S]*)\]$/);
+        if (blockArgsMatch) {
+            current = blockArgsMatch[1].trim();
+            changed = true;
+            continue;
+        }
+
         if (!changed) break;
     }
 
@@ -131,6 +176,9 @@ export function unwrapBlockDecorators(input: string): {
     // Matches: #show strong: set text(...); at the start.
     const boldFixRegex = /^#show\s+strong\s*:\s*set\s+text\s*\([^)]+\)\s*;\s*/;
     current = current.replace(boldFixRegex, '');
+
+    // Final cleanup: remove any remaining empty lines at start/end
+    current = current.replace(/^\s*\n+/, '').replace(/\n+\s*$/, '').trim();
 
     return { content: current, align, fontSize, font };
 }

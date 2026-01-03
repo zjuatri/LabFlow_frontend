@@ -54,12 +54,20 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
 
     const migrated: TypstBlock[] = blocks.map((b): TypstBlock => {
       if (b.type !== 'list') return b;
-      // Deterministic fallback: treat legacy list items as an ordered list.
-      // This avoids accidentally downgrading numbered content into bullets.
+      // Strip any existing prefixes (numbers or bullets) from each line,
+      // then re-add consistent numbering.
       const items = (b.content ?? '')
         .split(/\r?\n/)
         .map((x) => x.trim())
-        .filter((x) => x.length > 0);
+        .filter((x) => x.length > 0)
+        .map((x) => {
+          // Strip leading number prefix like "1. " or "2) "
+          let stripped = x.replace(/^\s*\d+[.)]\s*/, '');
+          // Also strip bullet prefixes like "- " or "* "
+          stripped = stripped.replace(/^\s*[-*•]\s*/, '');
+          return stripped.trim() || x; // Fallback to original if stripping leaves empty
+        });
+
       const content = items.map((x, i) => `${i + 1}. ${x}`).join('\n');
       return { ...b, type: 'paragraph', content };
     });
@@ -178,7 +186,7 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
       {blocks.map((block, index) => (
         <div
           key={block.id}
-           data-block-index={index}
+          data-block-index={index}
           draggable={block.type !== 'cover'}
           onMouseDownCapture={(e) => {
             const target = e.target as HTMLElement | null;
@@ -252,7 +260,7 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
           />
         </div>
       ))}
-      
+
       {blocks.length === 0 && (
         <button
           onClick={() => addBlock()}

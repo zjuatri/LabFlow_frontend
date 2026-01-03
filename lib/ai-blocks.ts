@@ -186,6 +186,9 @@ function normalizeListToOrderedParagraph(rawList: unknown): string {
 /**
  * Check if content is purely a list (all non-empty lines start with list markers).
  * Returns 'ordered' | 'unordered' | false
+ * 
+ * For ordered lists: requires either multiple items, or single item starting with "1."
+ * This prevents single items like "8. xxx" from being converted to #enum which would renumber them.
  */
 function detectPureListContent(text: string): 'ordered' | 'unordered' | false {
   const normalized = text.replace(/\r\n/g, '\n').trim();
@@ -201,7 +204,17 @@ function detectPureListContent(text: string): 'ordered' | 'unordered' | false {
   // Check if ALL lines are ordered list items (1. 2. 3. etc)
   const orderedPattern = /^\d+[.)]\s+/;
   const allOrdered = lines.every((l) => orderedPattern.test(l));
-  if (allOrdered) return 'ordered';
+  if (allOrdered) {
+    // For single-line ordered content, only treat as list if it starts with "1."
+    // Otherwise "8. xxx" would become "1. xxx" when converted to #enum
+    if (lines.length === 1) {
+      const firstNum = lines[0].match(/^(\d+)[.)]/);
+      if (firstNum && parseInt(firstNum[1], 10) !== 1) {
+        return false; // Single item not starting with 1, keep as plain text
+      }
+    }
+    return 'ordered';
+  }
 
   // Check if ALL lines are unordered list items (- or * or •)
   const unorderedPattern = /^[-*•]\s+/;

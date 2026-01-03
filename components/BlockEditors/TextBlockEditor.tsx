@@ -49,11 +49,22 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
     if (isEditingParagraph) return;
     if (activeInlineMath) return;
     if (!paragraphEditorRef.current) return;
-    const html = typstInlineToHtml(block.content ?? '');
+
+    // Skip list auto-detection if:
+    // 1. Block type is explicitly 'list', OR
+    // 2. Content looks like a pure list (all lines start with numbers or bullets)
+    // This prevents double numbering when content already has "1. xxx" format
+    const content = block.content ?? '';
+    const lines = content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const allNumbered = lines.length > 0 && lines.every(l => /^\d+[.)]\s/.test(l));
+    const allBulleted = lines.length > 0 && lines.every(l => /^[-*•]\s/.test(l));
+    const isListContent = block.type === 'list' || allNumbered || allBulleted;
+
+    const html = typstInlineToHtml(content, { skipListDetection: isListContent });
     if (paragraphEditorRef.current.innerHTML !== html) {
       paragraphEditorRef.current.innerHTML = html;
     }
-  }, [block.content, isEditingParagraph, activeInlineMath]);
+  }, [block.content, block.type, isEditingParagraph, activeInlineMath]);
 
   const syncParagraphFromDom = () => {
     if (!paragraphEditorRef.current) return;

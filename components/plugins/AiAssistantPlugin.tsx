@@ -152,6 +152,10 @@ export function AiAssistantPlugin({ projectId, existingBlocks, onInsertBlocks, o
                 pdfContext: contextForPrompt,
             });
 
+            // Debug: log existing blocks being sent to AI
+            console.log('[AiAssistantPlugin] existingBlocks count:', existingBlocks?.length ?? 0);
+            console.log('[AiAssistantPlugin] existingBlocksJson:', existingBlocksJson);
+
             let finalMessage = '';
             if (template.includes('{{PDF_CONTEXT_JSON}}')) {
                 finalMessage = applyPromptTemplate(template, {

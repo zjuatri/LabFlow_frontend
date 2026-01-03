@@ -67,11 +67,12 @@ const stripLeadingPrefixFromTextRun = (run: string, kind: 'ordered' | 'bullet'):
   if (!parts) return run;
 
   if (kind === 'ordered') {
-    const inner = parts.inner.replace(/^\s*\d+[.)]\s+/, '');
+    // Use \s* to match prefixes with or without trailing space
+    const inner = parts.inner.replace(/^\s*\d+[.)]\s*/, '');
     return `${parts.prefix}${inner.trim()}]`;
   }
 
-  const inner = parts.inner.replace(/^\s*[-*]\s+/, '');
+  const inner = parts.inner.replace(/^\s*[-*]\s*/, '');
   return `${parts.prefix}${inner.trim()}]`;
 };
 
@@ -183,8 +184,16 @@ const splitInlineMarkupIntoLines = (content: string): string[] => {
   return lines;
 };
 
-export const typstInlineToHtml = (typst: string): string => {
+/**
+ * Convert Typst inline markup to HTML for display in contenteditable.
+ * @param typst - The Typst markup string
+ * @param opts - Optional settings
+ * @param opts.skipListDetection - If true, don't auto-detect and convert numbered/bulleted lines to HTML lists.
+ *                                  Use this for list-type blocks where content already has "1. xxx" format.
+ */
+export const typstInlineToHtml = (typst: string, opts?: { skipListDetection?: boolean }): string => {
   const s = typst ?? '';
+  const skipListDetection = opts?.skipListDetection ?? false;
 
   const parse = (input: string): string => {
     let out = '';
@@ -425,7 +434,8 @@ export const typstInlineToHtml = (typst: string): string => {
   type Seg = { kind: InlineLineKind; lines: string[] };
   const segs: Seg[] = [];
   for (const line of lines) {
-    const kind = detectInlineLineKind(line);
+    // When skipListDetection is true, treat all lines as text to avoid double numbering
+    const kind = skipListDetection ? 'text' : detectInlineLineKind(line);
     const last = segs[segs.length - 1];
     if (!last || last.kind !== kind) segs.push({ kind, lines: [line] });
     else last.lines.push(line);
@@ -441,8 +451,9 @@ export const typstInlineToHtml = (typst: string): string => {
     const trimmed = (line ?? '').trim();
     const parts = textRunPrefixAndInner(trimmed);
     if (parts) return stripLeadingPrefixFromTextRun(trimmed, kind);
-    if (kind === 'ordered') return trimmed.replace(/^\s*\d+[.)]\s+/, '');
-    return trimmed.replace(/^\s*[-*]\s+/, '');
+    // Use \s* (zero or more) instead of \s+ to match prefixes with or without trailing space
+    if (kind === 'ordered') return trimmed.replace(/^\s*\d+[.)]\s*/, '');
+    return trimmed.replace(/^\s*[-*]\s*/, '');
   };
 
   const renderList = (kind: 'ordered' | 'bullet', items: string[]): string => {
@@ -576,8 +587,18 @@ export const htmlToTypstInline = (root: HTMLElement): string => {
           const li = liEl as HTMLElement;
           const inner = Array.from(li.childNodes).map(normalize).join('');
           // Newlines inside an item should become inline linebreaks, not new list lines.
-          const item = inner.replace(/\n+/g, ' #linebreak() ').trim();
+          let item = inner.replace(/\n+/g, ' #linebreak() ').trim();
+
+          // Strip any existing number/bullet prefix from the item content
+          // This prevents duplicate numbering when content already has "1. xxx" format
+          if (isOrdered) {
+            item = item.replace(/^\s*\d+[.)]\s*/, '');
+          } else {
+            item = item.replace(/^\s*[-*•]\s*/, '');
+          }
+
           const prefix = isOrdered ? `${start + idx}. ` : '- ';
+
           return `${prefix}${item}`.trimEnd();
         });
       return '\n' + items.join('\n');

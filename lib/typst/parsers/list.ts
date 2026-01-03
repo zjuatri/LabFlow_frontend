@@ -18,13 +18,23 @@ export function parseInlineEnumOrList(trimmed: string): TypstBlock | null {
     }
 
     // Now check for #enum(...)[...][...] or #list(...)[...][...]
-    const enumMatch = content.match(/^#enum\s*\([^)]*\)((?:\[[^\]]*\])+)$/);
+    const enumMatch = content.match(/^#enum\s*\(([^)]*)\)((?:\[[^\]]*\])+)$/);
     const listMatch = content.match(/^#list\s*\([^)]*\)((?:\[[^\]]*\])+)$/);
 
     if (!enumMatch && !listMatch) return null;
 
     const isOrdered = !!enumMatch;
-    const bracketPart = (enumMatch || listMatch)![1];
+    const bracketPart = (enumMatch || listMatch)![isOrdered ? 2 : 1];
+
+    // Extract start parameter from #enum(start: N, ...)
+    let startNum = 1;
+    if (isOrdered && enumMatch) {
+        const args = enumMatch[1];
+        const startMatch = args.match(/start\s*:\s*(\d+)/);
+        if (startMatch) {
+            startNum = parseInt(startMatch[1], 10);
+        }
+    }
 
     // Extract items from [item1][item2][item3]...
     const items: string[] = [];
@@ -47,11 +57,22 @@ export function parseInlineEnumOrList(trimmed: string): TypstBlock | null {
     if (items.length === 0) return null;
 
     // Convert to list content format
+    // Strip any existing number prefixes from Items (e.g., "1. 1. item" -> "item")
+    // This prevents duplicate numbering when the source already had numbered content inside #enum items
+    const stripNumberPrefix = (text: string): string => {
+        // Match patterns like "1. 1." or "1." or "1) 1." etc. at the start
+        return text.replace(/^(\d+[.)]\s*)+/, '').trim();
+    };
+
     const listContent = items.map((item, idx) => {
+        const cleanItem = stripNumberPrefix(item);
         if (isOrdered) {
-            return `${idx + 1}. ${item}`;
+            // Use the start number from #enum(start: N)
+            return `${startNum + idx}. ${cleanItem || item}`;
         } else {
-            return `- ${item}`;
+            // For unordered, strip any bullet prefix too
+            const stripped = cleanItem.replace(/^[-*]\s*/, '').trim();
+            return `- ${stripped || item}`;
         }
     }).join('\n');
 
@@ -120,11 +141,19 @@ export function parseBlockList(lines: string[], startIndex: number): { items: st
             }
         }
 
-        for (const body of outItems) {
+        // Helper to strip duplicate number prefixes (e.g., "1. 1. item" -> "item")
+        const stripNumberPrefix = (text: string): string => {
+            return text.replace(/^(\d+[.)]\s*)+/, '').trim();
+        };
+
+        for (let i = 0; i < outItems.length; i++) {
+            const body = outItems[i];
+            const cleanBody = stripNumberPrefix(body);
             if (isEnum) {
-                items.push(body.length === 0 ? '1. ' : `1. ${body}`);
+                items.push(cleanBody.length === 0 ? `${i + 1}. ` : `${i + 1}. ${cleanBody}`);
             } else {
-                items.push(body.length === 0 ? '- ' : `- ${body}`);
+                const stripped = cleanBody.replace(/^[-*]\s*/, '').trim();
+                items.push(stripped.length === 0 ? '- ' : `- ${stripped}`);
             }
         }
     }

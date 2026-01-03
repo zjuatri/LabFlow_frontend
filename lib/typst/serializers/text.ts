@@ -113,15 +113,26 @@ export function serializeList(block: TypstBlock): string {
 
     let listExpr: string;
     if (isOrdered) {
+        // Detect the starting number
+        const firstNumMatch = firstLine.match(/^(\d+)[.)]/);
+        const startNum = firstNumMatch ? parseInt(firstNumMatch[1], 10) : 1;
+
         // Extract content after the number prefix for each line
         const items = lines.map(line => {
             const match = line.match(/^\d+[.)]\s*([\s\S]*)$/);
             return match ? match[1].trim() : line;
         }).filter(item => item.length > 0);
-        
+
+
         if (items.length === 0) return '';
         const children = items.map(item => `[${processItem(item)}]`).join('');
-        listExpr = `#enum(tight: true)${children}`;
+
+        // Use start parameter when not starting from 1
+        if (startNum !== 1) {
+            listExpr = `#enum(start: ${startNum}, tight: true)${children}`;
+        } else {
+            listExpr = `#enum(tight: true)${children}`;
+        }
     } else {
         // Unordered list - strip leading "-" or "*" if present
         const items = lines.map(line => {

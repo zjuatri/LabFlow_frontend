@@ -302,6 +302,22 @@ export const convertMixedParagraph = (content: string): string => {
         } else {
             // List segment: emit a function call (#enum/#list) so spacing/tightness is not
             // affected by markup-mode blank-line heuristics.
+
+            // Check if this ordered list should be kept as plain text:
+            // - Single item that doesn't start with "1." should not use #enum (it would renumber)
+            // This handles cases like "10. xxx" which should stay as "10. xxx" not become "1. xxx"
+            if (seg.kind === 'ordered' && seg.lines.length === 1) {
+                const visible = extractInnerText(seg.lines[0]);
+                const numMatch = visible.match(/^(\d+)[.)]/);
+                const startNum = numMatch ? parseInt(numMatch[1], 10) : 1;
+
+                // If it's not starting from 1, keep as plain text
+                if (startNum !== 1) {
+                    parts.push(seg.lines[0]);
+                    continue;
+                }
+            }
+
             const items = seg.lines.map((l) => {
                 const line = l.trim();
 
@@ -332,8 +348,9 @@ export const convertMixedParagraph = (content: string): string => {
                 ? `#enum(tight: true)${children}`
                 : `#list(tight: true)${children}`;
 
-            // Don't force outer block spacing to 0; keep a normal gap to following content.
-            parts.push(`#block[\n${listExpr}\n]`);
+            // Output single-line to prevent parser from splitting across lines during re-parse
+            // Using inline format: just the list expression without outer block wrapper
+            parts.push(listExpr);
         }
     }
 
