@@ -79,16 +79,33 @@ export function serializeImage(block: TypstBlock, imageIndex: number, settings: 
 ]${encoded}`;
     }
 
-    const imageLine = `#align(${alignValue}, image("${imagePath}", width: ${width}, height: ${height}))${encoded}`;
-    const captionLine = captionText ? `#align(${alignValue})[${captionText}]` : '';
+    // Use Typst native #figure for automatic numbering and consistent layout
+    // This resolves issues where manual counting logic falls out of sync
+    const imageContent = `image("${imagePath}", width: ${width}, height: ${height})`;
 
-    if (captionLine && settings.imageCaptionPosition === 'above') {
-        return `${captionLine}\n${imageLine}`;
-    } else if (captionLine && settings.imageCaptionPosition === 'below') {
-        return `${imageLine}\n${captionLine}`;
+    // If no caption, just output the image
+    if (!captionRaw) {
+        return `#align(${alignValue})[#figure(${imageContent}, numbering: none)]`; // numbering: none prevents "Figure 1" if no caption
     }
 
-    return imageLine;
+    const numberingArg = settings.imageCaptionNumbering ? '' : ', numbering: none';
+    // supplement="图" ensures "Figure" becomes "图". 
+    // Usually handled by set text(lang: "zh") but we can be explicit or rely on global settings.
+    // For now, let's assume global settings or defaults handled by previous manual logic match user expectation.
+    // Specifying supplement explicitly is safer for "图".
+    const supplementArg = ', supplement: "图"';
+
+    const captionArg = `, caption: [${captionRaw}]`;
+
+    // Handle caption position via gap/local set if critical, but figure defaults to bottom. 
+    // To support top caption, we'd need #show figure: set figure(caption-pos: top) in preamble or block scoped.
+    // For block scoped: 
+    let blockPrefix = '';
+    if (settings.imageCaptionPosition === 'above') {
+        blockPrefix = '#show figure: set figure(caption-pos: top)\n';
+    }
+
+    return `${blockPrefix}#align(${alignValue})[#figure(${imageContent}${captionArg}${numberingArg}${supplementArg})]`;
 }
 
 export function serializeChart(block: TypstBlock): string {

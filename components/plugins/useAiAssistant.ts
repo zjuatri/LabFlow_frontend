@@ -60,7 +60,7 @@ export function useAiAssistant({ projectId, existingBlocks, onInsertBlocks, onCl
                 source: 'local',
                 type: isPdf ? 'pdf' : 'image',
                 description: '',
-                shouldInclude: false, // User requested default false
+                shouldInclude: true, // User requested default true
                 // Set defaults
                 pdfPageStart: isPdf ? '1' : undefined,
                 pdfPageEnd: isPdf ? '5' : undefined,

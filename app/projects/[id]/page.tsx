@@ -651,12 +651,12 @@ export default function ProjectEditorPage() {
             existingBlocks={blocks}
             onInsertBlocks={(newBlocks) => {
               // Append new blocks to existing blocks
-              // Maybe ask user where to insert? For now, append to end or after last non-cover block?
-              // Let's simple append for now.
-              // Or maybe we can try to be smart?
-              // If we append, we should probably append before any closing "references" or similar sections if possible.
-              // But simplest is just concat.
-              setBlocks([...blocks, ...newBlocks]);
+              const nextBlocks = [...blocks, ...newBlocks];
+              setBlocks(nextBlocks);
+              // Trigger auto-save immediately
+              setTimeout(() => {
+                saveProject();
+              }, 0);
             }}
             onClose={() => setShowAiSidebar(false)}
           />
