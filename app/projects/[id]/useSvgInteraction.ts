@@ -168,8 +168,67 @@ export function useSvgInteraction(
             }
         }
 
-        // Post-process: Ensure every block has at least some size (marker size)
-        // And maybe expand slightly for easier clicking?
+        // Post-process: Ensure every block has at least some size
+        // For blocks at the top of the page that might have no visible content yet,
+        // use the marker position as a fallback and create a minimum clickable area
+        for (let i = 0; i < markers.length; i++) {
+            const existing = rects.get(i);
+            const marker = markers[i];
+            
+            // If the block has no valid rect (still at Infinity), use marker position
+            if (!existing || existing.l === Infinity || existing.t === Infinity) {
+                const markerRect = getScreenRect(marker);
+                if (markerRect) {
+                    const ml = markerRect.left - containerRect.left;
+                    const mt = markerRect.top - containerRect.top;
+                    
+                    // Find the next block's top position to determine this block's height
+                    let blockBottom = mt + 40; // Default minimum height
+                    
+                    // Look for the next block with a valid rect
+                    for (let j = i + 1; j < markers.length; j++) {
+                        const nextRect = rects.get(j);
+                        if (nextRect && nextRect.t !== Infinity) {
+                            blockBottom = nextRect.t;
+                            break;
+                        }
+                        // Or check next marker position
+                        const nextMarkerRect = getScreenRect(markers[j]);
+                        if (nextMarkerRect) {
+                            blockBottom = nextMarkerRect.top - containerRect.top;
+                            break;
+                        }
+                    }
+                    
+                    // Create a rect spanning the page width from marker to next block
+                    rects.set(i, {
+                        l: 0, // Start from left edge
+                        t: mt,
+                        r: containerRect.width, // Span to right edge
+                        b: Math.max(blockBottom, mt + 20) // At least 20px height
+                    });
+                }
+            } else {
+                // Ensure minimum dimensions for existing rects
+                const width = existing.r - existing.l;
+                const height = existing.b - existing.t;
+                
+                if (width < 10 || height < 10) {
+                    // Expand small rects to be more clickable
+                    const markerRect = getScreenRect(marker);
+                    if (markerRect) {
+                        const mt = markerRect.top - containerRect.top;
+                        rects.set(i, {
+                            l: Math.min(existing.l, 0),
+                            t: Math.min(existing.t, mt),
+                            r: Math.max(existing.r, containerRect.width),
+                            b: Math.max(existing.b, mt + 20)
+                        });
+                    }
+                }
+            }
+        }
+        
         blockRectsRef.current = rects;
     }, [containerRef]);
 
@@ -198,6 +257,11 @@ export function useSvgInteraction(
 
         // 1. Strict Inclusion Check
         for (const [index, rect] of blockRectsRef.current.entries()) {
+            // Skip invalid rects
+            if (rect.l === Infinity || rect.t === Infinity || rect.r === -Infinity || rect.b === -Infinity) {
+                continue;
+            }
+            
             if (x >= rect.l && x <= rect.r && y >= rect.t && y <= rect.b) {
                 // If nested blocks (rare in this flattened view but possible overlap), 
                 // pick the smallest one? Or the one that started later (usually deeper)?

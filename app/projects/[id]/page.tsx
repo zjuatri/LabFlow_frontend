@@ -182,32 +182,37 @@ export default function ProjectEditorPage() {
     // The marker is placed at the start of the block content using place() inside the box.
     const wrapWithMarker = (content: string) => {
       // We use a stack/block approach: first output the marker, then the content.
-      // To ensure they stay together on page breaks, we check if content is an image/figure.
-      // For images and figures, wrap in a box so marker + content move together.
+      // To ensure they stay together on page breaks, we wrap content in a block where possible.
       const trimmed = content.trim();
 
       // Cover container blocks may contain images and a forced #pagebreak().
       // Wrapping them in a container (#block[..]) would make #pagebreak() illegal.
       const isCoverContainer = trimmed.startsWith('/*LF_COVER_BEGIN:');
-      const isImage =
-        trimmed.startsWith('#image(') ||
-        /^#align\(\s*(?:left|center|right)\s*,\s*image\(/.test(trimmed) ||
-        trimmed.startsWith('#align(center)[(未生成图表)]') ||
-        trimmed.includes('LF_CHART:') ||
-        trimmed.includes('LF_IMAGE:');
-      const isFigure = trimmed.startsWith('#figure(');
 
       const markerCode = '#place(dx: -50cm, rect(width: 1pt, height: 1pt, fill: rgb("000001")))';
 
-      if (!isCoverContainer && (isImage || isFigure)) {
-        // Wrap in a block that keeps marker and content together.
-        // We use width: 100% to ensure the block spans the page, allowing internal #align to work.
-        // Without explicit width, #block might shrink-wrap or behave differently.
-        return `#block(width: 100%)[${markerCode}${content}]`;
+      if (isCoverContainer) {
+        // Cover containers cannot be wrapped, use simple approach
+        return `${markerCode}\n${content}`;
       }
 
-      // For other content (paragraphs, headings, etc.), the simple approach works
-      return `${markerCode}\n${content}`;
+      // Headings in Typst use "= " / "== " / "=== " syntax at line start.
+      // Wrapping them in #block[...] breaks the syntax because "=" must be at line start.
+      // Convert to #heading(level: N)[...] function syntax which can be wrapped.
+      const headingMatch = trimmed.match(/^(=+)\s+([\s\S]*)$/);
+      if (headingMatch) {
+        const level = headingMatch[1].length;
+        const headingContent = headingMatch[2];
+        // Use #heading function syntax instead of = syntax
+        const headingFunc = `#heading(level: ${level})[${headingContent}]`;
+        return `#block(width: 100%, breakable: true)[${markerCode}${headingFunc}]`;
+      }
+
+      // Wrap ALL other content (paragraphs, math, images, figures, etc.) in a block
+      // to keep marker and content together during page breaks.
+      // Use width: 100% to ensure proper layout, and breakable: true to allow 
+      // long content to break across pages while keeping marker with the start.
+      return `#block(width: 100%, breakable: true)[${markerCode}${content}]`;
     };
 
     const markerLine = '#place(dx: -50cm, rect(width: 1pt, height: 1pt, fill: rgb("000001")))';
