@@ -414,6 +414,10 @@ const KNOWN_MATH_FUNCTIONS = new Set([
     'approx', 'sim', 'cong', 'equiv', 'neq', 'leq', 'geq', 'll', 'gg',
     'leftarrow', 'rightarrow', 'leftrightarrow', 'Leftarrow', 'Rightarrow', 'Leftrightarrow',
     'to', 'maps', 'mapsto',
+    // Typst symbol components (for plus.minus, etc.)
+    'plus', 'minus', 'eq', 'lt', 'gt', 'star', 'ast', 'circle', 'square', 'triangle', 'diamond',
+    // display mode
+    'display',
     // Custom unit whitelist (kept separate to avoid quoting them if they appear alone)
     'mm', 'cm', 'm', 'km', 'um', 'nm', 'mg', 'g', 'kg', 'ms', 's', 'min', 'h',
     'Hz', 'kHz', 'MHz', 'GHz', 'Pa', 'kPa', 'MPa', 'GPa', 'J', 'kJ', 'W', 'V', 'A', 'mA',
@@ -436,30 +440,24 @@ export function sanitizeTypstMathSegment(segment: string): string {
     });
 
     // 4. Quote unknown multi-letter variables (e.g. Kv -> "Kv", Mp -> "Mp")
-    // Typst treats any 2+ char word as a function call or variable lookup. 
-    // If it's not in the whitelist, we should quote it to treat it as text.
-    // We use a regex that matches "words" (sequence of letters) but be careful about:
-    // - single chars (don't quote 'x')
-    // - quoted strings (don't quote '"text"')
-    // - function calls 'sin(' (handled by looking ahead? no, Typst allows 'sin x')
-    // Simpler approach: split by non-word chars and replace.
+    // BUT: Skip content already inside quotes!
+    // We need to process the string while respecting quoted regions.
+    
+    // First, extract and protect quoted strings
+    const quotedStrings: string[] = [];
+    let protected_s = s.replace(/"[^"]*"/g, (match) => {
+        quotedStrings.push(match);
+        return `\uE100${quotedStrings.length - 1}\uE101`;
+    });
 
-    // We process the string by finding variable-like tokens
-    // A variable is [A-Za-z][A-Za-z0-9]* 
-    // But we mostly care about [A-Za-z]{2,}
-    // We must ignore tokens inside quotes.
-    // This is a naive tokenizer.
-
-    const tokens = s.split(/([A-Za-z]{2,})/);
-    s = tokens.map((tok, idx) => {
+    // Now process the unquoted parts
+    const tokens = protected_s.split(/([A-Za-z]{2,})/);
+    protected_s = tokens.map((tok, idx) => {
         // Even indices are delimiters, Odd indices are identifiers (captured)
         if (idx % 2 === 0) return tok;
 
-        // Check if it's already inside quotes? 
-        // This simple split is dangerous if quotes exist. 
-        // E.g. "foo bar" -> split -> "foo", " ", "bar" -> quoted "bar" inside quotes?
-        // Let's rely on word boundary replacement which is safer if we assume input is mostly math expressions.
-        // Typst math usually doesn't have many string literals unless manually added.
+        // Skip placeholder tokens
+        if (tok.includes('\uE100') || tok.includes('\uE101')) return tok;
 
         if (KNOWN_MATH_FUNCTIONS.has(tok)) return tok;
 
@@ -469,6 +467,9 @@ export function sanitizeTypstMathSegment(segment: string): string {
 
         return `"${tok}"`;
     }).join('');
+
+    // Restore quoted strings
+    s = protected_s.replace(/\uE100(\d+)\uE101/g, (_, idx) => quotedStrings[parseInt(idx)]);
 
     // 5. Fix number+unit spacing: 1700 "mm" -> 1700 "mm" (already quoted above)
     // If we quoted the unit above (e.g. "mm"), removing the quote again might be nice if we want space.

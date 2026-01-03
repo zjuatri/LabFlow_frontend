@@ -439,7 +439,10 @@ export const typstInlineToHtml = (typst: string, opts?: { skipListDetection?: bo
             // Ensure the closing parenthesis is at the end
             if (closeIdx === trimmedInner.length - 1) {
               isDisplay = true;
-              inner = trimmedInner.slice(openIdx + 1, closeIdx);
+              let extractedInner = trimmedInner.slice(openIdx + 1, closeIdx);
+              // Convert escaped commas "," back to regular commas for display in editor
+              extractedInner = extractedInner.replace(/","/g, ',');
+              inner = extractedInner;
             }
           }
 
@@ -458,13 +461,14 @@ export const typstInlineToHtml = (typst: string, opts?: { skipListDetection?: bo
               nextIdx = close + 2;
             }
           }
-
           const id = generateInlineMathId();
           const inferredLatex = latex || typstToLatexMath(inner);
+          // When we have stored LaTeX, re-convert to get correct Typst (fixes old corrupted data)
+          const correctTypst = latex ? latexToTypstMath(latex) : inner;
           /* Use a zero-width space wrapper span before the pill to allow cursor positioning before inline math at line start.
              The wrapper span ensures the ZWSP stays on the same line and provides a clickable target. */
           const displayAttr = isDisplay ? ' data-display-mode="true"' : '';
-          out += `<span class="inline-math-spacer">\u200B</span><span class="inline-math-pill" data-inline-math-id="${escapeHtml(id)}" data-format="latex" data-typst="${escapeHtml(inner)}" data-latex="${escapeHtml(inferredLatex)}"${displayAttr} contenteditable="false">∑</span>\u200B`;
+          out += `<span class="inline-math-spacer">\u200B</span><span class="inline-math-pill" data-inline-math-id="${escapeHtml(id)}" data-format="latex" data-typst="${escapeHtml(correctTypst)}" data-latex="${escapeHtml(inferredLatex)}"${displayAttr} contenteditable="false">∑</span>\u200B`;
           i = nextIdx - 1;
           continue;
         }
@@ -579,10 +583,35 @@ export const htmlToTypstInline = (root: HTMLElement): string => {
       const typst = (el.getAttribute('data-typst') ?? '').trim();
       const latex = (el.getAttribute('data-latex') ?? '').trim();
       const isDisplay = el.getAttribute('data-display-mode') === 'true';
-      const resolvedTypst = typst || (latex ? latexToTypstMath(latex) : '');
+      // When we have stored LaTeX, ALWAYS re-convert from LaTeX to get correct Typst
+      // This fixes issues where old conversions had bugs (e.g., pm -> plus.minus, text splitting)
+      const resolvedTypst = latex ? latexToTypstMath(latex) : typst;
       const latexMarker = latex ? `${INLINE_MATH_LATEX_MARKER}${base64EncodeUtf8(latex)}*/` : '';
 
-      const content = isDisplay ? `display(${resolvedTypst})` : resolvedTypst;
+      // For display mode, escape top-level commas (not inside parentheses) as ","
+      // to prevent them from being interpreted as argument separators in display()
+      let content: string;
+      if (isDisplay) {
+        // Escape top-level commas by converting them to quoted strings
+        let result = '';
+        let depth = 0;
+        for (const ch of resolvedTypst) {
+          if (ch === '(' || ch === '[' || ch === '{') {
+            depth++;
+            result += ch;
+          } else if (ch === ')' || ch === ']' || ch === '}') {
+            depth--;
+            result += ch;
+          } else if (ch === ',' && depth === 0) {
+            result += '","';
+          } else {
+            result += ch;
+          }
+        }
+        content = `display(${result})`;
+      } else {
+        content = resolvedTypst;
+      }
       return `$${content}$${latexMarker}`;
     }
 

@@ -131,6 +131,7 @@ export function useSvgInteraction(
 
             // 3. Skip <g> elements that are containers (not leaf content)
             // They often span the whole page width and mess up the union
+            // We still traverse into their children (via DFS), so skip the container itself
             const tag = el.tagName.toLowerCase();
             if (tag === 'g' && el.children.length > 0) continue;
 
@@ -144,9 +145,16 @@ export function useSvgInteraction(
                     const h = r.height;
 
                     // 5. Skip elements that are suspiciously large (likely page-level bg rects)
-                    // If width > 80% of container width, it's probably a background or frame
+                    // BUT: Only skip if it's a rect/path without text content
+                    // Text elements (use, path with d attribute for glyphs) should NOT be skipped
                     const containerWidth = containerRect.width;
-                    if (w > containerWidth * 0.8) continue;
+                    if (w > containerWidth * 0.8) {
+                        // Check if this is likely a background rect (not text)
+                        // Text in Typst SVG is usually rendered as <use> or <path> with complex d attribute
+                        const isLikelyBackground = tag === 'rect' || 
+                            (tag === 'path' && (!el.getAttribute('d') || el.getAttribute('d')!.split(' ').length < 10));
+                        if (isLikelyBackground) continue;
+                    }
 
                     const existing = rects.get(currentBlockIndex) || { l: Infinity, t: Infinity, r: -Infinity, b: -Infinity };
 

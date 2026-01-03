@@ -24,7 +24,7 @@ const LATEX_TO_TYPST_TOKENS: Record<string, string> = {
   // operators and symbols
   '\\cdot': 'dot',
   '\\times': 'times',
-  '\\pm': 'pm',
+  '\\pm': 'plus.minus',
   '\\leq': '<=',
   '\\geq': '>=',
   '\\le': '<=',
@@ -34,7 +34,7 @@ const LATEX_TO_TYPST_TOKENS: Record<string, string> = {
   '\\neq': '!=',
   '\\nabla': 'nabla',
   '\\partial': 'diff',
-  '\\approx': '~~',
+  '\\approx': 'approx',
   '\\equiv': 'equiv',
   '\\in': 'in',
   '\\subset': 'subset',
@@ -134,6 +134,19 @@ export function latexToTypstMath(latex: string): string {
   let s = (latex ?? '').trim();
   if (!s) return '';
 
+  console.log('[latexToTypstMath] Input:', JSON.stringify(s));
+
+  // Normalize escaped backslashes: \\command -> \command
+  // This handles cases where LaTeX was stored with escaped backslashes (e.g., \\pm -> \pm)
+  s = s.replace(/\\\\([a-zA-Z]+)/g, '\\$1');
+  console.log('[latexToTypstMath] After normalize backslashes:', JSON.stringify(s));
+
+  // FIRST: Convert \text{...} to Typst quoted strings immediately
+  // Use a unique Unicode marker to protect them from splitLetters
+  // We use \uE000-\uE001 (private use area) as delimiters
+  s = s.replace(/\\text\{([^}]+)\}/g, (_, content) => `\uE000${content}\uE001`);
+  console.log('[latexToTypstMath] After \\text protection:', JSON.stringify(s));
+
   // Handle matrix environments first (bmatrix, pmatrix, vmatrix, matrix)
   // Convert \begin{bmatrix}...\end{bmatrix} to mat(delim: "[", ...)
   s = s.replace(/\\begin\{bmatrix\}([\s\S]*?)\\end\{bmatrix\}/g, (_, content) => {
@@ -199,8 +212,7 @@ export function latexToTypstMath(latex: string): string {
     return `upright(${v})`;
   });
 
-  // Handle \text{...} -> "..."
-  s = s.replace(/\\text\{([^}]+)\}/g, '"$1"');
+  // NOTE: \text{...} was already converted to placeholder above
 
   // Normalize common wrappers
   s = s.replace(/\\left\s*/g, '').replace(/\\right\s*/g, '');
@@ -286,20 +298,79 @@ export function latexToTypstMath(latex: string): string {
     'kappa', 'lambda', 'mu', 'nu', 'xi', 'pi', 'rho', 'sigma', 'tau', 'upsilon',
     'phi', 'chi', 'psi', 'omega', 'Gamma', 'Delta', 'Theta', 'Lambda', 'Xi', 'Pi',
     'Sigma', 'Upsilon', 'Phi', 'Psi', 'Omega', 'nabla', 'diff', 'bold', 'sqrt',
-    'frac', 'cases', 'text', 'oo', 'pm', 'dot', 'times', 'equiv', 'union', 'sect',
+    'frac', 'cases', 'text', 'oo', 'dot', 'times', 'equiv', 'union', 'sect',
     'emptyset', 'forall', 'exists', 'subset', 'supset', 'floor', 'ceil', 'abs',
     'min', 'max', 'gcd', 'lcm', 'mod', 'det', 'tr', 'dim', 'ker', 'im', 'upright',
     'cont', 'double', 'triple', 'mat', 'vec', 'delim',
-    'dots', 'down'
+    'dots', 'down',
+    // Components of compound symbols (e.g., plus.minus, integral.cont)
+    'plus', 'minus', 'alt',
+    // Relational operators
+    'approx', 'sim', 'cong', 'neq', 'leq', 'geq',
+    // Display mode
+    'display'
   ]);
 
   const splitLetters = (text: string): string => {
-    return text.replace(/[a-zA-Z]+/g, (word) => {
-      if (knownWords.has(word) || word.length === 1) {
-        return word;
+    // Split multi-letter words into single letters, but:
+    // 1. Preserve known Typst words (like 'sqrt', 'frac', etc.)
+    // 2. Preserve content inside quotes (like "rad/s")
+    // 3. Preserve compound symbols like 'plus.minus'
+    // 4. Preserve \uE000...\uE001 protected text blocks
+    
+    let result = '';
+    let i = 0;
+    while (i < text.length) {
+      // Skip protected text blocks (marked with \uE000...\uE001)
+      if (text[i] === '\uE000') {
+        const endIdx = text.indexOf('\uE001', i + 1);
+        if (endIdx !== -1) {
+          result += text.slice(i, endIdx + 1);
+          i = endIdx + 1;
+          continue;
+        }
       }
-      return word.split('').join(' ');
-    });
+      
+      // Skip quoted strings entirely
+      if (text[i] === '"') {
+        const endQuote = text.indexOf('"', i + 1);
+        if (endQuote !== -1) {
+          result += text.slice(i, endQuote + 1);
+          i = endQuote + 1;
+          continue;
+        }
+      }
+      
+      // Check for letter sequences
+      if (/[a-zA-Z]/.test(text[i])) {
+        // Collect the full word (including dots for compound symbols like plus.minus)
+        let word = '';
+        let j = i;
+        while (j < text.length && /[a-zA-Z.]/.test(text[j])) {
+          word += text[j];
+          j++;
+        }
+        
+        // Check if it's a known word or compound symbol
+        const parts = word.split('.');
+        const allPartsKnown = parts.every(p => knownWords.has(p) || p.length <= 1 || p === '');
+        
+        if (allPartsKnown || knownWords.has(word)) {
+          result += word;
+        } else if (word.length === 1) {
+          result += word;
+        } else {
+          // Split unknown multi-letter words
+          result += word.split('').join(' ');
+        }
+        i = j;
+        continue;
+      }
+      
+      result += text[i];
+      i++;
+    }
+    return result;
   };
 
   // Process subscripts and superscripts recursively
@@ -325,6 +396,10 @@ export function latexToTypstMath(latex: string): string {
   // Keep braces but remove unnecessary outer braces.
   // Collapse multiple spaces but preserve backslashes
   s = s.replace(/([^\\])\s+/g, '$1 ').trim();
+
+  // LAST: Convert protected text blocks to Typst quoted strings
+  // \uE000content\uE001 -> "content"
+  s = s.replace(/\uE000([^\uE001]*)\uE001/g, '"$1"');
 
   return s;
 }
@@ -369,6 +444,14 @@ export function typstToLatexMath(typst: string): string {
   replaceFunc('sqrt', (inner) => {
     const a = typstToLatexMath(inner);
     return `\\sqrt{${a}}`;
+  });
+
+  // Convert Typst quoted strings "..." back to \text{...}
+  // Handle escaped quotes inside: \" -> "
+  s = s.replace(/"([^"]*)"/g, (_, content) => {
+    // Unescape any escaped quotes inside
+    const unescaped = content.replace(/\\"/g, '"');
+    return `\\text{${unescaped}}`;
   });
 
   // Token replacements (reverse)

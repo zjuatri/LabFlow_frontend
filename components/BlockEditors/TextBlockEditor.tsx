@@ -248,6 +248,79 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
     syncParagraphFromDom();
   };
 
+  // Handle paste: detect $$...$$ patterns and convert to inline math pills
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const text = e.clipboardData.getData('text/plain');
+    // Check if text contains $$...$$ patterns (LaTeX inline math)
+    if (!text.includes('$$')) return; // Let default paste handle it
+
+    e.preventDefault();
+
+    const editor = paragraphEditorRef.current;
+    if (!editor) return;
+
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if (!editor.contains(range.commonAncestorContainer)) return;
+
+    // Delete selected content
+    range.deleteContents();
+
+    // Split text by $$...$$ patterns
+    // Match $$...$$ where inner content doesn't contain $$
+    const regex = /\$\$([^$]+)\$\$/g;
+    let lastIndex = 0;
+    let match;
+    const fragment = document.createDocumentFragment();
+
+    while ((match = regex.exec(text)) !== null) {
+      // Add text before the match
+      if (match.index > lastIndex) {
+        const beforeText = text.slice(lastIndex, match.index);
+        fragment.appendChild(document.createTextNode(beforeText));
+      }
+
+      // Create inline math pill for the matched formula
+      const latexContent = match[1];
+      const id = generateInlineMathId();
+      const typstContent = latexToTypstMath(latexContent);
+
+      // Add spacer span before pill
+      const spacer = document.createElement('span');
+      spacer.className = 'inline-math-spacer';
+      spacer.textContent = '\u200B';
+      fragment.appendChild(spacer);
+
+      const pill = document.createElement('span');
+      pill.className = 'inline-math-pill';
+      pill.setAttribute('data-inline-math-id', id);
+      pill.setAttribute('data-format', 'latex');
+      pill.setAttribute('data-latex', latexContent);
+      pill.setAttribute('data-typst', typstContent);
+      pill.contentEditable = 'false';
+      pill.textContent = '∑';
+      fragment.appendChild(pill);
+
+      // Add ZWSP after pill
+      fragment.appendChild(document.createTextNode('\u200B'));
+
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining text after last match
+    if (lastIndex < text.length) {
+      fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+    }
+
+    range.insertNode(fragment);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    syncParagraphFromDom();
+  };
+
   return (
     <div className="flex flex-col gap-3">
       {/* 格式工具栏 */}
@@ -452,6 +525,7 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
         }}
         onInput={syncParagraphFromDom}
         onClick={handleRichEditorClick}
+        onPaste={handlePaste}
         onKeyDown={(e) => {
           handleListKeyDown(e);
           if (e.ctrlKey && !e.shiftKey) {
