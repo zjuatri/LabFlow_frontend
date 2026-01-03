@@ -234,6 +234,8 @@ export default function TableBlockEditor({ block, onUpdate, onTableSelectionSnap
     pill.setAttribute('data-typst', state.typst);
     pill.setAttribute('data-latex', state.latex);
     pill.setAttribute('data-format', state.format);
+    if (state.displayMode) pill.setAttribute('data-display-mode', 'true');
+    else pill.removeAttribute('data-display-mode');
   };
 
   const handleRichEditorClick = (e: ReactMouseEvent) => {
@@ -244,7 +246,8 @@ export default function TableBlockEditor({ block, onUpdate, onTableSelectionSnap
       const typst = target.getAttribute('data-typst') || '';
       const latex = target.getAttribute('data-latex') || '';
       const format = (target.getAttribute('data-format') || 'typst') as InlineMathFormat;
-      setActiveInlineMath({ scope: 'table', id, typst, latex, format });
+      const displayMode = target.getAttribute('data-display-mode') === 'true';
+      setActiveInlineMath({ scope: 'table', id, typst, latex, format, displayMode });
     }
   };
 
@@ -341,8 +344,8 @@ export default function TableBlockEditor({ block, onUpdate, onTableSelectionSnap
             toggleSelectionMode();
           }}
           className={`px-3 py-2 text-xs rounded flex items-center gap-1 transition-colors ${mySelectionMode
-              ? 'bg-blue-500 hover:bg-blue-600 text-white'
-              : 'bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300'
+            ? 'bg-blue-500 hover:bg-blue-600 text-white'
+            : 'bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300'
             }`}
           title={mySelectionMode ? '已开启：点击两次即可框选' : '开启：无需按 Shift 框选区域'}
         >
@@ -382,8 +385,8 @@ export default function TableBlockEditor({ block, onUpdate, onTableSelectionSnap
       <div className="overflow-x-auto">
         <table
           className={`mx-auto ${style === 'three-line'
-              ? 'border-t border-b border-zinc-300 dark:border-zinc-600'
-              : 'border border-zinc-200 dark:border-zinc-700'
+            ? 'border-t border-b border-zinc-300 dark:border-zinc-600'
+            : 'border border-zinc-200 dark:border-zinc-700'
             }`}
         >
           <tbody>
@@ -447,8 +450,8 @@ export default function TableBlockEditor({ block, onUpdate, onTableSelectionSnap
                         }
                       }}
                       className={`${style === 'normal'
-                          ? 'border-r border-zinc-200 dark:border-zinc-700 last:border-r-0'
-                          : ''
+                        ? 'border-r border-zinc-200 dark:border-zinc-700 last:border-r-0'
+                        : ''
                         } p-2 align-top min-w-[120px] ${activeNow
                           ? 'outline outline-2 outline-blue-400'
                           : selected
@@ -588,8 +591,8 @@ export default function TableBlockEditor({ block, onUpdate, onTableSelectionSnap
                       }
                     }}
                     className={`px-2 py-1 text-xs transition-colors ${myActiveInlineMath.format === 'latex'
-                        ? 'bg-blue-500 text-white'
-                        : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                      ? 'bg-blue-500 text-white'
+                      : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                       }`}
                   >
                     LaTeX
@@ -604,12 +607,33 @@ export default function TableBlockEditor({ block, onUpdate, onTableSelectionSnap
                       }
                     }}
                     className={`px-2 py-1 text-xs transition-colors ${myActiveInlineMath.format === 'typst'
-                        ? 'bg-blue-500 text-white'
-                        : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                      ? 'bg-blue-500 text-white'
+                      : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                       }`}
                   >
                     Typst
                   </button>
+
+                </div>
+
+                <div className="flex items-center gap-2 ml-4">
+                  <label className="flex items-center gap-1 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={myActiveInlineMath.displayMode || false}
+                      onChange={(e) => {
+                        if (myActiveInlineMath) {
+                          const isDisplay = e.target.checked;
+                          const nextState = { ...myActiveInlineMath, displayMode: isDisplay };
+                          setActiveInlineMath(nextState);
+                          updateInlineMathPillAttrs(nextState);
+                          syncTableCellFromDom();
+                        }
+                      }}
+                      className="w-3.5 h-3.5 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-xs text-zinc-600 dark:text-zinc-400">展示模式</span>
+                  </label>
                 </div>
               </div>
 
@@ -641,7 +665,8 @@ export default function TableBlockEditor({ block, onUpdate, onTableSelectionSnap
             </div>
           )}
         </div>
-      )}
+      )
+      }
 
       <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
         说明：先选中单元格。默认可用 Shift+点击框选矩形区域后点&quot;合并&quot;。也可开启&quot;选区模式&quot;：点击一次设起点，再点击一次设终点完成框选；再次点击将重新开始框选。三线表为无竖线样式。
@@ -671,6 +696,6 @@ export default function TableBlockEditor({ block, onUpdate, onTableSelectionSnap
           className="w-full h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
         />
       </div>
-    </div>
+    </div >
   );
 }

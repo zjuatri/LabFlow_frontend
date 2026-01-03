@@ -85,6 +85,11 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
     pill.setAttribute('data-format', state.format);
     pill.setAttribute('data-latex', state.latex);
     pill.setAttribute('data-typst', state.typst);
+    if (state.displayMode) {
+      pill.setAttribute('data-display-mode', 'true');
+    } else {
+      pill.removeAttribute('data-display-mode');
+    }
   };
 
   const handleRichEditorClick = (e: ReactMouseEvent) => {
@@ -97,7 +102,8 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
       const typst = (pill.getAttribute('data-typst') ?? '').trim();
       const latex = (pill.getAttribute('data-latex') ?? '').trim() || (typst ? typstToLatexMath(typst) : '');
       const format = ((pill.getAttribute('data-format') ?? 'latex') as InlineMathFormat);
-      setActiveInlineMath({ scope: 'main', id, format, latex, typst });
+      const displayMode = pill.getAttribute('data-display-mode') === 'true';
+      setActiveInlineMath({ scope: 'main', id, format, latex, typst, displayMode });
     }
   };
 
@@ -500,6 +506,24 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
               >
                 Typst
               </button>
+            </div>
+
+            <div className="flex items-center gap-2 ml-4">
+              <label className="flex items-center gap-1 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={activeInlineMath.displayMode || false}
+                  onChange={(e) => {
+                    const isDisplay = e.target.checked;
+                    const nextState = { ...activeInlineMath, displayMode: isDisplay };
+                    setActiveInlineMath(nextState);
+                    updateInlineMathPillAttrs(nextState);
+                    syncParagraphFromDom();
+                  }}
+                  className="w-3.5 h-3.5 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-xs text-zinc-600 dark:text-zinc-400">展示模式 (Display)</span>
+              </label>
             </div>
           </div>
 

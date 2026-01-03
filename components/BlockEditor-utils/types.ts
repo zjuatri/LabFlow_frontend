@@ -6,6 +6,7 @@ export type InlineMathState = {
   format: InlineMathFormat;
   latex: string;
   typst: string;
+  displayMode?: boolean;
 };
 
 export type TableStyle = 'normal' | 'three-line';

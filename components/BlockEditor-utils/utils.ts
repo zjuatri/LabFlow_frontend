@@ -195,16 +195,18 @@ export const typstInlineToHtml = (typst: string, opts?: { skipListDetection?: bo
   const s = typst ?? '';
   const skipListDetection = opts?.skipListDetection ?? false;
 
-  const parse = (input: string): string => {
+  const parse = (input: string, inDisplayMode = false): string => {
     let out = '';
     for (let i = 0; i < input.length; i++) {
       const ch = input[i];
+
 
       if (input.startsWith('#linebreak()', i)) {
         out += '<br/>';
         i += '#linebreak()'.length - 1;
         continue;
       }
+
 
       if (ch === '\n') {
         out += '<br/>';
@@ -232,7 +234,7 @@ export const typstInlineToHtml = (typst: string, opts?: { skipListDetection?: bo
           const end = findMatching(input, openIdx, '[', ']');
           if (end !== -1) {
             const inner = input.slice(openIdx + 1, end);
-            out += `<span style="text-decoration: line-through;">${parse(inner)}</span>`;
+            out += `<span style="text-decoration: line-through;">${parse(inner, inDisplayMode)}</span>`;
             i = end;
             continue;
           }
@@ -247,7 +249,7 @@ export const typstInlineToHtml = (typst: string, opts?: { skipListDetection?: bo
           if (end !== -1) {
             const inner = input.slice(openIdx + 1, end);
             // using <u> tag which is standard for execCommand('underline')
-            out += `<u>${parse(inner)}</u>`;
+            out += `<u>${parse(inner, inDisplayMode)}</u>`;
             i = end;
             continue;
           }
@@ -278,7 +280,7 @@ export const typstInlineToHtml = (typst: string, opts?: { skipListDetection?: bo
           if (end !== -1) {
             const inner = input.slice(start + 1, end);
             // Recurse, result is just the inner content (block is layout mostly)
-            out += parse(inner);
+            out += parse(inner, inDisplayMode);
             i = end;
             continue;
           }
@@ -350,7 +352,7 @@ export const typstInlineToHtml = (typst: string, opts?: { skipListDetection?: bo
                 const inner = input.slice(bracketStart + 1, bracketEnd);
                 const colorMatch = args.match(/fill\s*:\s*rgb\(\s*"([^"]+)"\s*\)/i);
                 const color = colorMatch?.[1] ?? '#000000';
-                out += `<span style="color: ${escapeHtml(color)};">${parse(inner)}</span>`;
+                out += `<span style="color: ${escapeHtml(color)};">${parse(inner, inDisplayMode)}</span>`;
                 i = bracketEnd;
                 continue;
               }
@@ -362,7 +364,7 @@ export const typstInlineToHtml = (typst: string, opts?: { skipListDetection?: bo
             if (legacyMatch) {
               const color = legacyMatch[1];
               const inner = legacyMatch[2];
-              out += `<span style="color: ${escapeHtml(color)};">${parse(inner)}</span>`;
+              out += `<span style="color: ${escapeHtml(color)};">${parse(inner, inDisplayMode)}</span>`;
               i += legacyMatch[0].length - 1;
               continue;
             }
@@ -375,7 +377,7 @@ export const typstInlineToHtml = (typst: string, opts?: { skipListDetection?: bo
         const end = input.indexOf('*', i + 1);
         if (end !== -1) {
           const inner = input.slice(i + 1, end);
-          out += `<strong>${parse(inner)}</strong>`;
+          out += `<strong>${parse(inner, inDisplayMode)}</strong>`;
           i = end;
           continue;
         }
@@ -386,7 +388,7 @@ export const typstInlineToHtml = (typst: string, opts?: { skipListDetection?: bo
         const end = input.indexOf('_', i + 1);
         if (end !== -1) {
           const inner = input.slice(i + 1, end);
-          out += `<em>${parse(inner)}</em>`;
+          out += `<em>${parse(inner, inDisplayMode)}</em>`;
           i = end;
           continue;
         }
@@ -396,7 +398,25 @@ export const typstInlineToHtml = (typst: string, opts?: { skipListDetection?: bo
       if (ch === '$') {
         const end = input.indexOf('$', i + 1);
         if (end !== -1) {
-          const inner = input.slice(i + 1, end);
+          const innerRaw = input.slice(i + 1, end);
+
+          let inner = innerRaw;
+          let isDisplay = inDisplayMode; // Inherit from parent (e.g. if we kept #display wrapper logic, but we removed it above)
+          // Actually we removed #display logic, so inDisplayMode is mostly false unless passed from somewhere else.
+          // But we want to detect '$ display(...) $' pattern.
+
+          const trimmedInner = inner.trim();
+          // Detect '$ display(...) $' pattern
+          if (trimmedInner.startsWith('display(')) {
+            const openIdx = trimmedInner.indexOf('('); // should be 7
+            const closeIdx = findMatching(trimmedInner, openIdx, '(', ')');
+            // Ensure the closing parenthesis is at the end
+            if (closeIdx === trimmedInner.length - 1) {
+              isDisplay = true;
+              inner = trimmedInner.slice(openIdx + 1, closeIdx);
+            }
+          }
+
           // Optional: $...$/*LF_LATEX:<base64>*/ preserves original LaTeX losslessly.
           let latex = '';
           let nextIdx = end + 1;
@@ -417,7 +437,8 @@ export const typstInlineToHtml = (typst: string, opts?: { skipListDetection?: bo
           const inferredLatex = latex || typstToLatexMath(inner);
           /* Use a zero-width space wrapper span before the pill to allow cursor positioning before inline math at line start.
              The wrapper span ensures the ZWSP stays on the same line and provides a clickable target. */
-          out += `<span class="inline-math-spacer">\u200B</span><span class="inline-math-pill" data-inline-math-id="${escapeHtml(id)}" data-format="latex" data-typst="${escapeHtml(inner)}" data-latex="${escapeHtml(inferredLatex)}" contenteditable="false">∑</span>\u200B`;
+          const displayAttr = isDisplay ? ' data-display-mode="true"' : '';
+          out += `<span class="inline-math-spacer">\u200B</span><span class="inline-math-pill" data-inline-math-id="${escapeHtml(id)}" data-format="latex" data-typst="${escapeHtml(inner)}" data-latex="${escapeHtml(inferredLatex)}"${displayAttr} contenteditable="false">∑</span>\u200B`;
           i = nextIdx - 1;
           continue;
         }
@@ -528,13 +549,15 @@ export const htmlToTypstInline = (root: HTMLElement): string => {
       return Array.from(el.childNodes).map(walk).join('');
     }
 
-    // Handle inline math pill
     if (el.classList.contains('inline-math-pill')) {
       const typst = (el.getAttribute('data-typst') ?? '').trim();
       const latex = (el.getAttribute('data-latex') ?? '').trim();
+      const isDisplay = el.getAttribute('data-display-mode') === 'true';
       const resolvedTypst = typst || (latex ? latexToTypstMath(latex) : '');
       const latexMarker = latex ? `${INLINE_MATH_LATEX_MARKER}${base64EncodeUtf8(latex)}*/` : '';
-      return `$${resolvedTypst}$${latexMarker}`;
+
+      const content = isDisplay ? `display(${resolvedTypst})` : resolvedTypst;
+      return `$${content}$${latexMarker}`;
     }
 
     const inner = Array.from(el.childNodes).map(walk).join('');
