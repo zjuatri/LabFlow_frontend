@@ -3,7 +3,6 @@
 import { TypstBlock } from '@/lib/typst';
 import { latexToTypstMath, typstToLatexMath } from '@/lib/math-convert';
 import { useRef, useState, useEffect, type MouseEvent as ReactMouseEvent } from 'react';
-import { Bold, Italic, Strikethrough, Sigma, Palette, Underline } from 'lucide-react';
 
 // Import types and utilities from separated modules
 import type { InlineMathFormat, InlineMathState } from '../BlockEditor-utils/types';
@@ -12,6 +11,10 @@ import {
   htmlToTypstInline,
   generateInlineMathId,
 } from '../BlockEditor-utils/utils';
+
+// Import extracted components
+import TextBlockToolbar from './text/TextBlockToolbar';
+import InlineMathEditor from './text/InlineMathEditor';
 
 interface TextBlockEditorProps {
   block: TypstBlock;
@@ -267,7 +270,6 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
   // Handle paste: detect $$...$$ patterns and convert to inline math pills
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
     const text = e.clipboardData.getData('text/plain');
-    // Check if text contains $$...$$ patterns (LaTeX inline math)
     if (!text.includes('$$')) return; // Let default paste handle it
 
     e.preventDefault();
@@ -283,26 +285,21 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
     // Delete selected content
     range.deleteContents();
 
-    // Split text by $$...$$ patterns
-    // Match $$...$$ where inner content doesn't contain $$
     const regex = /\$\$([^$]+)\$\$/g;
     let lastIndex = 0;
     let match;
     const fragment = document.createDocumentFragment();
 
     while ((match = regex.exec(text)) !== null) {
-      // Add text before the match
       if (match.index > lastIndex) {
         const beforeText = text.slice(lastIndex, match.index);
         fragment.appendChild(document.createTextNode(beforeText));
       }
 
-      // Create inline math pill for the matched formula
       const latexContent = match[1];
       const id = generateInlineMathId();
       const typstContent = latexToTypstMath(latexContent);
 
-      // Add spacer span before pill
       const spacer = document.createElement('span');
       spacer.className = 'inline-math-spacer';
       spacer.textContent = '\u200B';
@@ -319,16 +316,12 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
       pill.textContent = '∑';
       fragment.appendChild(pill);
 
-      // Add ZWSP after pill
       fragment.appendChild(document.createTextNode('\u200B'));
-
-      // For display math (implied by $$...$$), add a line break to ensure it sits on its own line
       fragment.appendChild(document.createElement('br'));
 
       lastIndex = match.index + match[0].length;
     }
 
-    // Add remaining text after last match
     if (lastIndex < text.length) {
       fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
     }
@@ -344,194 +337,16 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
   return (
     <div className="flex flex-col gap-3">
       {/* 格式工具栏 */}
-      <div className="flex gap-1 pb-2 border-b border-zinc-200 dark:border-zinc-700">
-        <button
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            applyFormat('bold');
-          }}
-          className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
-          title="加粗 (Ctrl+B)"
-        >
-          <Bold size={16} />
-        </button>
-        <button
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            applyList('ordered');
-          }}
-          className="px-2 py-1.5 text-xs hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
-          title="有序列表"
-        >
-          1.
-        </button>
-        <button
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            applyList('bullet');
-          }}
-          className="px-2 py-1.5 text-xs hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
-          title="无序列表"
-        >
-          •
-        </button>
-        <button
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            applyFormat('italic');
-          }}
-          className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
-          title="斜体 (Ctrl+I)"
-        >
-          <Italic size={16} />
-        </button>
-        <button
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            applyFormat('strike');
-          }}
-          className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
-          title="删除线"
-        >
-          <Strikethrough size={16} />
-        </button>
-        <button
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            applyFormat('underline');
-          }}
-          className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
-          title="下划线 (Ctrl+U)"
-        >
-          <Underline size={16} />
-        </button>
-        <button
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            insertInlineMath();
-          }}
-          className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
-          title="插入行内公式"
-        >
-          <Sigma size={16} />
-        </button>
-        <div className="relative" ref={colorPickerRef}>
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              setShowColorPicker(!showColorPicker);
-            }}
-            className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
-            title="文字颜色"
-          >
-            <Palette size={16} />
-          </button>
-          {showColorPicker && (
-            <div className="absolute top-full left-0 mt-1 p-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded shadow-lg z-50 w-max">
-              <div className="grid grid-cols-5 gap-2">
-                {['#000000', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF', '#FFA500', '#800080', '#008000'].map(color => (
-                  <button
-                    key={color}
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      applyFormat('color', color);
-                      setShowColorPicker(false);
-                    }}
-                    className="w-7 h-7 rounded border border-zinc-300 dark:border-zinc-600 hover:scale-110 transition-transform"
-                    style={{ backgroundColor: color }}
-                    title={color}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2 ml-2">
-          <span className="text-xs text-zinc-600 dark:text-zinc-400">行距</span>
-          <select
-            value={block.lineSpacing ? String(block.lineSpacing) : ''}
-            onChange={(e) => {
-              const v = e.target.value;
-              onUpdate({ lineSpacing: v ? Number(v) : undefined });
-            }}
-            className="text-xs px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
-            title="段落行间距"
-          >
-            <option value="">默认</option>
-            <option value="0.8">0.8</option>
-            <option value="0.9">0.9</option>
-            <option value="1">1.0</option>
-            <option value="1.2">1.2</option>
-            <option value="1.5">1.5</option>
-            <option value="2">2.0</option>
-          </select>
-        </div>
-
-        <div className="flex items-center gap-2 ml-2">
-          <span className="text-xs text-zinc-600 dark:text-zinc-400">字体</span>
-          <select
-            value={block.font ?? 'SimSun'}
-            onChange={(e) => onUpdate({ font: e.target.value })}
-            className="text-xs px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
-            title="段落字体"
-          >
-            <option value="SimSun">宋体</option>
-            <option value="SimHei">黑体</option>
-            <option value="KaiTi">楷体</option>
-            <option value="FangSong">仿宋</option>
-          </select>
-        </div>
-
-        <div className="flex items-center gap-1 ml-2">
-          <span className="text-xs text-zinc-600 dark:text-zinc-400">对齐</span>
-          <button
-            type="button"
-            onClick={() => onUpdate({ align: 'left' })}
-            className={`p-1 rounded transition-colors ${block.align === 'left' || !block.align ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
-            title="左对齐"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="12" x2="15" y2="12" />
-              <line x1="3" y1="18" x2="18" y2="18" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            onClick={() => onUpdate({ align: 'center' })}
-            className={`p-1 rounded transition-colors ${block.align === 'center' ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
-            title="居中"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="6" y1="12" x2="18" y2="12" />
-              <line x1="4" y1="18" x2="20" y2="18" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            onClick={() => onUpdate({ align: 'right' })}
-            className={`p-1 rounded transition-colors ${block.align === 'right' ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
-            title="右对齐"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="9" y1="12" x2="21" y2="12" />
-              <line x1="6" y1="18" x2="21" y2="18" />
-            </svg>
-          </button>
-        </div>
-      </div>
+      <TextBlockToolbar
+        block={block}
+        onUpdate={onUpdate}
+        applyFormat={applyFormat}
+        applyList={applyList}
+        insertInlineMath={insertInlineMath}
+        showColorPicker={showColorPicker}
+        setShowColorPicker={setShowColorPicker}
+        colorPickerRef={colorPickerRef}
+      />
 
       {/* 富文本编辑器 */}
       <div
@@ -575,99 +390,18 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
 
       {/* 行内公式编辑器 */}
       {activeInlineMath && (
-        <div className="inline-math-editor mt-2 p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-zinc-500">编辑行内公式</span>
-            <button
-              onClick={() => {
-                syncParagraphFromDom();
-                setActiveInlineMath(null);
-              }}
-              className="text-xs text-zinc-400 hover:text-zinc-600"
-            >
-              关闭
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs text-zinc-600 dark:text-zinc-400">公式格式</span>
-            <div className="flex bg-white dark:bg-zinc-900 rounded border border-zinc-300 dark:border-zinc-600 overflow-hidden">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveInlineMath({ ...activeInlineMath, format: 'latex' });
-                  updateInlineMathPillAttrs({ ...activeInlineMath, format: 'latex' });
-                }}
-                className={`px-2 py-1 text-xs transition-colors ${activeInlineMath.format === 'latex'
-                  ? 'bg-blue-500 text-white'
-                  : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                  }`}
-              >
-                LaTeX
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveInlineMath({ ...activeInlineMath, format: 'typst' });
-                  updateInlineMathPillAttrs({ ...activeInlineMath, format: 'typst' });
-                }}
-                className={`px-2 py-1 text-xs transition-colors ${activeInlineMath.format === 'typst'
-                  ? 'bg-blue-500 text-white'
-                  : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                  }`}
-              >
-                Typst
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2 ml-4">
-              <label className="flex items-center gap-1 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={activeInlineMath.displayMode || false}
-                  onChange={(e) => {
-                    const isDisplay = e.target.checked;
-                    const nextState = { ...activeInlineMath, displayMode: isDisplay };
-                    setActiveInlineMath(nextState);
-                    updateInlineMathPillAttrs(nextState);
-                    syncParagraphFromDom();
-                  }}
-                  className="w-3.5 h-3.5 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-xs text-zinc-600 dark:text-zinc-400">展示模式 (Display)</span>
-              </label>
-            </div>
-          </div>
-
-          <textarea
-            value={activeInlineMath.format === 'latex' ? activeInlineMath.latex : activeInlineMath.typst}
-            onChange={(e) => {
-              const nextVal = e.target.value;
-              if (activeInlineMath.format === 'latex') {
-                const nextLatex = nextVal;
-                const nextTypst = latexToTypstMath(nextLatex);
-                const nextState = { ...activeInlineMath, latex: nextLatex, typst: nextTypst };
-                setActiveInlineMath(nextState);
-                updateInlineMathPillAttrs(nextState);
-                syncParagraphFromDom();
-              } else {
-                const nextTypst = nextVal;
-                const nextLatex = typstToLatexMath(nextTypst);
-                const nextState = { ...activeInlineMath, typst: nextTypst, latex: nextLatex };
-                setActiveInlineMath(nextState);
-                updateInlineMathPillAttrs(nextState);
-                syncParagraphFromDom();
-              }
-            }}
-            className="w-full p-2 font-mono text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 resize-none"
-            rows={2}
-            placeholder={activeInlineMath.format === 'latex' ? '输入 LaTeX，例如: \\frac{1}{2}' : '输入 Typst math，例如: frac(1, 2)'}
-            autoFocus
-          />
-          <div className="mt-1 text-[10px] text-zinc-400">
-            说明：两种格式会自动互相转换（最佳努力）。
-          </div>
-        </div>
+        <InlineMathEditor
+          state={activeInlineMath}
+          onUpdate={(newState) => {
+            setActiveInlineMath(newState);
+            updateInlineMathPillAttrs(newState);
+            syncParagraphFromDom();
+          }}
+          onClose={() => {
+            syncParagraphFromDom();
+            setActiveInlineMath(null);
+          }}
+        />
       )}
     </div>
   );
