@@ -387,7 +387,7 @@ export default function TitleBlockEditor({ block, onUpdate }: TitleBlockEditorPr
             }
           }
         }}
-        className={`w-full min-h-[40px] p-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 whitespace-pre-wrap outline-none font-bold ${['text-lg', 'text-xl', 'text-2xl', 'text-3xl', 'text-4xl', 'text-5xl'][6 - (block.level || 1)] || 'text-base'
+        className={`w-full min-h-[40px] p-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 whitespace-pre-wrap outline-none cursor-text font-bold ${['text-lg', 'text-xl', 'text-2xl', 'text-3xl', 'text-4xl', 'text-5xl'][6 - (block.level || 1)] || 'text-base'
           }`}
         data-placeholder="输入标题内容..."
       />

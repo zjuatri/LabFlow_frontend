@@ -415,7 +415,9 @@ export const typstInlineToHtml = (typst: string, opts?: { skipListDetection?: bo
 
           const id = generateInlineMathId();
           const inferredLatex = latex || typstToLatexMath(inner);
-          out += `<span class="inline-math-pill" data-inline-math-id="${escapeHtml(id)}" data-format="latex" data-typst="${escapeHtml(inner)}" data-latex="${escapeHtml(inferredLatex)}" contenteditable="false">∑</span>`;
+          /* Use a zero-width space wrapper span before the pill to allow cursor positioning before inline math at line start.
+             The wrapper span ensures the ZWSP stays on the same line and provides a clickable target. */
+          out += `<span class="inline-math-spacer">\u200B</span><span class="inline-math-pill" data-inline-math-id="${escapeHtml(id)}" data-format="latex" data-typst="${escapeHtml(inner)}" data-latex="${escapeHtml(inferredLatex)}" contenteditable="false">∑</span>\u200B`;
           i = nextIdx - 1;
           continue;
         }
@@ -444,7 +446,9 @@ export const typstInlineToHtml = (typst: string, opts?: { skipListDetection?: bo
   const renderTextLine = (line: string): string => {
     const html = parse(line ?? '');
     // Use div blocks so Enter behavior and line detection are stable in contentEditable.
-    return html.trim() ? `<div>${html}</div>` : `<div><br/></div>`;
+    // Check for content but don't trim the actual html (preserve spacer spans and ZWSP for cursor positioning)
+    const hasContent = html.replace(/\u200B/g, '').replace(/<span class="inline-math-spacer"[^>]*><\/span>/g, '').trim();
+    return hasContent ? `<div>${html}</div>` : `<div><br/></div>`;
   };
 
   const stripPrefix = (line: string, kind: 'ordered' | 'bullet'): string => {
@@ -506,12 +510,17 @@ export const typstInlineToPlainText = (typst: string): string => {
 
 export const htmlToTypstInline = (root: HTMLElement): string => {
   const walk = (node: Node): string => {
-    if (node.nodeType === Node.TEXT_NODE) return (node.textContent ?? '');
+    if (node.nodeType === Node.TEXT_NODE) return (node.textContent ?? '').replace(/\u200B/g, '');
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
     const el = node as HTMLElement;
     const tag = el.tagName.toLowerCase();
 
     if (tag === 'br') return '\n';
+
+    // Skip spacer spans used for cursor positioning
+    if (el.classList.contains('inline-math-spacer')) {
+      return '';
+    }
 
     // List items are handled by the parent <ol>/<ul>, but keep this in case
     // a caller walks an <li> directly.

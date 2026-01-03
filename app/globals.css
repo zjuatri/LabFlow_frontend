@@ -42,6 +42,14 @@ body {
   color: rgb(113 113 122);
 }
 
+/* Spacer before inline-math-pill for cursor visibility at line start */
+.inline-math-spacer {
+  display: inline;
+  font-size: inherit;
+  min-width: 2px;
+  caret-color: currentColor;
+}
+
 .inline-math-pill {
   display: inline-flex;
   align-items: center;
@@ -51,10 +59,11 @@ body {
   border-radius: 4px;
   padding: 0 4px;
   margin: 0 2px;
+  margin-left: 0; /* Remove left margin so spacer is right next to pill */
   font-family: var(--font-mono);
   font-size: 0.85em;
   cursor: pointer;
-  user-select: none;
+  user-select: all;
   border: 1px solid #d4d4d8;
 }
 

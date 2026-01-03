@@ -10,13 +10,70 @@ export function serializeImage(block: TypstBlock, imageIndex: number, settings: 
     const shouldNumber = settings.imageCaptionNumbering && captionRaw.length > 0 && imageIndex > 0;
     const label = shouldNumber ? `图${imageIndex} ` : '';
     const captionText = captionRaw ? (label + captionRaw).trim() : '';
+    const alignValue = align === 'left' ? 'left' : align === 'right' ? 'right' : 'center';
+    
+    // Helper to strip #text(font:...) wrappers - needed for both payload and output
+    const stripTextWrapper = (s: string): string | null => {
+        const prefixMatch = s.match(/^#text\(font:\s*"[^"]+"\)\s*\[/);
+        if (!prefixMatch) return null;
+        const bracketStart = prefixMatch[0].length - 1;
+        let depth = 0;
+        let end = -1;
+        for (let i = bracketStart; i < s.length; i++) {
+            if (s[i] === '[') depth++;
+            else if (s[i] === ']') {
+                depth--;
+                if (depth === 0) {
+                    end = i;
+                    break;
+                }
+            }
+        }
+        if (end === -1) return null;
+        if (end !== s.length - 1 && s.slice(end + 1).trim() !== '') return null;
+        return s.slice(bracketStart + 1, end);
+    };
+    
+    const stripMalformedTextWrapper = (s: string): string => {
+        const prefixMatch = s.match(/^#text\(font:\s*"[^"]+"\)\s*\[/);
+        if (!prefixMatch) return s;
+        const afterPrefix = s.slice(prefixMatch[0].length);
+        let depth = 1;
+        let end = -1;
+        for (let i = 0; i < afterPrefix.length; i++) {
+            if (afterPrefix[i] === '[') depth++;
+            else if (afterPrefix[i] === ']') {
+                depth--;
+                if (depth === 0) {
+                    end = i;
+                    break;
+                }
+            }
+        }
+        if (end === -1) return afterPrefix;
+        return afterPrefix.slice(0, end);
+    };
+    
+    // Clean caption for storage in LF_IMAGE marker (should be plain text, not wrapped)
+    let cleanCaptionForPayload = captionRaw;
+    while (true) {
+        const inner = stripTextWrapper(cleanCaptionForPayload);
+        if (inner !== null) {
+            cleanCaptionForPayload = inner;
+        } else {
+            break;
+        }
+    }
+    if (cleanCaptionForPayload.startsWith('#text(font:')) {
+        cleanCaptionForPayload = stripMalformedTextWrapper(cleanCaptionForPayload);
+    }
+    
     const payload = {
-        caption: block.caption ?? '',
+        caption: cleanCaptionForPayload,
         width,
         height,
     };
     const encoded = `${LF_IMAGE_MARKER}${base64EncodeUtf8(JSON.stringify(payload))}*/`;
-    const alignValue = align === 'left' ? 'left' : align === 'right' ? 'right' : 'center';
 
     // If image path is empty, output a placeholder text instead of image("") which causes compilation error
     const imagePath = (block.content ?? '').trim();
@@ -96,7 +153,8 @@ export function serializeImage(block: TypstBlock, imageIndex: number, settings: 
     const supplementArg = ', supplement: "图"';
 
     const fontToCheck = block.captionFont || 'SimSun';
-    const captionContent = `#text(font: "${fontToCheck}")[${captionRaw}]`;
+    // Use the already-cleaned caption (cleanCaptionForPayload) for the Typst output
+    const captionContent = `#text(font: "${fontToCheck}")[${cleanCaptionForPayload}]`;
     const captionArg = `, caption: [${captionContent}]`;
 
     // Handle caption position via gap/local set if critical, but figure defaults to bottom. 
@@ -107,7 +165,7 @@ export function serializeImage(block: TypstBlock, imageIndex: number, settings: 
         blockPrefix = '#show figure: set figure(caption-pos: top)\n';
     }
 
-    return `${blockPrefix}#align(${alignValue})[#figure(${imageContent}${captionArg}${numberingArg}${supplementArg})]`;
+    return `${blockPrefix}#align(${alignValue})[#figure(${imageContent}${captionArg}${numberingArg}${supplementArg})]${encoded}`;
 }
 
 export function serializeChart(block: TypstBlock): string {

@@ -127,15 +127,17 @@ export function parseImageBlock(trimmed: string): TypstBlock | null {
     // Handle #figure(image(...), caption: [...], supplement: "...") format
     // Example: #figure(image("/static/.../xxx.jpg", width: 50%, height: auto), caption: [标题], supplement: "图")
     // Also handle #align(...)[#figure(...)]
+    // Note: caption may contain nested brackets like [#text(font: "SimSun")[内容]], so we use fallback parser below
     const figureMatch = trimmed.match(
-        /^(?:#align\(\s*(left|center|right)\s*\)\s*\[\s*)?#figure\(\s*image\(\s*"([^"]+)"(?:\s*,\s*width\s*:\s*([^,)]+))?(?:\s*,\s*height\s*:\s*([^,)]+))?\s*\)(?:\s*,\s*caption\s*:\s*\[([^\]]*)\])?(?:\s*,\s*supplement\s*:\s*"[^"]*")?\s*\)\]?$/
+        /^(?:#align\(\s*(left|center|right)\s*\)\s*\[\s*)?#figure\(\s*image\(\s*"([^"]+)"(?:\s*,\s*width\s*:\s*([^,)]+))?(?:\s*,\s*height\s*:\s*([^,)]+))?\s*\)/
     );
-    if (figureMatch) {
+    if (figureMatch && trimmed.includes('#figure(') && trimmed.includes('image(')) {
+        // Use the fallback parser which handles nested brackets properly
+        // This block intentionally falls through to the fallback below
+    } else if (figureMatch) {
         const alignFromOuter = figureMatch[1] as 'left' | 'center' | 'right' | undefined;
         const imagePath = figureMatch[2];
         const widthRaw = figureMatch[3]?.trim();
-        // const heightRaw = figureMatch[4]?.trim(); // We use 'auto' for height
-        const captionText = figureMatch[5]?.trim() ?? '';
 
         return {
             id: generateId(),
@@ -144,7 +146,7 @@ export function parseImageBlock(trimmed: string): TypstBlock | null {
             align: alignFromOuter ?? 'center',
             width: widthRaw || '50%',
             height: 'auto',
-            caption: captionText,
+            caption: '',
         };
     }
 
@@ -160,9 +162,40 @@ export function parseImageBlock(trimmed: string): TypstBlock | null {
             const widthMatch = trimmed.match(/width\s*:\s*([^,)\s]+)/);
             const width = widthMatch?.[1]?.trim() || '50%';
             
-            // Extract caption
-            const captionMatch = trimmed.match(/caption\s*:\s*\[([^\]]*)\]/);
-            const caption = captionMatch?.[1]?.trim() ?? '';
+            // Extract caption using balanced bracket matching
+            let caption = '';
+            let captionFont: string | undefined = undefined;
+            const capStart = trimmed.indexOf('caption: [');
+            if (capStart !== -1) {
+                let depth = 0;
+                let capFull = '';
+                for (let i = capStart + 9; i < trimmed.length; i++) {
+                    const c = trimmed[i];
+                    if (c === '[') depth++;
+                    else if (c === ']') depth--;
+                    capFull += c;
+                    if (depth === 0) break;
+                }
+                // Strip outer brackets
+                let capContent = capFull;
+                if (capFull.startsWith('[') && capFull.endsWith(']')) {
+                    capContent = capFull.slice(1, -1);
+                }
+                // Recursively strip #text(font:...) wrappers
+                while (capContent.match(/^#text\(font:\s*"([^"]+)"\)\s*\[/)) {
+                    const prefixMatch = capContent.match(/^#text\(font:\s*"([^"]+)"\)\s*\[/);
+                    if (!prefixMatch) break;
+                    captionFont = prefixMatch[1];
+                    const afterPrefix = capContent.slice(prefixMatch[0].length);
+                    let d = 1, end = -1;
+                    for (let i = 0; i < afterPrefix.length; i++) {
+                        if (afterPrefix[i] === '[') d++;
+                        else if (afterPrefix[i] === ']') { d--; if (d === 0) { end = i; break; } }
+                    }
+                    capContent = end !== -1 ? afterPrefix.slice(0, end) : afterPrefix;
+                }
+                caption = capContent;
+            }
             
             // Extract align from outer wrapper if present
             const alignMatch = trimmed.match(/^#align\(\s*(left|center|right)\s*\)/);
@@ -176,6 +209,7 @@ export function parseImageBlock(trimmed: string): TypstBlock | null {
                 width,
                 height: 'auto',
                 caption,
+                captionFont,
             };
         }
     }
