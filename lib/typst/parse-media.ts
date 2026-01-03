@@ -110,6 +110,28 @@ export function parseImageBlock(trimmed: string): TypstBlock | null {
         }
     }
 
+    // Match #align(..)[#figure(..)] pattern
+    // Generated format: #align(center)[#figure(image("...", width: 50%, height: auto), caption: [#text(font: "SimSun")[...]], ...)]
+
+    // First, try to match the outer #align wrapper which is common
+    // use [\s\S] instead of . with s flag to support older TS targets
+    const alignMatch = trimmed.match(/^#align\(\s*(left|center|right)\s*\)\s*\[([\s\S]*)\]$/);
+    if (alignMatch) {
+        const align = (alignMatch[1] as 'left' | 'center' | 'right') ?? 'center';
+        const inner = alignMatch[2].trim();
+
+        // Check if inner is #figure
+        if (inner.startsWith('#figure(')) {
+            return parseFigureInner(inner, align, trimmed);
+        }
+    }
+
+    // Also try matching raw #figure if align is omitted or implied
+    if (trimmed.startsWith('#figure(')) {
+        return parseFigureInner(trimmed, 'center', trimmed);
+    }
+
+    // Fallback to legacy #align(..., image(...))
     const match = trimmed.match(/#align\(\s*(left|center|right)\s*,\s*image\("([^"]+)"(?:,\s*width:\s*([^,}]+))?(?:,\s*height:\s*([^)]+))?\)\)/);
     if (match) {
         return {
@@ -121,6 +143,83 @@ export function parseImageBlock(trimmed: string): TypstBlock | null {
             height: 'auto',
         };
     }
+
+    return null;
+}
+
+function parseFigureInner(inner: string, align: 'left' | 'center' | 'right', originalText: string): TypstBlock | null {
+    // Basic regex extraction for figure content
+    // This is not a full parser, assuming standard generation format
+    // #figure(image("PATH", width: W, height: H), caption: [...], ...)
+
+    // Extract image part: image("...", ...)
+    const imgMatch = inner.match(/image\("([^"]+)"/);
+    if (!imgMatch) return null;
+    const imageUrl = imgMatch[1];
+
+    // Extract width
+    const widthMatch = inner.match(/width:\s*([^,)]+)/);
+    const width = widthMatch ? widthMatch[1].trim() : '50%';
+
+    // Extract height
+    const heightMatch = inner.match(/height:\s*([^,)]+)/);
+    const height = heightMatch ? heightMatch[1].trim() : 'auto';
+
+    // Extract caption: caption: [...]
+    // This is tricky with nested brackets. We assume standard generation: caption: [#text(...)[]] or caption: [text]
+    // We'll look for `caption: [` and take until matching `]`.
+    // Since we don't have a balanced bracket parser util here, we might need a simple one or regex assumption.
+    // Generated: caption: [#text(font: "SimSun")[My Caption]]
+
+    let caption = '';
+    let captionFont = undefined;
+
+    const capStart = inner.indexOf('caption: [');
+    if (capStart !== -1) {
+        // Simple balanced bracket finding
+        let depth = 0;
+        let capContent = '';
+        for (let i = capStart + 9; i < inner.length; i++) { // "caption: " is 9 chars? No, "caption: [" is 10 chars
+            const c = inner[i]; // Start after '['
+            if (c === '[') depth++;
+            else if (c === ']') {
+                if (depth === 0) break;
+                depth--;
+            }
+            capContent += c;
+        }
+
+        // Parse caption content for font: #text(font: "SimSun")[RawCaption]
+        const fontMatch = capContent.match(/#text\(font:\s*"([^"]+)"\)\s*\[([\s\S]*)\]/);
+        if (fontMatch) {
+            captionFont = fontMatch[1];
+            caption = fontMatch[2]; // Inner text
+        } else {
+            // Raw text or cleanup
+            caption = capContent;
+        }
+    }
+
+    // Attempt to restore LF_IMAGE marker if it exists in the original text (serialized at end)
+    const markerMatch = originalText.match(/\/\*LF_IMAGE:([A-Za-z0-9+/=]+)\*\//);
+    let extraData = {};
+    if (markerMatch) {
+        try {
+            extraData = JSON.parse(base64DecodeUtf8(markerMatch[1]));
+        } catch { }
+    }
+
+    return {
+        id: generateId(),
+        type: 'image',
+        content: imageUrl,
+        align,
+        width,
+        height,
+        caption,
+        captionFont,
+        ...extraData // This restores placeholders etc if they are in the marker
+    };
 
     return null;
 }

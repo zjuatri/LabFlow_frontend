@@ -124,5 +124,61 @@ export function parseImageBlock(trimmed: string): TypstBlock | null {
         };
     }
 
+    // Handle #figure(image(...), caption: [...], supplement: "...") format
+    // Example: #figure(image("/static/.../xxx.jpg", width: 50%, height: auto), caption: [标题], supplement: "图")
+    // Also handle #align(...)[#figure(...)]
+    const figureMatch = trimmed.match(
+        /^(?:#align\(\s*(left|center|right)\s*\)\s*\[\s*)?#figure\(\s*image\(\s*"([^"]+)"(?:\s*,\s*width\s*:\s*([^,)]+))?(?:\s*,\s*height\s*:\s*([^,)]+))?\s*\)(?:\s*,\s*caption\s*:\s*\[([^\]]*)\])?(?:\s*,\s*supplement\s*:\s*"[^"]*")?\s*\)\]?$/
+    );
+    if (figureMatch) {
+        const alignFromOuter = figureMatch[1] as 'left' | 'center' | 'right' | undefined;
+        const imagePath = figureMatch[2];
+        const widthRaw = figureMatch[3]?.trim();
+        // const heightRaw = figureMatch[4]?.trim(); // We use 'auto' for height
+        const captionText = figureMatch[5]?.trim() ?? '';
+
+        return {
+            id: generateId(),
+            type: 'image',
+            content: imagePath,
+            align: alignFromOuter ?? 'center',
+            width: widthRaw || '50%',
+            height: 'auto',
+            caption: captionText,
+        };
+    }
+
+    // Fallback: more relaxed figure parsing for edge cases
+    // Match #figure(image("path"...) with any trailing content
+    if (trimmed.includes('#figure(') && trimmed.includes('image(')) {
+        // Extract image path
+        const pathMatch = trimmed.match(/image\(\s*"([^"]+)"/);
+        if (pathMatch) {
+            const imagePath = pathMatch[1];
+            
+            // Extract width
+            const widthMatch = trimmed.match(/width\s*:\s*([^,)\s]+)/);
+            const width = widthMatch?.[1]?.trim() || '50%';
+            
+            // Extract caption
+            const captionMatch = trimmed.match(/caption\s*:\s*\[([^\]]*)\]/);
+            const caption = captionMatch?.[1]?.trim() ?? '';
+            
+            // Extract align from outer wrapper if present
+            const alignMatch = trimmed.match(/^#align\(\s*(left|center|right)\s*\)/);
+            const align = (alignMatch?.[1] as 'left' | 'center' | 'right') ?? 'center';
+
+            return {
+                id: generateId(),
+                type: 'image',
+                content: imagePath,
+                align,
+                width,
+                height: 'auto',
+                caption,
+            };
+        }
+    }
+
     return null;
 }

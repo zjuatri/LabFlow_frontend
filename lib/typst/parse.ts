@@ -460,7 +460,19 @@ export function typstToBlocks(code: string): TypstBlock[] {
     }
 
     // 图片 (通过标记注释) - Catch placeholder blocks and marked images
+    // 图片 (通过标记注释) - Catch placeholder blocks and marked images
     if (trimmed.includes(LF_IMAGE_MARKER)) {
+      const imageBlock = parseImageBlock(trimmed);
+      if (imageBlock) {
+        blocks.push(imageBlock);
+        skipNextCaptionBecausePreviousImage = true;
+        continue;
+      }
+    }
+
+    // New Image Format: #figure(...) or #align(..)[#figure(...)]
+    if (trimmed.startsWith('#figure(') ||
+      (/^#align\(\s*(?:left|center|right)\s*\)\s*\[\s*#figure\(/.test(trimmed))) {
       const imageBlock = parseImageBlock(trimmed);
       if (imageBlock) {
         blocks.push(imageBlock);

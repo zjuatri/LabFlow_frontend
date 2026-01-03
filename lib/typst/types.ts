@@ -61,6 +61,7 @@ export interface TypstBlock {
 
   // Image caption text (global numbering/position is stored in DocumentSettings).
   caption?: string;
+  captionFont?: string; // Caption font (e.g., "KaiTi")
 
   // Chart blocks store their editor state inside content (PersistedChartPayload JSON).
 

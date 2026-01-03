@@ -159,13 +159,28 @@ export default function ImageBlockEditor({ block, onUpdate, onUploadImage, width
       )}
 
       {/* 图片说明 */}
-      <input
-        type="text"
-        value={block.caption ?? ''}
-        onChange={(e) => onUpdate({ caption: e.target.value })}
-        className="w-full p-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
-        placeholder="例如：实验装置示意图"
-      />
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={block.caption ?? ''}
+          onChange={(e) => onUpdate({ caption: e.target.value })}
+          className="flex-1 p-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+          placeholder="例如：实验装置示意图"
+        />
+        <select
+          value={block.captionFont || 'SimSun'}
+          onChange={(e) => onUpdate({ captionFont: e.target.value })}
+          className="w-24 p-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+          title="说明字体"
+        >
+          <option value="SimSun">宋体</option>
+          <option value="KaiTi">楷体</option>
+          <option value="SimHei">黑体</option>
+          <option value="FangSong">仿宋</option>
+          <option value="Arial">Arial</option>
+          <option value="Times New Roman">Times</option>
+        </select>
+      </div>
 
       {/* 对齐方式 */}
       {block.content && (

@@ -95,7 +95,9 @@ export function serializeImage(block: TypstBlock, imageIndex: number, settings: 
     // Specifying supplement explicitly is safer for "图".
     const supplementArg = ', supplement: "图"';
 
-    const captionArg = `, caption: [${captionRaw}]`;
+    const fontToCheck = block.captionFont || 'SimSun';
+    const captionContent = `#text(font: "${fontToCheck}")[${captionRaw}]`;
+    const captionArg = `, caption: [${captionContent}]`;
 
     // Handle caption position via gap/local set if critical, but figure defaults to bottom. 
     // To support top caption, we'd need #show figure: set figure(caption-pos: top) in preamble or block scoped.
