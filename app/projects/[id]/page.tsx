@@ -111,6 +111,50 @@ export default function ProjectEditorPage() {
     }))
   );
 
+  const [editorWidthPercent, setEditorWidthPercent] = useState(50);
+  const [aiSidebarWidth, setAiSidebarWidth] = useState(400);
+
+  const [isResizingEditor, setIsResizingEditor] = useState(false);
+  const [isResizingAi, setIsResizingAi] = useState(false);
+
+  // Resize handlers
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isResizingEditor) {
+        // Calculate percentage based on window width
+        const mainAreaWidth = window.innerWidth - (showAiSidebar ? aiSidebarWidth : 0);
+        const newPercent = (e.clientX / mainAreaWidth) * 100;
+        setEditorWidthPercent(Math.max(20, Math.min(80, newPercent)));
+      }
+
+      if (isResizingAi) {
+        const newWidth = window.innerWidth - e.clientX;
+        setAiSidebarWidth(Math.max(250, Math.min(800, newWidth)));
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingEditor(false);
+      setIsResizingAi(false);
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+    };
+
+    if (isResizingEditor || isResizingAi) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = isResizingEditor ? 'col-resize' : 'ew-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+    };
+  }, [isResizingEditor, isResizingAi, showAiSidebar, aiSidebarWidth]);
+
   const [activeAnchor, setActiveAnchor] = useState<{ pageIndex: number; localIndex: number } | null>(null);
   const [highlightNonce, setHighlightNonce] = useState(0);
   const [clickAnchor, setClickAnchor] = useState<{ pageIndex: number; localIndex: number } | null>(null);
@@ -552,101 +596,134 @@ export default function ProjectEditorPage() {
 
   return (
     <div className="flex h-screen w-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
-      <div className="flex flex-col w-1/2 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
 
-        {(() => {
-          const coverIndex = blocks.findIndex((b) => b.type === 'cover');
-          const hasCover = coverIndex >= 0;
-          const coverFixedOnePage = hasCover ? !!blocks[coverIndex]?.coverFixedOnePage : false;
+      {/* Main Area: Editor + Preview */}
+      <div className="flex h-full transition-[width] duration-0" style={{ width: showAiSidebar ? `calc(100% - ${aiSidebarWidth}px)` : '100%' }}>
 
-          return (
-            <EditorToolbar
-              mode={mode}
-              onModeSwitch={switchMode}
-              title={title}
-              onTitleChange={setTitle}
-              docSettings={docSettings}
-              onSettingsChange={setDocSettings}
-              canUndo={canUndo()}
-              canRedo={canRedo()}
-              onUndo={undo}
-              onRedo={redo}
-              onSave={() => void saveProject()}
-              onOpenCoverModal={() => void openCoverModal()}
-              projectType={projectType}
-              showSettings={showSettings}
-              onToggleSettings={() => setShowSettings(!showSettings)}
-              onCloseSettings={() => setShowSettings(false)}
-              hasCover={hasCover}
-              coverFixedOnePage={coverFixedOnePage}
-              onCoverFixedOnePageChange={(fixed) => {
-                if (coverIndex < 0) return;
-                const next = [...blocks];
-                next[coverIndex] = { ...next[coverIndex], coverFixedOnePage: fixed };
-                setBlocks(next);
+        {/* Editor Pane */}
+        <div
+          className="flex flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50"
+          style={{ width: `${editorWidthPercent}%` }}
+        >
+
+          {(() => {
+            const coverIndex = blocks.findIndex((b) => b.type === 'cover');
+            const hasCover = coverIndex >= 0;
+            const coverFixedOnePage = hasCover ? !!blocks[coverIndex]?.coverFixedOnePage : false;
+
+            return (
+              <EditorToolbar
+                mode={mode}
+                onModeSwitch={switchMode}
+                title={title}
+                onTitleChange={setTitle}
+                docSettings={docSettings}
+                onSettingsChange={setDocSettings}
+                canUndo={canUndo()}
+                canRedo={canRedo()}
+                onUndo={undo}
+                onRedo={redo}
+                onSave={() => void saveProject()}
+                onOpenCoverModal={() => void openCoverModal()}
+                projectType={projectType}
+                showSettings={showSettings}
+                onToggleSettings={() => setShowSettings(!showSettings)}
+                onCloseSettings={() => setShowSettings(false)}
+                hasCover={hasCover}
+                coverFixedOnePage={coverFixedOnePage}
+                onCoverFixedOnePageChange={(fixed) => {
+                  if (coverIndex < 0) return;
+                  const next = [...blocks];
+                  next[coverIndex] = { ...next[coverIndex], coverFixedOnePage: fixed };
+                  setBlocks(next);
+                }}
+              />
+            );
+          })()}
+
+          {mode === 'source' ? (
+            <textarea
+              value={code}
+              onChange={(e) => {
+                setCode(e.target.value);
               }}
+              className="flex-1 w-full p-6 font-mono text-sm text-zinc-900 dark:text-zinc-100 bg-transparent resize-none focus:outline-none leading-relaxed"
+              placeholder="Type your Typst code here..."
+              spellCheck={false}
             />
-          );
-        })()}
-
-        {mode === 'source' ? (
-          <textarea
-            value={code}
-            onChange={(e) => {
-              setCode(e.target.value);
-            }}
-            className="flex-1 w-full p-6 font-mono text-sm text-zinc-900 dark:text-zinc-100 bg-transparent resize-none focus:outline-none leading-relaxed"
-            placeholder="Type your Typst code here..."
-            spellCheck={false}
-          />
-        ) : (
-          <div className="flex-1 overflow-y-auto bg-amber-50/10 dark:bg-zinc-950/50" ref={editorScrollRef}>
-            {(() => {
-              const blanks = findAnswerBlankIndexes();
-              if (blanks.length === 0) return null;
-              return (
-                <div className="sticky top-0 z-10 px-4 py-2 bg-amber-50/95 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 flex items-center justify-between gap-3 backdrop-blur-sm">
-                  <div className="text-xs text-amber-800 dark:text-amber-200">
-                    发现 {blanks.length} 处“待填写答案”。虚线框段落为答案区。
+          ) : (
+            <div className="flex-1 overflow-y-auto bg-amber-50/10 dark:bg-zinc-950/50" ref={editorScrollRef}>
+              {(() => {
+                const blanks = findAnswerBlankIndexes();
+                if (blanks.length === 0) return null;
+                return (
+                  <div className="sticky top-0 z-10 px-4 py-2 bg-amber-50/95 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 flex items-center justify-between gap-3 backdrop-blur-sm">
+                    <div className="text-xs text-amber-800 dark:text-amber-200">
+                      发现 {blanks.length} 处“待填写答案”。虚线框段落为答案区。
+                    </div>
+                    <button
+                      type="button"
+                      onClick={jumpToNextBlank}
+                      className="text-xs px-2 py-1 rounded border border-amber-300 dark:border-amber-700 bg-white/80 dark:bg-zinc-950/40 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                    >
+                      跳到下一处
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={jumpToNextBlank}
-                    className="text-xs px-2 py-1 rounded border border-amber-300 dark:border-amber-700 bg-white/80 dark:bg-zinc-950/40 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
-                  >
-                    跳到下一处
-                  </button>
-                </div>
-              );
-            })()}
-            <BlockEditor
-              blocks={blocks}
-              onChange={setBlocks}
-              projectId={projectId}
-              onBlockClick={handleBlockClick}
-            />
-          </div>
-        )}
+                );
+              })()}
+              <BlockEditor
+                blocks={blocks}
+                onChange={setBlocks}
+                projectId={projectId}
+                onBlockClick={handleBlockClick}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Editor-Preview Resizer */}
+        <div
+          className="w-1 cursor-col-resize hover:bg-blue-500/50 active:bg-blue-600 transition-colors z-20 flex flex-col justify-center items-center group -ml-0.5 relative"
+          onMouseDown={(e) => { e.preventDefault(); setIsResizingEditor(true); }}
+        >
+          <div className="w-0.5 h-8 bg-zinc-300 dark:bg-zinc-600 rounded-full group-hover:bg-white group-active:bg-white transition-colors" />
+        </div>
+
+        {/* Preview Pane */}
+        <div className="flex flex-col bg-zinc-50/50 dark:bg-zinc-900/50 backdrop-blur-sm" style={{ width: `${100 - editorWidthPercent}%` }}>
+          <PreviewPanel
+            error={error}
+            svgPages={svgPages}
+            isRendering={isRendering}
+            activeAnchor={activeAnchor}
+            clickAnchor={clickAnchor}
+            highlightNonce={highlightNonce}
+            registerPageRef={registerPageRef}
+            onBlockClick={handlePreviewClick}
+            onDownloadPdf={() => void downloadPdf()}
+            previewRef={previewRef}
+            projectId={projectId}
+            onToggleAiSidebar={() => setShowAiSidebar(!showAiSidebar)}
+            isAiSidebarOpen={showAiSidebar}
+          />
+        </div>
       </div>
 
-      <PreviewPanel
-        error={error}
-        svgPages={svgPages}
-        isRendering={isRendering}
-        activeAnchor={activeAnchor}
-        clickAnchor={clickAnchor}
-        highlightNonce={highlightNonce}
-        registerPageRef={registerPageRef}
-        onBlockClick={handlePreviewClick}
-        onDownloadPdf={() => void downloadPdf()}
-        previewRef={previewRef}
-        projectId={projectId}
-        onToggleAiSidebar={() => setShowAiSidebar(!showAiSidebar)}
-        isAiSidebarOpen={showAiSidebar}
-      />
+      {/* AI Sidebar Resizer */}
+      {showAiSidebar && (
+        <div
+          className="w-1 cursor-ew-resize hover:bg-blue-500/50 active:bg-blue-600 transition-colors z-30 flex flex-col justify-center items-center group -ml-0.5 border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
+          onMouseDown={(e) => { e.preventDefault(); setIsResizingAi(true); }}
+        >
+          <div className="w-0.5 h-8 bg-zinc-300 dark:bg-zinc-600 rounded-full group-hover:bg-blue-200 group-active:bg-blue-200 transition-colors" />
+        </div>
+      )}
 
       {showAiSidebar && (
-        <div className="w-[400px] h-full border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0 z-30 shadow-2xl animate-in slide-in-from-right duration-300">
+        <div
+          className="h-full bg-white dark:bg-zinc-950 shrink-0 z-30 shadow-2xl flex flex-col"
+          style={{ width: `${aiSidebarWidth}px` }}
+        >
           <AiAssistantPlugin
             projectId={projectId}
             existingBlocks={blocks}

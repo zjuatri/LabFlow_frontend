@@ -67,7 +67,7 @@ export function EditorToolbar({
     }, [onCloseSettings]);
 
     return (
-        <div className="flex items-center justify-between px-4 py-3 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 gap-3">
+        <div className="flex items-center justify-between px-4 py-3 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 gap-3 flex-wrap">
             <div className="flex items-center gap-3 min-w-0">
                 <button
                     onClick={() => {
