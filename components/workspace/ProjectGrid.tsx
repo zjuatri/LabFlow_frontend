@@ -102,24 +102,24 @@ export default function ProjectGrid() {
     }
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 min-h-[400px]">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {projects.map((p) => (
                 <div
                     key={p.id}
                     className={`
             group relative bg-white dark:bg-zinc-900/50 border rounded-xl transition-all duration-200
-            hover:shadow-lg hover:border-blue-500/30 hover:-translate-y-1
+            hover:shadow-md hover:border-blue-500/30 hover:-translate-y-0.5
             ${selectedIds.has(p.id) ? 'border-blue-500 ring-1 ring-blue-500 bg-blue-50/30 dark:bg-blue-900/10' : 'border-zinc-200 dark:border-zinc-800'}
           `}
                 >
                     {/* Card Content (Clickable) */}
                     <div
                         onClick={() => router.push(`/projects/${p.id}`)}
-                        className="p-5 cursor-pointer h-full flex flex-col"
+                        className="p-3.5 cursor-pointer flex flex-col"
                     >
-                        <div className="flex items-start justify-between gap-4 mb-4">
-                            <div className={`p-3 rounded-lg ${selectedIds.has(p.id) ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 group-hover:bg-blue-50 group-hover:text-blue-600 dark:group-hover:bg-blue-900/20 dark:group-hover:text-blue-400'} transition-colors`}>
-                                <FileText size={24} />
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                            <div className={`p-2.5 rounded-lg ${selectedIds.has(p.id) ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 group-hover:bg-blue-50 group-hover:text-blue-600 dark:group-hover:bg-blue-900/20 dark:group-hover:text-blue-400'} transition-colors`}>
+                                <FileText size={20} />
                             </div>
 
                             {/* Checkbox (Absolute positioning for better hit area) */}
@@ -127,17 +127,17 @@ export default function ProjectGrid() {
                                 onClick={(e) => { e.stopPropagation(); toggleSelect(p.id); }}
                                 className="p-2 -mr-2 -mt-2 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors"
                             >
-                                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${selectedIds.has(p.id) ? 'bg-blue-600 border-blue-600' : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900'}`}>
-                                    {selectedIds.has(p.id) && <div className="w-2.5 h-2.5 bg-white rounded-sm" />}
+                                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedIds.has(p.id) ? 'bg-blue-600 border-blue-600' : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900'}`}>
+                                    {selectedIds.has(p.id) && <div className="w-2 h-2 bg-white rounded-sm" />}
                                 </div>
                             </div>
                         </div>
 
-                        <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 mb-2 line-clamp-2 leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                        <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 mb-2 line-clamp-2 leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors text-sm">
                             {p.title}
                         </h3>
 
-                        <div className="mt-auto pt-4 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 border-t border-zinc-100 dark:border-zinc-800/50">
+                        <div className="mt-auto pt-3 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 border-t border-zinc-100 dark:border-zinc-800/50">
                             <div className="flex items-center gap-1.5">
                                 <Calendar size={12} />
                                 {new Date(p.updated_at).toLocaleDateString()}

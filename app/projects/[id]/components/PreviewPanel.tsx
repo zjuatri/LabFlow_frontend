@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Download } from 'lucide-react';
 import { SvgPage } from '../SvgPage';
 
@@ -12,6 +13,7 @@ interface PreviewPanelProps {
     onBlockClick: (pageIndex: number, localIndex: number) => void;
     onDownloadPdf: () => void;
     previewRef: React.RefObject<HTMLDivElement | null>;
+    projectId: string;
 }
 
 export function PreviewPanel({
@@ -25,7 +27,63 @@ export function PreviewPanel({
     onBlockClick,
     onDownloadPdf,
     previewRef,
+    projectId,
 }: PreviewPanelProps) {
+    const hasRestoredRef = useRef(false);
+
+    // Reset restored flag when project changes
+    useEffect(() => {
+        hasRestoredRef.current = false;
+    }, [projectId]);
+
+    // Restore scroll position
+    useEffect(() => {
+        if (!projectId || hasRestoredRef.current) return;
+        if (svgPages.length === 0) return;
+
+        const key = `preview_scroll_${projectId}`;
+        const saved = localStorage.getItem(key);
+        if (saved) {
+            const top = parseInt(saved, 10);
+            if (!isNaN(top) && previewRef.current) {
+                if (previewRef.current.scrollHeight >= top) {
+                    previewRef.current.scrollTop = top;
+                    hasRestoredRef.current = true;
+                } else {
+                    // Content shorter than saved scroll? 
+                    // Just set to max? Or wait? 
+                    // Let's set it anyway
+                    previewRef.current.scrollTop = top;
+                    hasRestoredRef.current = true;
+                }
+            }
+        }
+    }, [projectId, svgPages, previewRef]);
+
+    // Save scroll position
+    useEffect(() => {
+        const el = previewRef.current;
+        if (!el || !projectId) return;
+
+        const handleScroll = () => {
+            const key = `preview_scroll_${projectId}`;
+            localStorage.setItem(key, el.scrollTop.toString());
+        };
+
+        // Debounce 200ms
+        let timeout: NodeJS.Timeout;
+        const debounced = () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(handleScroll, 200);
+        };
+
+        el.addEventListener('scroll', debounced);
+        return () => {
+            el.removeEventListener('scroll', debounced);
+            clearTimeout(timeout);
+        };
+    }, [projectId, previewRef]);
+
     return (
         <div className="flex flex-col w-1/2">
             <div className="px-4 py-3 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 flex items-center justify-between gap-3">

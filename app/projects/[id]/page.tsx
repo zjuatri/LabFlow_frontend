@@ -644,6 +644,7 @@ export default function ProjectEditorPage() {
         onBlockClick={handlePreviewClick}
         onDownloadPdf={() => void downloadPdf()}
         previewRef={previewRef}
+        projectId={projectId}
       />
 
       {showAiSidebar && (
