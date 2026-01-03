@@ -67,8 +67,54 @@ export function buildUserInputJson(params: {
   return {
     userInputJson: JSON.stringify(userInputObj, null, 2),
     pdfContextJson: JSON.stringify(pdfContextObj, null, 2),
-    existingBlocksJson: JSON.stringify(existingBlocksObj, null, 2),
+    existingBlocksJson: JSON.stringify(simplifyBlocksForAi(existingBlocksObj), null, 2),
   };
+}
+
+function simplifyBlocksForAi(blocks: TypstBlock[]): any[] {
+  return blocks.map((b) => {
+    // Basic allowed fields
+    const newB: any = {
+      type: b.type,
+    };
+
+    // Keep content if it exists
+    if (typeof b.content !== 'undefined') {
+      newB.content = b.content;
+    }
+
+    // Specific handling for Images: remove content (url), keep caption/title
+    if (b.type === 'vertical_space') {
+      return null; // Ignore vertical space in AI context
+    }
+
+    if (b.type === 'image') {
+      // User requested: if no caption, do NOT include in context
+      if (!(b as any).caption) {
+        return null; // Will be filtered out later
+      }
+      delete newB.content;
+      newB.caption = (b as any).caption;
+    }
+    // For other blocks allow content.
+
+    // Whitelist specific content-bearing or structural fields
+    if ((b as any).level) newB.level = (b as any).level; // heading
+    if ((b as any).language) newB.language = (b as any).language; // code
+    if ((b as any).inputLines) newB.inputLines = (b as any).inputLines; // input_field
+    if ((b as any).caption && b.type !== 'image') newB.caption = (b as any).caption; // tables/others
+
+    // Recursion for children
+    if (b.children && Array.isArray(b.children)) {
+      newB.children = simplifyBlocksForAi(b.children);
+    }
+
+    // Drop all style-related fields:
+    // align, width, height, fontSize, font, fontFamily, uiCollapsed,
+    // coverFixedOnePage, compositeJustify, compositeGap, etc.
+
+    return newB;
+  }).filter(Boolean);
 }
 
 export function applyPromptTemplate(template: string, vars: { USER_INPUT_JSON: string; PDF_CONTEXT_JSON: string; PROJECT_ID: string; EXISTING_BLOCKS_JSON?: string }): string {

@@ -1,56 +1,8 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { Sparkles, FileText, Upload, X, ArrowRight, Loader2, Play, Copy, Check } from 'lucide-react';
-import { getToken } from '@/lib/auth';
-import {
-    chatWithDeepSeekStream,
-    getManagePrompt,
-    getAssistantPrompt,
-} from '@/lib/api';
-import { extractJsonFromModelText, normalizeAiBlocksResponse } from '@/lib/ai-blocks';
-import { blocksToTypst, injectDocumentSettings, type DocumentSettings, type TypstBlock } from '@/lib/typst';
-import { applyPromptTemplate, buildUserInputJson, makeAiDebugHeader } from '@/lib/home-ai-utils'; // Reusing utils
-import { preparePdfContextWithDebug, type HomePdfContext, type PreparePdfContextDebug } from '@/lib/home-pdf-context';
-
-/* --------------------------------------------------------------------------------
- * Types (Simplified from AiTestStore)
- * -------------------------------------------------------------------------------- */
-
-export type AiPluginDraft = {
-    outlineText: string;
-    detailsText: string;
-    // Simplified file handling: just one PDF for now as primary context?
-    // Or support the same list? Let's support the complexity the user had.
-    // Actually, let's keep it simple: One PDF context + Text
-    pdfFile: File | null;
-    pdfPageStart: string;
-    pdfPageEnd: string;
-    parserMode: 'local' | 'mineru';
-    selectedModel: 'deepseek-chat' | 'deepseek-reasoner' | 'qwen3-max';
-    thinkingEnabled: boolean;
-};
-
-const DEFAULT_DRAFT: AiPluginDraft = {
-    outlineText: '',
-    detailsText: '',
-    pdfFile: null,
-    pdfPageStart: '1',
-    pdfPageEnd: '5',
-    parserMode: 'mineru',
-    selectedModel: 'deepseek-chat',
-    thinkingEnabled: false,
-};
-
-// Prompt template fallback
-const DEFAULT_AI_PROMPT_TEMPLATE = `
-你是一个专业的学术助手。请根据用户提供的【实验大纲】和【PDF上下文】，生成一份结构清晰的实验报告。
-请返回 JSON 格式，包含 blocks（TypstBlock数组）和 settings。
-
-{{USER_INPUT_JSON}}
-
-{{PDF_CONTEXT_JSON}}
-`;
+import { Sparkles, FileText, Upload, X, ArrowRight, Loader2, Play, Copy, Check, Trash2, Image as ImageIcon, Link as LinkIcon, Eye } from 'lucide-react';
+import type { TypstBlock } from '@/lib/typst';
+import { useAiAssistant } from './useAiAssistant';
 
 /* --------------------------------------------------------------------------------
  * Component
@@ -64,166 +16,26 @@ interface AiAssistantPluginProps {
 }
 
 export function AiAssistantPlugin({ projectId, existingBlocks, onInsertBlocks, onClose }: AiAssistantPluginProps) {
-    // State
-    const [draft, setDraft] = useState<AiPluginDraft>(DEFAULT_DRAFT);
-    const [status, setStatus] = useState<'idle' | 'preprocessing' | 'generating' | 'done' | 'error'>('idle');
-    const [error, setError] = useState<string | null>(null);
-
-    // Progress / Debug info
-    const [progressMsg, setProgressMsg] = useState('');
-    const [prepDebug, setPrepDebug] = useState<PreparePdfContextDebug | null>(null);
-
-    // AI Outputs
-    const [aiThought, setAiThought] = useState('');
-    const [aiResponse, setAiResponse] = useState('');
-    const [isCopied, setIsCopied] = useState(false);
-
-    // Refs
-    const abortControllerRef = useRef<AbortController | null>(null);
-
-    // Handlers
-    const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setDraft(prev => ({ ...prev, pdfFile: file }));
-        }
-    };
-
-    const handleRun = async () => {
-        if (!draft.outlineText.trim() && !draft.detailsText.trim() && !draft.pdfFile) {
-            setError("请提供 实验大纲、实验细节 或 上传 PDF");
-            return;
-        }
-
-        setStatus('preprocessing');
-        setError(null);
-        setAiThought('');
-        setAiResponse('');
-        setProgressMsg('正在准备上下文...');
-
-        abortControllerRef.current = new AbortController();
-
-        try {
-            /* ----------------------------------------------------------------
-             * 1. PDF Preprocessing
-             * ---------------------------------------------------------------- */
-            let contextForPrompt: HomePdfContext | null = null;
-
-            if (draft.pdfFile) {
-                setProgressMsg('正在解析 PDF (OCR)...');
-                const { context, debug } = await preparePdfContextWithDebug({
-                    projectId, // Use current project ID for storing images if needed
-                    pdfFile: draft.pdfFile,
-                    pageStart: draft.pdfPageStart,
-                    pageEnd: draft.pdfPageEnd,
-                    parserMode: draft.parserMode,
-                    onStep: (step) => setProgressMsg(`PDF处理: ${step}`),
-                });
-                contextForPrompt = context;
-                setPrepDebug(debug);
-            }
-
-            /* ----------------------------------------------------------------
-             * 2. Build Prompt
-             * ---------------------------------------------------------------- */
-            setProgressMsg('正在构建 Prompt...');
-            let template = DEFAULT_AI_PROMPT_TEMPLATE;
-            try {
-                const data = await getAssistantPrompt();
-                template = data.ai_prompt ?? '';
-            } catch {
-                // ignore
-            }
-
-            const assistantFallback = `你是实验报告续写助手。只输出 JSON，不要输出 Markdown 或解释。
-当前文档已有内容：{{EXISTING_BLOCKS_JSON}}
-下面是用户提供的信息：{{USER_INPUT_JSON}}
-【必须使用的 project_id】{{PROJECT_ID}}`;
-
-            const tpl = template ?? assistantFallback;
-
-            const { userInputJson, pdfContextJson, existingBlocksJson } = buildUserInputJson({
-                outlineText: draft.outlineText,
-                detailsText: draft.detailsText,
-                referenceFiles: [], // TODO: Add support if needed
-                selectedModel: draft.selectedModel,
-                thinkingEnabled: draft.thinkingEnabled,
-                existingBlocks: existingBlocks,
-                pdfContext: contextForPrompt,
-            });
-
-            // Debug: log existing blocks being sent to AI
-            console.log('[AiAssistantPlugin] existingBlocks count:', existingBlocks?.length ?? 0);
-            console.log('[AiAssistantPlugin] existingBlocksJson:', existingBlocksJson);
-
-            let finalMessage = '';
-            if (template.includes('{{PDF_CONTEXT_JSON}}')) {
-                finalMessage = applyPromptTemplate(template, {
-                    USER_INPUT_JSON: userInputJson,
-                    PDF_CONTEXT_JSON: pdfContextJson,
-                    PROJECT_ID: projectId,
-                    EXISTING_BLOCKS_JSON: existingBlocksJson,
-                });
-            } else {
-                // Fallback legacy template support
-                const tempVars = {
-                    USER_INPUT_JSON: `【PDF Context】:\n${pdfContextJson}\n\n${userInputJson}`,
-                    PDF_CONTEXT_JSON: '',
-                    PROJECT_ID: projectId,
-                };
-                finalMessage = template.replaceAll('{{USER_INPUT_JSON}}', tempVars.USER_INPUT_JSON).replaceAll('{{PROJECT_ID}}', tempVars.PROJECT_ID);
-            }
-
-            /* ----------------------------------------------------------------
-             * 3. Call DeepSeek
-             * ---------------------------------------------------------------- */
-            setStatus('generating');
-            setProgressMsg('AI 思考中...');
-
-            let fullText = '';
-            await chatWithDeepSeekStream(finalMessage, draft.selectedModel, draft.thinkingEnabled, (evt) => {
-                if (evt.type === 'thought') {
-                    setAiThought((prev) => prev + evt.delta);
-                } else if (evt.type === 'content') {
-                    setAiResponse((prev) => prev + evt.delta);
-                    fullText += evt.delta;
-                }
-            });
-
-            /* ----------------------------------------------------------------
-             * 4. Parse & Finish
-             * ---------------------------------------------------------------- */
-            setProgressMsg('正在解析结果...');
-            const rawJson = extractJsonFromModelText(fullText);
-            const normalized = normalizeAiBlocksResponse({ raw: rawJson, projectId });
-
-            setStatus('done');
-            setProgressMsg('生成完成！请点击下方按钮插入到文档。');
-
-            // Allow user to review before adhering?
-            // For now, we just keep the state 'done' and user clicks a button to insert.
-            // But we need to store the parsed blocks to insert them.
-            // Let's store them in a ref or derived state? 
-            // We can just re-parse on insert or store in state.
-            // Storing in state is safer.
-            // For now, let's just parse again on insert or keep "aiResponse" and parse on-demand.
-
-        } catch (e) {
-            setStatus('error');
-            setError(e instanceof Error ? e.message : String(e));
-        }
-    };
-
-    const handleInsert = () => {
-        try {
-            const rawJson = extractJsonFromModelText(aiResponse);
-            const normalized = normalizeAiBlocksResponse({ raw: rawJson, projectId });
-            onInsertBlocks(normalized.blocks);
-            // Maybe notify success?
-        } catch (e) {
-            alert('解析并插入失败: ' + e);
-        }
-    };
+    const {
+        draft,
+        setDraft,
+        status,
+        error,
+        progressMsg,
+        sentPrompt,
+        showPrompt,
+        setShowPrompt,
+        aiThought,
+        aiResponse,
+        isCopied,
+        setIsCopied,
+        handleFileChange,
+        handleAddUrl,
+        updateFile,
+        removeFile,
+        handleRun,
+        handleInsert
+    } = useAiAssistant({ projectId, existingBlocks, onInsertBlocks, onClose });
 
     return (
         <div className="flex flex-col h-full bg-white dark:bg-zinc-950 border-l border-zinc-200 dark:border-zinc-800">
@@ -240,7 +52,6 @@ export function AiAssistantPlugin({ projectId, existingBlocks, onInsertBlocks, o
 
             {/* Content - Scrollable */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-
                 {/* Input Section */}
                 <div className="space-y-4">
                     <div>
@@ -267,45 +78,137 @@ export function AiAssistantPlugin({ projectId, existingBlocks, onInsertBlocks, o
                         />
                     </div>
 
+                    {/* File Upload List */}
                     <div>
                         <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                            参考 PDF (可选)
+                            参考文件 (PDF/图片)
                         </label>
-                        <div className="flex items-center gap-2">
-                            <label className="flex-1 cursor-pointer flex items-center justify-center gap-2 px-3 py-2 border border-dashed border-zinc-300 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+
+                        <div className="space-y-2 mb-2">
+                            {draft.files.map((file, idx) => (
+                                <div key={file.id} className="p-2 border border-zinc-200 dark:border-zinc-800 rounded bg-zinc-50 dark:bg-zinc-900 text-xs">
+                                    <div className="flex items-start justify-between mb-2">
+                                        <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
+                                            {file.source === 'url' ? (
+                                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                    <LinkIcon size={14} className="text-purple-500 shrink-0" />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="输入 PDF 下载链接..."
+                                                        className="flex-1 w-full px-1.5 py-0.5 bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded text-zinc-700 dark:text-zinc-300 focus:border-blue-500 outline-none"
+                                                        value={file.url}
+                                                        onChange={(e) => updateFile(file.id, { url: e.target.value })}
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    {file.type === 'pdf' ? (
+                                                        <FileText size={14} className="text-red-500 shrink-0" />
+                                                    ) : (
+                                                        <ImageIcon size={14} className="text-blue-500 shrink-0" />
+                                                    )}
+                                                    <span className="truncate font-medium text-zinc-700 dark:text-zinc-300" title={file.file?.name}>
+                                                        {file.file?.name}
+                                                    </span>
+                                                </>
+                                            )}
+                                        </div>
+                                        <button onClick={() => removeFile(file.id)} className="text-zinc-400 hover:text-red-500 transition-colors shrink-0">
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+
+                                    {/* Description Input */}
+                                    <input
+                                        type="text"
+                                        placeholder="文件描述（可选）"
+                                        className="w-full mb-2 px-2 py-1 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 rounded focus:border-blue-500 outline-none"
+                                        value={file.description}
+                                        onChange={(e) => updateFile(file.id, { description: e.target.value })}
+                                    />
+
+                                    {/* Type Specific Controls */}
+                                    {file.type === 'pdf' && (
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-zinc-500">页码:</span>
+                                            <input
+                                                type="text"
+                                                className="w-10 px-1 py-0.5 text-center border rounded bg-white dark:bg-zinc-950"
+                                                value={file.pdfPageStart}
+                                                onChange={e => updateFile(file.id, { pdfPageStart: e.target.value })}
+                                            />
+                                            <span className="text-zinc-400">-</span>
+                                            <input
+                                                type="text"
+                                                className="w-10 px-1 py-0.5 text-center border rounded bg-white dark:bg-zinc-950"
+                                                value={file.pdfPageEnd}
+                                                onChange={e => updateFile(file.id, { pdfPageEnd: e.target.value })}
+                                            />
+                                            {file.source === 'url' && (
+                                                <span className="text-[10px] text-zinc-400 ml-auto">MinerU URL 模式</span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {file.type === 'image' && (
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="checkbox"
+                                                    id={`ocr-${file.id}`}
+                                                    checked={file.imageRecognize}
+                                                    onChange={(e) => updateFile(file.id, { imageRecognize: e.target.checked })}
+                                                    className="rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <label htmlFor={`ocr-${file.id}`} className="text-zinc-600 dark:text-zinc-400 cursor-pointer select-none">
+                                                    AI 识图 (GLM-4V)
+                                                </label>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="checkbox"
+                                                    id={`include-${file.id}`}
+                                                    checked={file.shouldInclude}
+                                                    onChange={(e) => updateFile(file.id, { shouldInclude: e.target.checked })}
+                                                    className="rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <label htmlFor={`include-${file.id}`} className="text-zinc-600 dark:text-zinc-400 cursor-pointer select-none">
+                                                    生成到报告中
+                                                </label>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                            <label className="flex items-center justify-center gap-2 px-3 py-2 border border-dashed border-zinc-300 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer">
                                 <Upload size={14} className="text-zinc-400" />
-                                <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                                    {draft.pdfFile ? draft.pdfFile.name : "点击上传 PDF"}
+                                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                                    本地文件
                                 </span>
-                                <input type="file" accept=".pdf" className="hidden" onChange={handlePdfChange} />
+                                <input
+                                    type="file"
+                                    accept=".pdf,.png,.jpg,.jpeg,.webp"
+                                    multiple
+                                    className="hidden"
+                                    onChange={handleFileChange}
+                                />
                             </label>
-                            {draft.pdfFile && (
+
+                            {draft.parserMode === 'mineru' && (
                                 <button
-                                    onClick={() => setDraft({ ...draft, pdfFile: null })}
-                                    className="p-2 text-zinc-400 hover:text-red-500"
+                                    onClick={handleAddUrl}
+                                    className="flex items-center justify-center gap-2 px-3 py-2 border border-dashed border-zinc-300 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                                 >
-                                    <X size={14} />
+                                    <LinkIcon size={14} className="text-purple-400" />
+                                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                                        PDF 链接
+                                    </span>
                                 </button>
                             )}
                         </div>
-                        {draft.pdfFile && (
-                            <div className="mt-2 flex items-center gap-2 text-xs">
-                                <span className="text-zinc-500 text-nowrap">页码范围:</span>
-                                <input
-                                    type="text"
-                                    className="w-12 px-1 py-0.5 text-center border rounded bg-zinc-50 dark:bg-zinc-900"
-                                    value={draft.pdfPageStart}
-                                    onChange={e => setDraft({ ...draft, pdfPageStart: e.target.value })}
-                                />
-                                <span className="text-zinc-400">-</span>
-                                <input
-                                    type="text"
-                                    className="w-12 px-1 py-0.5 text-center border rounded bg-zinc-50 dark:bg-zinc-900"
-                                    value={draft.pdfPageEnd}
-                                    onChange={e => setDraft({ ...draft, pdfPageEnd: e.target.value })}
-                                />
-                            </div>
-                        )}
                     </div>
 
                     {/* Model & Parser Settings */}
@@ -331,7 +234,10 @@ export function AiAssistantPlugin({ projectId, existingBlocks, onInsertBlocks, o
                             <select
                                 className="w-full text-xs p-1.5 rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                 value={draft.parserMode}
-                                onChange={e => setDraft({ ...draft, parserMode: e.target.value as any })}
+                                onChange={e => {
+                                    const mode = e.target.value as any;
+                                    setDraft(prev => ({ ...prev, parserMode: mode }));
+                                }}
                             >
                                 <option value="mineru">MinerU (推荐)</option>
                                 <option value="local">本地极速</option>
@@ -384,6 +290,34 @@ export function AiAssistantPlugin({ projectId, existingBlocks, onInsertBlocks, o
                             <Loader2 size={10} className={status === 'done' ? 'hidden' : 'animate-spin'} />
                             {progressMsg}
                         </div>
+                    </div>
+                )}
+
+                {/* Sent Prompt View */}
+                {sentPrompt && (
+                    <div className="space-y-1">
+                        <div className="flex items-center justify-between" onClick={() => setShowPrompt(!showPrompt)}>
+                            <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300 flex items-center gap-1">
+                                <Eye size={10} />
+                                Sent Prompt {showPrompt ? '(Hide)' : '(Show)'}
+                            </div>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigator.clipboard.writeText(sentPrompt);
+                                    setIsCopied(true);
+                                    setTimeout(() => setIsCopied(false), 2000);
+                                }}
+                                className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-blue-500 transition-colors"
+                            >
+                                <Copy size={10} />
+                            </button>
+                        </div>
+                        {showPrompt && (
+                            <div className="p-2 bg-zinc-100 dark:bg-zinc-900 rounded text-[10px] text-zinc-500 font-mono whitespace-pre-wrap max-h-32 overflow-y-auto border border-zinc-200 dark:border-zinc-800">
+                                {sentPrompt}
+                            </div>
+                        )}
                     </div>
                 )}
 
