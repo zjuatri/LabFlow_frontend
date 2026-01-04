@@ -116,8 +116,8 @@ export default function EditDocPage() {
                                     type="text"
                                     required
                                     value={formData.slug || ''}
-                                    onChange={e => setFormData({ ...formData, slug: e.target.value })}
-                                    className="w-full px-4 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                    readOnly
+                                    className="w-full px-4 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none text-zinc-500 cursor-not-allowed"
                                 />
                             </div>
                         </div>

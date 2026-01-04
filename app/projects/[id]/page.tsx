@@ -24,6 +24,7 @@ import { ProjectSettingsModal } from './_components/ProjectSettingsModal';
 import '@/components/editor/plugins/AiAssistantPlugin';
 import '@/components/editor/plugins/samples/TodoPlugin';
 import { pluginRegistry } from '@/components/editor/plugins/registry';
+import { GlobalDependencyExposer } from '@/components/editor/plugins/GlobalDependencyExposer';
 
 // In production/Docker we typically proxy /api/* through the same origin.
 // For local dev, set NEXT_PUBLIC_BACKEND_URL=http://localhost:8000.
@@ -442,142 +443,145 @@ export default function ProjectEditorPage() {
   }, [svgPages, suppressEditorSync]);
 
   return (
-    <div className="flex h-screen w-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
+    <>
+      <GlobalDependencyExposer />
+      <div className="flex h-screen w-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
 
-      {/* Main Area: Editor + Preview */}
-      <div className="flex h-full transition-[width] duration-0" style={{ width: activePluginId ? `calc(100% - ${aiSidebarWidth}px)` : '100%' }}>
+        {/* Main Area: Editor + Preview */}
+        <div className="flex h-full transition-[width] duration-0" style={{ width: activePluginId ? `calc(100% - ${aiSidebarWidth}px)` : '100%' }}>
 
-        {/* Editor Pane */}
-        <div
-          className="flex flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50"
-          style={{ width: `${editorWidthPercent}%` }}
-        >
+          {/* Editor Pane */}
+          <div
+            className="flex flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50"
+            style={{ width: `${editorWidthPercent}%` }}
+          >
 
-          {(() => {
-            return (
-              <EditorToolbar
-                mode={mode}
-                onModeSwitch={switchMode}
-                canUndo={canUndo()}
-                canRedo={canRedo()}
-                onUndo={undo}
-                onRedo={redo}
-                onSave={() => void saveProject()}
-                onOpenCoverModal={() => void openCoverModal()}
-                projectType={projectType}
-                showSettings={showSettings}
-                onToggleSettings={() => setShowSettings(!showSettings)}
-                onCloseSettings={() => setShowSettings(false)}
-                activePluginId={activePluginId}
-                onTogglePlugin={togglePlugin}
-              />
-            );
-          })()}
+            {(() => {
+              return (
+                <EditorToolbar
+                  mode={mode}
+                  onModeSwitch={switchMode}
+                  canUndo={canUndo()}
+                  canRedo={canRedo()}
+                  onUndo={undo}
+                  onRedo={redo}
+                  onSave={() => void saveProject()}
+                  onOpenCoverModal={() => void openCoverModal()}
+                  projectType={projectType}
+                  showSettings={showSettings}
+                  onToggleSettings={() => setShowSettings(!showSettings)}
+                  onCloseSettings={() => setShowSettings(false)}
+                  activePluginId={activePluginId}
+                  onTogglePlugin={togglePlugin}
+                />
+              );
+            })()}
 
-          {mode === 'source' ? (
-            <SourceEditorPane />
-          ) : (
-            <VisualEditorPane
-              projectId={projectId}
-              onBlockClick={handleBlockClick}
-              editorScrollRef={editorScrollRef}
-            />
-          )}
-        </div>
-
-        {/* Editor-Preview Resizer */}
-        <div
-          className="w-1 cursor-col-resize hover:bg-blue-500/50 active:bg-blue-600 transition-colors z-20 flex flex-col justify-center items-center group -ml-0.5 relative"
-          onMouseDown={(e) => { e.preventDefault(); setIsResizingEditor(true); }}
-        >
-          <div className="w-0.5 h-8 bg-zinc-300 dark:bg-zinc-600 rounded-full group-hover:bg-white group-active:bg-white transition-colors" />
-        </div>
-
-        {/* Preview Pane */}
-        <div className="flex flex-col bg-zinc-50/50 dark:bg-zinc-900/50 backdrop-blur-sm" style={{ width: `${100 - editorWidthPercent}%` }}>
-          <PreviewPanel
-            error={error}
-            svgPages={svgPages}
-            isRendering={isRendering}
-            activeAnchor={activeAnchor}
-            clickAnchor={clickAnchor}
-            highlightNonce={highlightNonce}
-            registerPageRef={registerPageRef}
-            onBlockClick={handlePreviewClick}
-            onDownloadPdf={() => void downloadPdf()}
-            previewRef={previewRef}
-            projectId={projectId}
-            onToggleAiSidebar={() => togglePlugin('ai-assistant')}
-            isAiSidebarOpen={activePluginId === 'ai-assistant'}
-            title={title}
-          />
-        </div>
-      </div>
-
-      {/* AI Sidebar Resizer */}
-      {activePluginId && (
-        <div
-          className="w-1 cursor-ew-resize hover:bg-blue-500/50 active:bg-blue-600 transition-colors z-30 flex flex-col justify-center items-center group -ml-0.5 border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
-          onMouseDown={(e) => { e.preventDefault(); setIsResizingAi(true); }}
-        >
-          <div className="w-0.5 h-8 bg-zinc-300 dark:bg-zinc-600 rounded-full group-hover:bg-blue-200 group-active:bg-blue-200 transition-colors" />
-        </div>
-      )}
-
-      {activePluginId && (
-        <div
-          className="h-full bg-white dark:bg-zinc-950 shrink-0 z-30 shadow-2xl flex flex-col"
-          style={{ width: `${aiSidebarWidth}px` }}
-        >
-          {(() => {
-            const plugin = pluginRegistry.get(activePluginId);
-            if (!plugin) return <div className="p-4 text-red-500">Plugin not found: {activePluginId}</div>;
-
-            const PluginComponent = plugin.component;
-            return (
-              <PluginComponent
+            {mode === 'source' ? (
+              <SourceEditorPane />
+            ) : (
+              <VisualEditorPane
                 projectId={projectId}
-                existingBlocks={blocks}
-                onInsertBlocks={(newBlocks) => {
-                  const nextBlocks = [...blocks, ...newBlocks];
-                  setBlocks(nextBlocks);
-                  setTimeout(() => saveProject(), 0);
-                }}
-                onClose={() => setActivePluginId(null)}
+                onBlockClick={handleBlockClick}
+                editorScrollRef={editorScrollRef}
               />
-            );
-          })()}
+            )}
+          </div>
+
+          {/* Editor-Preview Resizer */}
+          <div
+            className="w-1 cursor-col-resize hover:bg-blue-500/50 active:bg-blue-600 transition-colors z-20 flex flex-col justify-center items-center group -ml-0.5 relative"
+            onMouseDown={(e) => { e.preventDefault(); setIsResizingEditor(true); }}
+          >
+            <div className="w-0.5 h-8 bg-zinc-300 dark:bg-zinc-600 rounded-full group-hover:bg-white group-active:bg-white transition-colors" />
+          </div>
+
+          {/* Preview Pane */}
+          <div className="flex flex-col bg-zinc-50/50 dark:bg-zinc-900/50 backdrop-blur-sm" style={{ width: `${100 - editorWidthPercent}%` }}>
+            <PreviewPanel
+              error={error}
+              svgPages={svgPages}
+              isRendering={isRendering}
+              activeAnchor={activeAnchor}
+              clickAnchor={clickAnchor}
+              highlightNonce={highlightNonce}
+              registerPageRef={registerPageRef}
+              onBlockClick={handlePreviewClick}
+              onDownloadPdf={() => void downloadPdf()}
+              previewRef={previewRef}
+              projectId={projectId}
+              onToggleAiSidebar={() => togglePlugin('ai-assistant')}
+              isAiSidebarOpen={activePluginId === 'ai-assistant'}
+              title={title}
+            />
+          </div>
         </div>
-      )}
 
-      {/* Cover Selection Modal */}
-      <CoverModal
-        show={showCoverModal}
-        onClose={() => setShowCoverModal(false)}
-        onInsert={insertCover}
-        loading={loadingCovers}
-        covers={covers}
-      />
+        {/* AI Sidebar Resizer */}
+        {activePluginId && (
+          <div
+            className="w-1 cursor-ew-resize hover:bg-blue-500/50 active:bg-blue-600 transition-colors z-30 flex flex-col justify-center items-center group -ml-0.5 border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
+            onMouseDown={(e) => { e.preventDefault(); setIsResizingAi(true); }}
+          >
+            <div className="w-0.5 h-8 bg-zinc-300 dark:bg-zinc-600 rounded-full group-hover:bg-blue-200 group-active:bg-blue-200 transition-colors" />
+          </div>
+        )}
 
-      {/* Project Settings Modal */}
-      <ProjectSettingsModal
-        show={showSettings}
-        onClose={() => setShowSettings(false)}
-        title={title}
-        onTitleChange={setTitle}
-        docSettings={docSettings}
-        onSettingsChange={setDocSettings}
-        projectType={projectType}
-        hasCover={blocks.some(b => b.type === 'cover')}
-        coverFixedOnePage={blocks.find(b => b.type === 'cover')?.coverFixedOnePage}
-        onCoverFixedOnePageChange={(fixed) => {
-          const coverIndex = blocks.findIndex((b) => b.type === 'cover');
-          if (coverIndex < 0) return;
-          const next = [...blocks];
-          next[coverIndex] = { ...next[coverIndex], coverFixedOnePage: fixed };
-          setBlocks(next);
-        }}
-      />
-    </div>
+        {activePluginId && (
+          <div
+            className="h-full bg-white dark:bg-zinc-950 shrink-0 z-30 shadow-2xl flex flex-col"
+            style={{ width: `${aiSidebarWidth}px` }}
+          >
+            {(() => {
+              const plugin = pluginRegistry.get(activePluginId);
+              if (!plugin) return <div className="p-4 text-red-500">Plugin not found: {activePluginId}</div>;
+
+              const PluginComponent = plugin.component;
+              return (
+                <PluginComponent
+                  projectId={projectId}
+                  existingBlocks={blocks}
+                  onInsertBlocks={(newBlocks) => {
+                    const nextBlocks = [...blocks, ...newBlocks];
+                    setBlocks(nextBlocks);
+                    setTimeout(() => saveProject(), 0);
+                  }}
+                  onClose={() => setActivePluginId(null)}
+                />
+              );
+            })()}
+          </div>
+        )}
+
+        {/* Cover Selection Modal */}
+        <CoverModal
+          show={showCoverModal}
+          onClose={() => setShowCoverModal(false)}
+          onInsert={insertCover}
+          loading={loadingCovers}
+          covers={covers}
+        />
+
+        {/* Project Settings Modal */}
+        <ProjectSettingsModal
+          show={showSettings}
+          onClose={() => setShowSettings(false)}
+          title={title}
+          onTitleChange={setTitle}
+          docSettings={docSettings}
+          onSettingsChange={setDocSettings}
+          projectType={projectType}
+          hasCover={blocks.some(b => b.type === 'cover')}
+          coverFixedOnePage={blocks.find(b => b.type === 'cover')?.coverFixedOnePage}
+          onCoverFixedOnePageChange={(fixed) => {
+            const coverIndex = blocks.findIndex((b) => b.type === 'cover');
+            if (coverIndex < 0) return;
+            const next = [...blocks];
+            next[coverIndex] = { ...next[coverIndex], coverFixedOnePage: fixed };
+            setBlocks(next);
+          }}
+        />
+      </div>
+    </>
   );
 }
