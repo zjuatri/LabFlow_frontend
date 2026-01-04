@@ -6,14 +6,8 @@ export default function WorkspaceHeader() {
     const {
         selectedIds,
         activeTab,
-        setShowCreateModal
-        // setLoading, // Loading for templates if needed, or local loading state
-        // setProjects // To set templates
-        // Actually template loading logic was: load listProjects('template') into local state
-        // Let's keep template loading local to the button or move to store?
-        // Store has 'projects' which is main list.
-        // Template modal has its own list.
-        // We can handle template modal visibility here.
+        setShowCreateModal,
+        setShowTemplateModal
     } = useWorkspaceStore();
 
 
@@ -54,8 +48,7 @@ export default function WorkspaceHeader() {
 
                 {activeTab === 'report' && (
                     <button
-                        // onClick={handleTemplateClick} 
-                        // Need to implement showTemplateModal in store first
+                        onClick={() => setShowTemplateModal(true)}
                         className={`
               px-4 py-2.5 rounded-lg font-medium text-sm text-zinc-600 dark:text-zinc-300
               border border-zinc-200 dark:border-zinc-700

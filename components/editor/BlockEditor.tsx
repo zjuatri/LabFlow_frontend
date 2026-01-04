@@ -26,11 +26,13 @@ type ChartRenderRequest = {
 
 export default function BlockEditor({ blocks, onChange, projectId, onBlockClick }: BlockEditorProps) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  // Track drop position: which block and whether to insert before or after
+  type DropPosition = { targetId: string; position: 'before' | 'after' } | null;
+  const [dropPosition, setDropPosition] = useState<DropPosition>(null);
   const suppressNextDragRef = useRef(false);
   const nextBlockIdRef = useRef(1);
 
-  const reorderBlocks = (fromId: string, toId: string) => {
+  const reorderBlocks = (fromId: string, toId: string, position: 'before' | 'after') => {
     if (fromId === toId) return;
     const fromIndex = blocks.findIndex((b) => b.id === fromId);
     const toIndex = blocks.findIndex((b) => b.id === toId);
@@ -38,7 +40,18 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
 
     const next = [...blocks];
     const [moved] = next.splice(fromIndex, 1);
-    next.splice(toIndex, 0, moved);
+
+    // Calculate the correct insertion index
+    // After removing the dragged item, indices shift if fromIndex < toIndex
+    let insertIndex = toIndex;
+    if (fromIndex < toIndex) {
+      insertIndex = toIndex - 1; // Adjust for the removed item
+    }
+    if (position === 'after') {
+      insertIndex += 1;
+    }
+
+    next.splice(insertIndex, 0, moved);
     onChange(next);
   };
 
@@ -254,37 +267,48 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
             }
 
             setDraggingId(block.id);
-            setDragOverId(null);
+            setDropPosition(null);
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', block.id);
           }}
           onDragOver={(e) => {
             e.preventDefault();
-            if (draggingId && draggingId !== block.id) setDragOverId(block.id);
+            if (!draggingId || draggingId === block.id) return;
+
+            // Calculate cursor position relative to block midpoint
+            const rect = e.currentTarget.getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            const position = e.clientY < midY ? 'before' : 'after';
+
+            setDropPosition({ targetId: block.id, position });
           }}
           onDragLeave={() => {
-            if (dragOverId === block.id) setDragOverId(null);
+            if (dropPosition?.targetId === block.id) setDropPosition(null);
           }}
           onDrop={(e) => {
             e.preventDefault();
             const fromId = e.dataTransfer.getData('text/plain') || draggingId;
-            if (fromId) reorderBlocks(fromId, block.id);
+            if (fromId && dropPosition) {
+              reorderBlocks(fromId, dropPosition.targetId, dropPosition.position);
+            }
             setDraggingId(null);
-            setDragOverId(null);
+            setDropPosition(null);
           }}
           onDragEnd={() => {
             setDraggingId(null);
-            setDragOverId(null);
+            setDropPosition(null);
             suppressNextDragRef.current = false;
           }}
-          className={
-            dragOverId === block.id
-              ? 'outline outline-2 outline-blue-400 rounded-lg'
-              : draggingId === block.id
-                ? 'opacity-70'
-                : ''
-          }
+          className={`relative ${draggingId === block.id ? 'opacity-50' : ''}`}
         >
+          {/* Insertion indicator line - before */}
+          {dropPosition?.targetId === block.id && dropPosition.position === 'before' && (
+            <div className="absolute -top-1 left-0 right-0 h-0.5 bg-blue-500 rounded-full z-10" />
+          )}
+          {/* Insertion indicator line - after */}
+          {dropPosition?.targetId === block.id && dropPosition.position === 'after' && (
+            <div className="absolute -bottom-1 left-0 right-0 h-0.5 bg-blue-500 rounded-full z-10" />
+          )}
           <BlockItem
             block={block}
             isFirst={index === 0}
