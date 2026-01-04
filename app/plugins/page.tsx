@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { Puzzle, DownloadCloud, Upload, Trash2, ExternalLink } from 'lucide-react';
+import { Puzzle, Upload, Trash2, ExternalLink } from 'lucide-react';
 import { pluginRegistry } from '@/components/editor/plugins/registry';
 import { EditorPlugin } from '@/components/editor/plugins/types';
 import SiteHeader from '@/components/common/SiteHeader';

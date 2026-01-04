@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { X, Puzzle, Power, PowerOff, Trash2 } from 'lucide-react';
+import { X, Puzzle } from 'lucide-react';
 import { pluginRegistry } from '@/components/editor/plugins/registry';
 import { EditorPlugin } from '@/components/editor/plugins/types';
 
@@ -11,9 +11,22 @@ interface PluginManagerModalProps {
 }
 
 export function PluginManagerModal({ show, onClose }: PluginManagerModalProps) {
-    const [plugins, setPlugins] = useState<EditorPlugin[]>([]);
-    const [enabledPlugins, setEnabledPlugins] = useState<Set<string>>(new Set());
-    const [lastUpdate, setLastUpdate] = useState(Date.now());
+    const [plugins, setPlugins] = useState<EditorPlugin[]>(() => pluginRegistry.getAll());
+    const [enabledPlugins, setEnabledPlugins] = useState<Set<string>>(() => {
+        if (typeof window === 'undefined') return new Set();
+        try {
+            const saved = localStorage.getItem('labflow_enabled_plugins');
+            if (saved) {
+                return new Set(JSON.parse(saved));
+            } else {
+                return new Set(pluginRegistry.getAll().map(p => p.id));
+            }
+        } catch (e) {
+            console.error('Failed to load plugin config', e);
+            return new Set();
+        }
+    });
+    // const [lastUpdate, setLastUpdate] = useState(Date.now()); // Removed unused state
 
     // Load initial state
     useEffect(() => {
@@ -21,22 +34,7 @@ export function PluginManagerModal({ show, onClose }: PluginManagerModalProps) {
         const updatePlugins = () => {
             setPlugins(pluginRegistry.getAll());
         };
-        updatePlugins();
         const unsubscribe = pluginRegistry.subscribe(updatePlugins);
-
-        // Load enabled state from localStorage
-        try {
-            const saved = localStorage.getItem('labflow_enabled_plugins');
-            if (saved) {
-                setEnabledPlugins(new Set(JSON.parse(saved)));
-            } else {
-                // Default all enabled if no config found
-                setEnabledPlugins(new Set(pluginRegistry.getAll().map(p => p.id)));
-            }
-        } catch (e) {
-            console.error('Failed to load plugin config', e);
-        }
-
         return unsubscribe;
     }, []);
 

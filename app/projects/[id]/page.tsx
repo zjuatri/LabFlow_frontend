@@ -513,7 +513,6 @@ export default function ProjectEditorPage() {
               previewRef={previewRef}
               projectId={projectId}
               onToggleAiSidebar={() => togglePlugin('ai-assistant')}
-              isAiSidebarOpen={activePluginId === 'ai-assistant'}
               title={title}
             />
           </div>

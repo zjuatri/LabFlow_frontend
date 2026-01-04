@@ -29,10 +29,7 @@ export interface DocContent {
     children?: DocNode[];
 }
 
-interface FolderMeta {
-    // title?: string; // Removed
-    // order?: number; // Removed
-}
+// FolderMeta interface removed
 
 // ============================================================================
 // Constants
@@ -71,7 +68,7 @@ function scanDirectory(dirPath: string, urlPrefix: string = '/docs'): DocNode[] 
     const nodes: DocNode[] = [];
 
     // Read _meta.json in the current directory to determine order and titles
-    let meta: Record<string, any> = {};
+    let meta: Record<string, { title?: string } | string | undefined> = {};
     const metaPath = path.join(dirPath, '_meta.json');
     if (fs.existsSync(metaPath)) {
         try {
@@ -91,10 +88,15 @@ function scanDirectory(dirPath: string, urlPrefix: string = '/docs'): DocNode[] 
         const slug = entry.name.replace(/\.md$/, '');
 
         // Determine title from meta or filename
-        let title = meta[slug];
-        if (typeof title === 'object') {
-            title = title.title;
+        const metaVal = meta[slug];
+        let title: string | undefined;
+
+        if (typeof metaVal === 'string') {
+            title = metaVal;
+        } else if (typeof metaVal === 'object' && metaVal !== null) {
+            title = metaVal.title;
         }
+
         if (!title) {
             title = filenameToTitle(entry.name);
         }
@@ -123,7 +125,7 @@ function scanDirectory(dirPath: string, urlPrefix: string = '/docs'): DocNode[] 
             }
 
             nodes.push({
-                title,
+                title: title || filenameToTitle(entry.name),
                 slug,
                 path: `${urlPrefix}/${slug}`,
                 isFolder: false,

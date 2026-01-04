@@ -252,7 +252,8 @@ export type Document = {
   updated_at: string;
 };
 
-export async function listDocuments(publishedOnly: boolean = true): Promise<Document[]> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function listDocuments(_publishedOnly: boolean = true): Promise<Document[]> {
   // Not implemented for FS yet, or could scan all. 
   // For now, return empty or implement a flat list scan if needed.
   // But manage page uses getSidebarStructure.
@@ -280,8 +281,8 @@ export async function createDocument(payload: {
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to create document');
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to create document');
   }
   return res.json();
 }
@@ -300,10 +301,10 @@ export async function updateDocument(
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-        oldPath: id,
-        newPath: payload.newPath || payload.slug, // Use slug as new path if provided
-        title: payload.title,
-        content: payload.content
+      oldPath: id,
+      newPath: payload.newPath || payload.slug, // Use slug as new path if provided
+      title: payload.title,
+      content: payload.content
     }),
   });
   if (!res.ok) throw new Error('Failed to update document');
@@ -311,12 +312,12 @@ export async function updateDocument(
 }
 
 export async function deleteDocument(id: string): Promise<void> {
-    const res = await fetch('/api/fs/doc', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: id }),
-    });
-    if (!res.ok) throw new Error('Failed to delete document');
+  const res = await fetch('/api/fs/doc', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: id }),
+  });
+  if (!res.ok) throw new Error('Failed to delete document');
 }
 
 

@@ -18,7 +18,6 @@ interface PreviewPanelProps {
     previewRef: React.RefObject<HTMLDivElement | null>;
     projectId: string;
     onToggleAiSidebar: () => void;
-    isAiSidebarOpen: boolean;
     title?: string;
 }
 
@@ -35,7 +34,6 @@ export function PreviewPanel({
     previewRef,
     projectId,
     onToggleAiSidebar,
-    isAiSidebarOpen,
     title,
 }: PreviewPanelProps) {
     const hasRestoredRef = useRef(false);
@@ -174,7 +172,6 @@ export function PreviewPanel({
                 <div className="flex items-center gap-2">
                     <PluginMenu
                         onToggleAiSidebar={onToggleAiSidebar}
-                        isAiSidebarOpen={isAiSidebarOpen}
                     />
 
                     <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />

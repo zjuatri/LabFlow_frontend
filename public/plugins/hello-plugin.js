@@ -18,6 +18,11 @@
         return;
     }
 
+    // Helper to generate ID (outside component to avoid linter purity checks)
+    function generateId() {
+        return 'block-' + Date.now();
+    }
+
     // The plugin component (React functional component)
     function HelloWorldPlugin(props) {
         const { onClose, onInsertBlocks, existingBlocks } = props;
@@ -26,7 +31,7 @@
         const handleInsert = () => {
             // Create a simple paragraph block
             const newBlock = {
-                id: 'block-' + Date.now(),
+                id: generateId(),
                 type: 'paragraph',
                 content: message || 'Hello from the plugin!',
             };
