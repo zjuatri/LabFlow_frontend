@@ -1,6 +1,6 @@
 import { useRef, useCallback } from 'react';
 import BlockEditor from '@/components/editor/BlockEditor';
-import { useEditorStore } from '@/lib/stores/useEditorStore';
+import { useEditorStore } from '@/stores/useEditorStore';
 import { useShallow } from 'zustand/react/shallow';
 
 interface VisualEditorPaneProps {

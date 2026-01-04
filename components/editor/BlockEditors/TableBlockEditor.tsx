@@ -22,7 +22,7 @@ import {
   unmergeTableCell,
 } from '../BlockEditor-utils/table-utils';
 
-import { useTableStore } from '@/lib/stores/useTableStore';
+import { useTableStore } from '@/stores/useTableStore';
 
 interface TableBlockEditorProps {
   block: TypstBlock;

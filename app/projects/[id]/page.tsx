@@ -9,7 +9,7 @@ import {
 } from '@/lib/typst';
 import { clearToken, getToken } from '@/lib/auth';
 import { useBidirectionalScrollSync } from '@/lib/bidirectional-scroll-sync';
-import { useEditorStore } from '@/lib/stores/useEditorStore';
+import { useEditorStore } from '@/stores/useEditorStore';
 import { useShallow } from 'zustand/react/shallow';
 
 // Import extracted components
