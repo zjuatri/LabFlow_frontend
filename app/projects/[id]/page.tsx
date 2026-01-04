@@ -475,8 +475,6 @@ export default function ProjectEditorPage() {
                   showSettings={showSettings}
                   onToggleSettings={() => setShowSettings(!showSettings)}
                   onCloseSettings={() => setShowSettings(false)}
-                  activePluginId={activePluginId}
-                  onTogglePlugin={togglePlugin}
                 />
               );
             })()}
