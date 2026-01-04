@@ -60,17 +60,31 @@ export function EditorToolbar({
         return pluginRegistry.subscribe(() => forceUpdate({}));
     }, []);
 
-    const handleInstallPlugin = async () => {
-        const url = window.prompt('请输入插件 JS 文件的 URL (UMD格式):', 'http://localhost:3000/plugins/demo-plugin.js');
-        if (url) {
-            try {
-                await pluginRegistry.loadRemote(url);
-                alert('插件安装成功！');
-            } catch (e) {
-                alert('插件加载失败: ' + e);
+    // Filter enabled plugins
+    const [enabledPluginIds, setEnabledPluginIds] = useState<Set<string>>(new Set());
+
+    const refreshEnabledPlugins = () => {
+        try {
+            const saved = localStorage.getItem('labflow_enabled_plugins');
+            if (saved) {
+                setEnabledPluginIds(new Set(JSON.parse(saved)));
+            } else {
+                // Default all enabled
+                setEnabledPluginIds(new Set(pluginRegistry.getAll().map(p => p.id)));
             }
-        }
+        } catch { /* ignore */ }
     };
+
+    useEffect(() => {
+        refreshEnabledPlugins();
+        // Listen for manager changes
+        const handleConfigChange = () => refreshEnabledPlugins();
+        window.addEventListener('plugin-config-changed', handleConfigChange);
+        return () => window.removeEventListener('plugin-config-changed', handleConfigChange);
+    }, []);
+
+    const allPlugins = pluginRegistry.getAll();
+    const visiblePlugins = allPlugins.filter(p => enabledPluginIds.has(p.id));
 
     return (
         <div className="flex items-center justify-between px-4 py-3 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 gap-3 flex-wrap relative z-20">
@@ -158,7 +172,7 @@ export function EditorToolbar({
             <div className="w-px h-6 bg-zinc-300 dark:bg-zinc-700 mx-1 hidden sm:block"></div>
 
             <div className="flex items-center gap-3 shrink-0">
-                {pluginRegistry.getAll().map(plugin => (
+                {visiblePlugins.map(plugin => (
                     <button
                         key={plugin.id}
                         onClick={() => onTogglePlugin(plugin.id)}
@@ -176,13 +190,6 @@ export function EditorToolbar({
                     </button>
                 ))}
 
-                <button
-                    onClick={handleInstallPlugin}
-                    className="p-1.5 rounded-full border border-dashed border-zinc-300 dark:border-zinc-600 text-zinc-500 hover:text-blue-500 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                    title="安装插件 (加载远程 JS)"
-                >
-                    <DownloadCloud size={14} />
-                </button>
             </div>
         </div>
     );

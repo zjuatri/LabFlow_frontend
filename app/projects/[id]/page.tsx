@@ -20,9 +20,8 @@ import { VisualEditorPane } from './_components/VisualEditorPane';
 import { SourceEditorPane } from './_components/SourceEditorPane';
 import { ProjectSettingsModal } from './_components/ProjectSettingsModal';
 
-// Import plugins to register them
-import '@/components/editor/plugins/AiAssistantPlugin';
-import '@/components/editor/plugins/samples/TodoPlugin';
+// Built-in plugins
+import '@/components/editor/plugins/ai-assistant/AiAssistantPlugin';
 import { pluginRegistry } from '@/components/editor/plugins/registry';
 import { GlobalDependencyExposer } from '@/components/editor/plugins/GlobalDependencyExposer';
 
@@ -119,6 +118,11 @@ export default function ProjectEditorPage() {
 
   const [isResizingEditor, setIsResizingEditor] = useState(false);
   const [isResizingAi, setIsResizingAi] = useState(false);
+
+  // Load persisted plugins on mount
+  useEffect(() => {
+    pluginRegistry.loadPersistedPlugins();
+  }, []);
 
   // Resize handlers
   useEffect(() => {
@@ -581,6 +585,7 @@ export default function ProjectEditorPage() {
             setBlocks(next);
           }}
         />
+
       </div>
     </>
   );

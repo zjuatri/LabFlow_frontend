@@ -2,8 +2,8 @@
 
 import { Sparkles, FileText, Upload, X, ArrowRight, Loader2, Play, Copy, Check, Trash2, Image as ImageIcon, Link as LinkIcon, Eye } from 'lucide-react';
 import { useAiAssistant } from './useAiAssistant';
-import { EditorPlugin, EditorPluginProps } from './types'; // Import types
-import { pluginRegistry } from './registry'; // Import registry
+import { EditorPlugin, EditorPluginProps } from '@/components/editor/plugins/types'; // Import types
+import { pluginRegistry } from '@/components/editor/plugins/registry'; // Import registry
 
 /* --------------------------------------------------------------------------------
  * Component
