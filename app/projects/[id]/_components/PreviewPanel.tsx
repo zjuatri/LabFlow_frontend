@@ -164,7 +164,7 @@ export function PreviewPanel({
             <div className="absolute inset-0 bg-grid-zinc-200/50 dark:bg-grid-zinc-800/50 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))] pointer-events-none" />
 
             {/* Header */}
-            <div className="px-5 py-3 border-b border-zinc-200/60 dark:border-zinc-800/60 flex items-center justify-between gap-3 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl supports-[backdrop-filter]:bg-white/60 flex-wrap">
+            <div className="px-5 py-3 border-b border-zinc-200/60 dark:border-zinc-800/60 flex items-center justify-between gap-3 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl supports-[backdrop-filter]:bg-white/60 flex-wrap relative z-20">
                 <div className="flex items-center gap-2">
                     <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 uppercase tracking-wide opacity-80">预览</h2>
                     <span className="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600" />

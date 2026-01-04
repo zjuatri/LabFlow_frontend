@@ -37,7 +37,7 @@ export function PluginMenu({ onToggleAiSidebar, isAiSidebarOpen }: PluginMenuPro
             </button>
 
             {isOpen && (
-                <div className="absolute right-0 top-full mt-2 w-56 p-1.5 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-zinc-200/50 dark:border-zinc-700/50 rounded-xl shadow-xl z-20 animate-in fade-in zoom-in-95 duration-200">
+                <div className="absolute right-0 top-full mt-2 w-56 p-1.5 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-zinc-200/50 dark:border-zinc-700/50 rounded-xl shadow-xl z-50 animate-in fade-in zoom-in-95 duration-200">
                     <div className="px-2 py-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                         可用插件
                     </div>
