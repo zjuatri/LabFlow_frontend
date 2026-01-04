@@ -137,4 +137,12 @@ describe('Typst Parser/Serializer Roundtrip', () => {
         ];
         assertRoundtrip(blocks);
     });
+    it('handles empty paragraphs (persisted)', () => {
+        const blocks: TypstBlock[] = [
+            { id: '1', type: 'paragraph', content: 'Par 1' },
+            { id: '2', type: 'paragraph', content: '' },
+            { id: '3', type: 'paragraph', content: 'Par 2' },
+        ];
+        assertRoundtrip(blocks);
+    });
 });

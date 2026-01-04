@@ -1,6 +1,6 @@
 
 import { TypstBlock } from '../types';
-import { generateId, LF_ANSWER_MARKER, defaultParagraphLeadingEm, inferLineSpacingMultiplier } from '../utils';
+import { generateId, LF_ANSWER_MARKER, LF_EMPTY_PAR_MARKER, defaultParagraphLeadingEm, inferLineSpacingMultiplier } from '../utils';
 import { BlockParser } from '../core/block-parser';
 
 export class ParagraphParser implements BlockParser {
@@ -112,13 +112,25 @@ export class ParagraphParser implements BlockParser {
         const startLine = lines[currentIndex].replace(/\r$/, '');
         const trimmed = startLine.trim();
 
+
+        // Handle explicit Empty Paragraph Marker
+        if (trimmed === LF_EMPTY_PAR_MARKER) {
+            return {
+                block: {
+                    id: generateId(),
+                    type: 'paragraph',
+                    content: '', // Empty content
+                },
+                endIndex: currentIndex + 1
+            };
+        }
+
         // Hard checks for other block types to avoid consuming them as text
         if (trimmed.startsWith('=') ||
             trimmed.startsWith('```') ||
             trimmed.startsWith('#image(') ||
             trimmed.startsWith('#figure(') ||
-            trimmed.startsWith('#align(') || // Covers images/tables wrapped in align
-            trimmed.includes('/*LF_') || // Markers
+            (trimmed.includes('/*LF_') && trimmed !== LF_EMPTY_PAR_MARKER) || // Markers (exclude our empty par marker)
             trimmed.startsWith('$') ||
             trimmed.startsWith('#block(') || // vertical space, lists, etc.
             trimmed.startsWith('#v(') ||
@@ -142,6 +154,20 @@ export class ParagraphParser implements BlockParser {
             } else {
                 return null;
             }
+        }
+
+        // Special handling for #align(...) - it might wrap paragraphs OR images/tables
+        // We should accept it only if it's wrapping plain text, not images/tables/figures
+        if (trimmed.startsWith('#align(')) {
+            // Check if it wraps an image, figure, or table - if so, reject (let MediaParser/TableParser handle)
+            if (trimmed.includes('#image(') ||
+                trimmed.includes('#figure(') ||
+                trimmed.includes('/*LF_TABLE') ||
+                trimmed.includes('/*LF_IMAGE') ||
+                trimmed.includes('#table(')) {
+                return null;
+            }
+            // Otherwise, it's a centered paragraph - we'll handle it below
         }
 
         // 3. Accumulate lines

@@ -54,11 +54,12 @@ export function useAiAssistant({ projectId, existingBlocks, onInsertBlocks, onCl
 
         const newFiles: AiContextFile[] = Array.from(selected).map(file => {
             const isPdf = file.type === 'application/pdf';
+            const isOffice = /\.(docx|pptx|doc|ppt)$/i.test(file.name);
             return {
                 id: Math.random().toString(36).slice(2),
                 file,
                 source: 'local',
-                type: isPdf ? 'pdf' : 'image',
+                type: isPdf ? 'pdf' : isOffice ? 'office' : 'image',
                 description: '',
                 shouldInclude: true, // User requested default true
                 // Set defaults
@@ -122,8 +123,31 @@ export function useAiAssistant({ projectId, existingBlocks, onInsertBlocks, onCl
     };
 
 
+    const convertOfficeToMarkdown = async (file: File): Promise<string> => {
+        const token = getToken();
+        const form = new FormData();
+        form.append('file', file);
+
+        const res = await fetch(`/api/projects/convert/office-to-markdown`, {
+            method: 'POST',
+            headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: form,
+        });
+
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data?.detail || '文档转换失败');
+        }
+
+        const data = await res.json();
+        return data?.markdown as string;
+    };
+
     type ProcessedContext =
         | { type: 'pdf'; filename: string; description?: string; data: Record<string, unknown> }
+        | { type: 'office'; filename: string; description?: string; data: Record<string, unknown> }
         | { type: 'image'; filename: string; url: string; description?: string; visionAnalysis: string | null; shouldInclude?: boolean }
         | { type: 'error'; filename: string; error: string };
 
@@ -135,7 +159,26 @@ export function useAiAssistant({ projectId, existingBlocks, onInsertBlocks, onCl
             const displayName = f.source === 'url' ? (f.url || 'Untitled URL') : f.file?.name || 'Untitled File';
             setProgressMsg(`正在处理文件: ${displayName}...`);
 
-            if (f.type === 'pdf') {
+            if (f.type === 'office') {
+                if (f.source === 'local' && f.file) {
+                    try {
+                        const md = await convertOfficeToMarkdown(f.file);
+                        contexts.push({
+                            type: 'office',
+                            filename: displayName,
+                            description: f.description,
+                            data: { text: md }
+                        });
+                    } catch (e) {
+                        console.error(`Office conversion failed for ${displayName}:`, e);
+                        contexts.push({
+                            type: 'error',
+                            filename: displayName,
+                            error: 'Conversion failed: ' + String(e)
+                        });
+                    }
+                }
+            } else if (f.type === 'pdf') {
                 try {
                     if (f.source === 'url' && !f.url?.trim()) {
                         throw new Error('URL 不能为空');
@@ -239,7 +282,7 @@ export function useAiAssistant({ projectId, existingBlocks, onInsertBlocks, onCl
 
             const multiFileContext = {
                 files: contexts.map(c => {
-                    if (c.type === 'pdf') {
+                    if (c.type === 'pdf' || c.type === 'office') {
                         return {
                             filename: c.filename,
                             user_description: c.description,
@@ -253,13 +296,15 @@ export function useAiAssistant({ projectId, existingBlocks, onInsertBlocks, onCl
                             vision_analysis: c.visionAnalysis,
                             should_include: c.shouldInclude
                         };
-                    } else {
-                        // Error case
+                    } else if (c.type === 'error') {
                         return {
                             filename: c.filename,
                             error: c.error,
                             status: 'failed'
                         };
+                    } else {
+                        // Should not happen as types are exhaustive
+                        return null;
                     }
                 })
             };

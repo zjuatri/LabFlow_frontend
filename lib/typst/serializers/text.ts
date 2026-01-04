@@ -1,6 +1,7 @@
 import { TypstBlock } from '../types';
 import {
     LF_ANSWER_MARKER,
+    LF_EMPTY_PAR_MARKER,
     convertMixedParagraph,
     defaultParagraphLeadingEm,
     leadingEmFromMultiplier,
@@ -43,6 +44,11 @@ export function serializeParagraph(block: TypstBlock): string {
     const raw = block.content ?? '';
     const isAnswerBlank = !!block.placeholder && raw.replace(/\u200B/g, '').trim().length === 0;
     let body = sanitizeTypstInlineMath(convertMixedParagraph(raw));
+
+    if (!isAnswerBlank && body.trim() === '') {
+        return LF_EMPTY_PAR_MARKER;
+    }
+
 
     if (isAnswerBlank) {
         // Stylized placeholder box

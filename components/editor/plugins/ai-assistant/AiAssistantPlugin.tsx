@@ -98,6 +98,8 @@ export function AiAssistantPlugin({ projectId, existingBlocks, onInsertBlocks, o
                                                 <>
                                                     {file.type === 'pdf' ? (
                                                         <FileText size={14} className="text-red-500 shrink-0" />
+                                                    ) : file.type === 'office' ? (
+                                                        <FileText size={14} className="text-blue-600 shrink-0" />
                                                     ) : (
                                                         <ImageIcon size={14} className="text-blue-500 shrink-0" />
                                                     )}
@@ -184,7 +186,7 @@ export function AiAssistantPlugin({ projectId, existingBlocks, onInsertBlocks, o
                                 </span>
                                 <input
                                     type="file"
-                                    accept=".pdf,.png,.jpg,.jpeg,.webp"
+                                    accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.pptx,.doc,.ppt"
                                     multiple
                                     className="hidden"
                                     onChange={handleFileChange}

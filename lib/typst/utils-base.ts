@@ -16,6 +16,7 @@ export const LF_COVER_END_MARKER = '/*LF_COVER_END*/';
 
 // Composite row marker (used to store flex-like row layout metadata)
 export const LF_COMPOSITE_ROW_MARKER = '/*LF_COMPOSITE_ROW:';
+export const LF_EMPTY_PAR_MARKER = '/*LF_EMPTY_PAR*/';
 
 export function base64EncodeUtf8(input: string): string {
     // Browser-safe UTF-8 base64

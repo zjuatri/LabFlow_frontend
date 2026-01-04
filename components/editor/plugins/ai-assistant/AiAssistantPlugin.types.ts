@@ -3,7 +3,7 @@ export type AiContextFile = {
     file?: File; // Optional now, as URL items won't have a File object
     url?: string; // For MinerU URL mode
     source: 'local' | 'url';
-    type: 'pdf' | 'image';
+    type: 'pdf' | 'image' | 'office';
     description: string;
     shouldInclude?: boolean; // New: User preference to include in report
     // PDF specific
