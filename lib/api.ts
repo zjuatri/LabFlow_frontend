@@ -253,12 +253,17 @@ export type Document = {
 };
 
 export async function listDocuments(publishedOnly: boolean = true): Promise<Document[]> {
-  return request<Document[]>(`/api/docs?published_only=${publishedOnly}`);
+  // Not implemented for FS yet, or could scan all. 
+  // For now, return empty or implement a flat list scan if needed.
+  // But manage page uses getSidebarStructure.
+  return [];
 }
 
 export async function getDocument(slug: string): Promise<Document> {
-  // Handles generic error if 404
-  return request<Document>(`/api/docs/${slug}`);
+  // Use internal API
+  const res = await fetch(`/api/fs/doc/${slug}`);
+  if (!res.ok) throw new Error('Failed to fetch document');
+  return res.json();
 }
 
 export async function createDocument(payload: {
@@ -266,11 +271,19 @@ export async function createDocument(payload: {
   title: string;
   content: string;
   is_published?: boolean;
+  isFolder?: boolean;
+  parentPath?: string;
 }): Promise<Document> {
-  return request<Document>('/api/docs', {
+  const res = await fetch('/api/fs/doc', {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
+  if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to create document');
+  }
+  return res.json();
 }
 
 export async function updateDocument(
@@ -280,36 +293,56 @@ export async function updateDocument(
     title?: string;
     content?: string;
     is_published?: boolean;
+    newPath?: string; // For renaming/moving
   }
 ): Promise<Document> {
-  return request<Document>(`/api/docs/${id}`, {
+  const res = await fetch('/api/fs/doc', {
     method: 'PUT',
-    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        oldPath: id,
+        newPath: payload.newPath || payload.slug, // Use slug as new path if provided
+        title: payload.title,
+        content: payload.content
+    }),
   });
+  if (!res.ok) throw new Error('Failed to update document');
+  return res.json();
+}
+
+export async function deleteDocument(id: string): Promise<void> {
+    const res = await fetch('/api/fs/doc', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: id }),
+    });
+    if (!res.ok) throw new Error('Failed to delete document');
 }
 
 
 export type NavItem = {
   title: string;
   url?: string;
+  slug?: string;
+  path?: string;
   items?: NavItem[];
 };
 
 export async function getSidebarStructure(): Promise<NavItem[]> {
-  return request<NavItem[]>('/api/docs/structure');
+  const res = await fetch('/api/fs/structure');
+  if (!res.ok) throw new Error('Failed to fetch structure');
+  return res.json();
 }
 
-export async function updateSidebarStructure(structure: NavItem[]): Promise<NavItem[]> {
-  return request<NavItem[]>('/api/docs/structure', {
-    method: 'PUT',
-    body: JSON.stringify({ structure }),
+export async function updateSidebarStructure(structure: NavItem[]): Promise<void> {
+  const res = await fetch('/api/fs/structure', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(structure),
   });
+  if (!res.ok) throw new Error('Failed to update structure');
 }
 
-export async function deleteDocument(id: string): Promise<void> {
-  await request<unknown>(`/api/docs/${id}`, {
-    method: 'DELETE',
-  });
-}
+
 
 

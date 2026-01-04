@@ -12,6 +12,11 @@ const nextConfig: NextConfig = {
       // Proxy all /api and /static to backend.
       // Note: The table formula vision endpoint now calls backend directly from browser
       // to avoid the ~30s proxy timeout, so no need to exclude it here.
+      // Exclude /api/fs from proxying (let Next.js handle it)
+      {
+        source: '/api/fs/:path*',
+        destination: '/api/fs/:path*',
+      },
       {
         source: '/api/:path*',
         destination: `${backend}/api/:path*`,

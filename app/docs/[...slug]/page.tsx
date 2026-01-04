@@ -1,24 +1,25 @@
-import { getDefaultDocPath, getDocBySlug } from '@/lib/docs';
+import { getDocBySlug } from '@/lib/docs';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { FolderOpen, FileText } from 'lucide-react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 
-export default function DocsPage() {
-    const defaultPath = getDefaultDocPath();
-    if (defaultPath) {
-        redirect(defaultPath);
-    }
+interface DocPageProps {
+    params: Promise<{ slug: string[] }>;
+}
 
-    // Empty slug for root
-    const doc = getDocBySlug([]);
+export default async function DocContentPage({ params }: DocPageProps) {
+    const { slug } = await params;
+    const slugPath = slug || [];
+
+    const doc = getDocBySlug(slugPath);
 
     if (!doc) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] max-w-4xl mx-auto px-4">
-                    <h1 className="text-2xl font-bold mb-4">开始使用</h1>
-                    <p className="text-zinc-500 mb-4">暂无文档内容</p>
+                    <h1 className="text-2xl font-bold mb-4">404 - 文档未找到</h1>
+                    <p className="text-zinc-500 mb-4">您可以尝试返回首页查找所需内容</p>
+                    <Link href="/docs" className="text-blue-600 hover:underline">返回文档首页</Link>
             </div>
         );
     }
@@ -27,8 +28,8 @@ export default function DocsPage() {
         return (
             <div className="max-w-4xl mx-auto px-6 py-12">
                 <header className="mb-10 pb-10 border-b border-zinc-100 dark:border-zinc-800">
-                    <h1 className="text-4xl font-extrabold tracking-tight mb-4">开发文档</h1>
-                    <p className="text-zinc-500 dark:text-zinc-400 text-lg">LabFlow 插件开发与 API 指南</p>
+                    <h1 className="text-4xl font-extrabold tracking-tight mb-4">{doc.meta.title}</h1>
+                    <p className="text-zinc-500 dark:text-zinc-400 text-lg">此目录下包含以下文档：</p>
                 </header>
 
                 <div className="grid gap-4">

@@ -13,7 +13,9 @@ import { getDocument, updateDocument, deleteDocument, type Document } from '@/li
 export default function EditDocPage() {
     const router = useRouter();
     const params = useParams();
-    const id = params.id as string;
+    // Handle catch-all route: id can be an array like ['folder', 'doc-name']
+    const idParam = params.id;
+    const id = Array.isArray(idParam) ? idParam.join('/') : (idParam as string);
 
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);

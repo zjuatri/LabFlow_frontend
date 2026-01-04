@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, Save, AlertTriangle, Plus, Trash2, ChevronUp, ChevronDown, ChevronRight, Code, Folder, FileText, FolderPlus, FilePlus, Edit3 } from 'lucide-react';
 import SiteHeader from '@/components/common/SiteHeader';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { getSidebarStructure, updateSidebarStructure, listDocuments, createDocument, updateDocument, type NavItem, type Document } from '@/lib/api';
+import { getSidebarStructure, updateSidebarStructure, createDocument, updateDocument, deleteDocument, type NavItem } from '@/lib/api';
 
 // --- Visual Editor Components ---
 
@@ -174,7 +174,7 @@ export default function DocsManagePage() {
     const { token, isLoading: isAuthLoading, isAdmin } = useAuth();
 
     const [structure, setStructure] = useState<NavItem[]>([]);
-    const [docs, setDocs] = useState<Document[]>([]);
+    // const [docs, setDocs] = useState<Document[]>([]); // Removed docs state
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
@@ -190,11 +190,11 @@ export default function DocsManagePage() {
         if (token && isAdmin) {
             Promise.all([
                 getSidebarStructure(),
-                listDocuments(false)
-            ]).then(([structData, docsData]) => {
+                // listDocuments(false) // Removed
+            ]).then(([structData]) => {
                 setStructure(structData);
                 setJsonContent(JSON.stringify(structData, null, 2));
-                setDocs(docsData);
+                // setDocs(docsData); // Removed
             }).catch(e => {
                 console.error(e);
                 setError('加载数据失败');
@@ -203,9 +203,8 @@ export default function DocsManagePage() {
     }, [token, isAdmin]);
 
     const getDocId = (url: string) => {
-        const slug = url.replace('/docs/', '');
-        const doc = docs.find(d => d.slug === slug);
-        return doc?.id;
+        if (!url) return undefined;
+        return url.replace(/^\/docs\//, '');
     };
 
     const handleRenameDoc = async (url: string, newTitle: string) => {
@@ -213,8 +212,7 @@ export default function DocsManagePage() {
         if (id) {
             try {
                 await updateDocument(id, { title: newTitle });
-                // Update local docs state
-                setDocs(prev => prev.map(d => d.id === id ? { ...d, title: newTitle } : d));
+                // No need to update docs state, structure update handles UI
             } catch (e) {
                 console.error('Failed to rename document', e);
             }
@@ -263,17 +261,76 @@ export default function DocsManagePage() {
         setJsonContent(JSON.stringify(newStruct, null, 2));
     };
 
-    const handleDelete = (path: number[]) => {
+    const handleDelete = async (path: number[]) => {
         if (!confirm('确定删除此项及其子项吗？')) return;
-        const newStruct = updateTree(structure, path, 'delete');
-        setStructure(newStruct);
-        setJsonContent(JSON.stringify(newStruct, null, 2));
+
+        // Find item to get its path
+        let itemToDelete: NavItem | undefined;
+        let current = structure;
+        for (let i = 0; i < path.length; i++) {
+            if (current[path[i]]) {
+                if (i === path.length - 1) {
+                    itemToDelete = current[path[i]];
+                }
+                current = current[path[i]].items || [];
+            }
+        }
+
+        if (itemToDelete && itemToDelete.path) {
+            try {
+                await deleteDocument(itemToDelete.path);
+                const newStruct = updateTree(structure, path, 'delete');
+                setStructure(newStruct);
+                setJsonContent(JSON.stringify(newStruct, null, 2));
+            } catch (e) {
+                console.error(e);
+                alert('删除失败');
+            }
+        }
     };
 
-    const handleAddFolder = (path: number[]) => {
-        const newStruct = updateTree(structure, path, 'addFolder');
-        setStructure(newStruct);
-        setJsonContent(JSON.stringify(newStruct, null, 2));
+    const handleAddFolder = async (path: number[]) => {
+        // Find parent folder
+        let parentPath = '';
+        let current = structure;
+        for (let i = 0; i < path.length; i++) {
+            if (current[path[i]]) {
+                if (i === path.length - 1) {
+                    parentPath = current[path[i]].path || '';
+                }
+                current = current[path[i]].items || [];
+            }
+        }
+
+        const folderName = `subfolder-${Date.now()}`;
+        try {
+            await createDocument({
+                title: '新文件夹',
+                slug: folderName,
+                content: '',
+                isFolder: true,
+                parentPath
+            });
+            // We need to update the path of the new folder in the structure, but updateTree is generic.
+            // Let's just reload structure or manually patch it?
+            // updateTree adds { title: '新文件夹', url: '', items: [] }
+            // We should probably update updateTree to accept the new item fully.
+
+            // Actually, updateTree for 'addFolder' is hardcoded. Let's change it to 'update' or 'addChild'.
+            // But wait, updateTree is recursive.
+
+            // Let's just reload the structure after adding folder?
+            // Or better, modify updateTree to accept payload for addFolder.
+
+            // For now, let's just reload structure to be safe and simple.
+            const structData = await getSidebarStructure();
+            setStructure(structData);
+            setJsonContent(JSON.stringify(structData, null, 2));
+
+        } catch (e) {
+            console.error(e);
+            alert('创建文件夹失败');
+        }
     };
 
     const handleCreateDocument = (path: number[]) => {
@@ -285,33 +342,51 @@ export default function DocsManagePage() {
     const confirmCreateDocument = async () => {
         if (!newDocTitle.trim()) return;
         setIsCreateModalOpen(false);
-        
+
         const path = createDocPath;
         const title = newDocTitle;
+
+        // Find parent folder to get its path
+        let parentPath = '';
+        let current = structure;
+        for (let i = 0; i < path.length; i++) {
+            if (current[path[i]]) {
+                if (i === path.length - 1) {
+                    // This is the folder we are creating in
+                    parentPath = current[path[i]].path || '';
+                }
+                current = current[path[i]].items || [];
+            }
+        }
 
         try {
             setSaving(true);
             // 1. Create the document
-            const slug = `doc-${Date.now()}`; 
+            // Slug is derived from title for FS usually, or we can use a timestamp if we want unique IDs.
+            // Let's use title as slug but sanitized.
+            const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `doc-${Date.now()}`;
+
             const newDoc = await createDocument({
                 title,
                 slug,
                 content: '',
-                is_published: true
+                is_published: true,
+                parentPath
             });
 
             // 2. Add to structure
-            const url = `/docs/${newDoc.slug}`;
+            // The API returns the new doc with its full relative path as slug/id
+            const url = `/docs/${newDoc.slug}`; // newDoc.slug is relative path
             const newStruct = updateTree(structure, path, 'createDocument', { url, title: newDoc.title });
             setStructure(newStruct);
             setJsonContent(JSON.stringify(newStruct, null, 2));
 
-            // 3. Save structure immediately to bind them
+            // 3. Save structure immediately to bind them (update _meta.json)
             await updateSidebarStructure(newStruct);
-            
-            // 4. Refresh docs list
-            const updatedDocs = await listDocuments(false);
-            setDocs(updatedDocs);
+
+            // 4. Refresh docs list - Removed
+            // const updatedDocs = await listDocuments(false);
+            // setDocs(updatedDocs);
 
             // alert('文档创建成功！');
         } catch (e) {
@@ -328,10 +403,28 @@ export default function DocsManagePage() {
         setJsonContent(JSON.stringify(newStruct, null, 2));
     };
 
-    const handleAddRoot = () => {
-        const newStruct = [...structure, { title: '新文件夹', url: '', items: [] }];
-        setStructure(newStruct);
-        setJsonContent(JSON.stringify(newStruct, null, 2));
+    const handleAddRoot = async () => {
+        // Create a new folder in FS
+        const folderName = `folder-${Date.now()}`;
+        try {
+            await createDocument({
+                title: '新文件夹',
+                slug: folderName,
+                content: '',
+                isFolder: true
+            });
+
+            // Add to structure
+            const newStruct = [...structure, { title: '新文件夹', slug: folderName, path: folderName, items: [] }];
+            setStructure(newStruct);
+            setJsonContent(JSON.stringify(newStruct, null, 2));
+
+            // Save meta
+            await updateSidebarStructure(newStruct);
+        } catch (e) {
+            console.error(e);
+            alert('创建文件夹失败');
+        }
     };
 
     const handleJsonChange = (val: string) => {
@@ -493,41 +586,41 @@ export default function DocsManagePage() {
                         <strong>💡 使用提示：</strong>
                     </p>
 
-                {/* Create Document Modal */}
-                {isCreateModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                        <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md p-6 animate-in fade-in zoom-in duration-200">
-                            <h3 className="text-lg font-semibold mb-4 text-zinc-900 dark:text-zinc-100">新建文档</h3>
-                            <input
-                                type="text"
-                                value={newDocTitle}
-                                onChange={e => setNewDocTitle(e.target.value)}
-                                placeholder="请输入文档标题"
-                                className="w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-6 text-zinc-900 dark:text-zinc-100"
-                                autoFocus
-                                onKeyDown={e => {
-                                    if (e.key === 'Enter') confirmCreateDocument();
-                                    if (e.key === 'Escape') setIsCreateModalOpen(false);
-                                }}
-                            />
-                            <div className="flex justify-end gap-3">
-                                <button
-                                    onClick={() => setIsCreateModalOpen(false)}
-                                    className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-                                >
-                                    取消
-                                </button>
-                                <button
-                                    onClick={confirmCreateDocument}
-                                    disabled={!newDocTitle.trim()}
-                                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    创建
-                                </button>
+                    {/* Create Document Modal */}
+                    {isCreateModalOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                            <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md p-6 animate-in fade-in zoom-in duration-200">
+                                <h3 className="text-lg font-semibold mb-4 text-zinc-900 dark:text-zinc-100">新建文档</h3>
+                                <input
+                                    type="text"
+                                    value={newDocTitle}
+                                    onChange={e => setNewDocTitle(e.target.value)}
+                                    placeholder="请输入文档标题"
+                                    className="w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-6 text-zinc-900 dark:text-zinc-100"
+                                    autoFocus
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') confirmCreateDocument();
+                                        if (e.key === 'Escape') setIsCreateModalOpen(false);
+                                    }}
+                                />
+                                <div className="flex justify-end gap-3">
+                                    <button
+                                        onClick={() => setIsCreateModalOpen(false)}
+                                        className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                                    >
+                                        取消
+                                    </button>
+                                    <button
+                                        onClick={confirmCreateDocument}
+                                        disabled={!newDocTitle.trim()}
+                                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        创建
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    )}
                     <ul className="text-sm text-blue-900 dark:text-blue-300 mt-2 space-y-1 ml-4 list-disc">
                         <li>将文件夹名称保留为空的 URL 可以创建文件夹，有 URL 的项目是文档</li>
                         <li>使用 <strong>FolderPlus 图标</strong> 可以在任何项目下添加子文件夹</li>
