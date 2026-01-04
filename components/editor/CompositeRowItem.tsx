@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { TypstBlock } from '@/lib/typst';
 import { Trash2, Plus, ChevronDown, ChevronRight, Download } from 'lucide-react';
 import type { ChartRenderRequest } from './BlockEditors/ChartBlockEditor';
@@ -76,6 +76,29 @@ export default function CompositeRowItem({
 }: CompositeRowItemProps) {
     const [showImportPopup, setShowImportPopup] = useState(false);
     const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(new Set());
+
+    const [draggingChildId, setDraggingChildId] = useState<string | null>(null);
+    type ChildDropPosition = { targetId: string; position: 'before' | 'after' } | null;
+    const [dropChildPosition, setDropChildPosition] = useState<ChildDropPosition>(null);
+    const suppressChildDragRef = useRef(false);
+
+    const handleChildReorder = (fromId: string, toId: string, position: 'before' | 'after') => {
+        if (fromId === toId) return;
+        const currentChildren = Array.isArray(block.children) ? block.children : [];
+        const fromIndex = currentChildren.findIndex(c => c.id === fromId);
+        const toIndex = currentChildren.findIndex(c => c.id === toId);
+        if (fromIndex === -1 || toIndex === -1) return;
+
+        const next = [...currentChildren];
+        const [moved] = next.splice(fromIndex, 1);
+
+        let insertIndex = toIndex;
+        if (fromIndex < toIndex) insertIndex = toIndex - 1;
+        if (position === 'after') insertIndex += 1;
+
+        next.splice(insertIndex, 0, moved);
+        onUpdate({ children: next });
+    };
 
     const collapsed = block.uiCollapsed !== false;
     const children = Array.isArray(block.children) ? block.children : [];
@@ -452,7 +475,68 @@ export default function CompositeRowItem({
 
                     ) : (
                         children.map((child, idx) => (
-                            <div key={child.id} className="cursor-default relative" onClick={(e) => e.stopPropagation()}>
+                            <div
+                                key={child.id}
+                                className={`cursor-default relative transition-opacity ${draggingChildId === child.id ? 'opacity-50' : ''}`}
+                                onClick={(e) => e.stopPropagation()}
+                                draggable={true}
+                                onMouseDownCapture={(e) => {
+                                    const target = e.target as HTMLElement | null;
+                                    suppressChildDragRef.current = !!target?.closest('input, textarea, [contenteditable="true"]');
+                                }}
+                                onMouseUpCapture={() => {
+                                    suppressChildDragRef.current = false;
+                                }}
+                                onDragStart={(e) => {
+                                    e.stopPropagation();
+                                    if (suppressChildDragRef.current) {
+                                        e.preventDefault();
+                                        return;
+                                    }
+                                    setDraggingChildId(child.id);
+                                    e.dataTransfer.effectAllowed = 'move';
+                                    e.dataTransfer.setData('text/plain', child.id);
+                                }}
+                                onDragOver={(e) => {
+                                    if (!draggingChildId) return;
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (draggingChildId === child.id) return;
+
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    const midY = rect.top + rect.height / 2;
+                                    const position = e.clientY < midY ? 'before' : 'after';
+                                    setDropChildPosition({ targetId: child.id, position });
+                                }}
+                                onDragLeave={(e) => {
+                                    if (dropChildPosition?.targetId === child.id) setDropChildPosition(null);
+                                }}
+                                onDrop={(e) => {
+                                    if (!draggingChildId) return;
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const fromId = e.dataTransfer.getData('text/plain');
+                                    if (fromId && dropChildPosition && children.some(c => c.id === fromId)) {
+                                        handleChildReorder(fromId, dropChildPosition.targetId, dropChildPosition.position);
+                                    }
+                                    setDraggingChildId(null);
+                                    setDropChildPosition(null);
+                                }}
+                                onDragEnd={(e) => {
+                                    e.stopPropagation();
+                                    setDraggingChildId(null);
+                                    setDropChildPosition(null);
+                                    suppressChildDragRef.current = false;
+                                }}
+                            >
+                                {/* Insertion Indicators */}
+                                {dropChildPosition?.targetId === child.id && dropChildPosition.position === 'before' && (
+                                    <div className="absolute -top-2 left-0 right-0 h-0.5 bg-indigo-500 rounded-full z-10" />
+                                )}
+                                {dropChildPosition?.targetId === child.id && dropChildPosition.position === 'after' && (
+                                    <div className="absolute -bottom-2 left-0 right-0 h-0.5 bg-indigo-500 rounded-full z-10" />
+                                )}
+
                                 <div className="absolute -left-3 top-3 text-[9px] text-indigo-400 font-mono">{idx + 1}</div>
                                 <BlockItemComponent
                                     block={child}
