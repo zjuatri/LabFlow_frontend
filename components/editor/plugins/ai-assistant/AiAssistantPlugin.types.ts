@@ -7,6 +7,7 @@ export type AiContextFile = {
     description: string;
     shouldInclude?: boolean; // New: User preference to include in report
     // PDF specific
+    usePageRange?: boolean; // New: Toggle for page range selection
     pdfPageStart?: string;
     pdfPageEnd?: string;
     // Image specific

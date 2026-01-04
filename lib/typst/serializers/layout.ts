@@ -9,24 +9,27 @@ export function serializeVerticalSpace(block: TypstBlock, target: 'storage' | 'p
     const length = (block.content || '5%').trim();
     const visible = settings.verticalSpaceVisible;
 
-    // Export mode: just the vertical space
-    if (target === 'export') {
-        return `#v(${length})`;
+    // All modes now use #v() for consistent sizing across views
+    const vSpace = `#v(${length})`;
+
+    // Export and storage: just the vertical space
+    if (target === 'export' || target === 'storage') {
+        return vSpace;
     }
 
-    // Preview mode with guide visible: use block with zero margins for exact spacing
+    // Preview mode with guide visible: overlay a visual indicator without changing the spacing
+    // We use a box approach: first #v for actual spacing, then use negative spacing to overlay indicator
     if (target === 'preview' && visible) {
-        // #block with explicit above/below:0pt ensures no extra margins
-        // clip:true ensures content doesn't overflow, inset:0pt ensures no padding
-        return `#block(height: ${length}, width: 100%, above: 0pt, below: 0pt, clip: true, inset: 0pt, fill: rgb("#dcfce7"), stroke: (paint: rgb("#22c55e"), thickness: 1pt, dash: "dashed"))`;
+        // Use place() to overlay a visual indicator at the position of the vertical space
+        // This way the actual space is determined by #v, and the indicator is just visual
+        return `#block(width: 100%, above: 0pt, below: 0pt)[
+#v(${length})
+#place(bottom, dy: 0pt)[#block(height: ${length}, width: 100%, fill: rgb("#dcfce7"), stroke: (paint: rgb("#22c55e"), thickness: 1pt, dash: "dashed"))]
+]`;
     }
-    // Storage or Preview(Hidden): use block for consistent rendering across modes
-    if (target === 'storage') {
-        // Use #block for storage too, so source code mode renders same as visual mode
-        return `#block(height: ${length}, width: 100%, above: 0pt, below: 0pt)`;
-    }
-    // Hidden preview: use identical block but without fill
-    return `#block(height: ${length}, width: 100%, above: 0pt, below: 0pt)`;
+
+    // Hidden preview: use #v() for consistent sizing
+    return vSpace;
 }
 
 export function serializeCover(

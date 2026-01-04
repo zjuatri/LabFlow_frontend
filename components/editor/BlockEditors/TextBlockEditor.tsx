@@ -28,6 +28,9 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [activeInlineMath, setActiveInlineMath] = useState<InlineMathState | null>(null);
 
+  // Debounce timer for reducing state update frequency during typing
+  const syncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const effectiveText = (block.content ?? '').replace(/\u200B/g, '').trim();
   const placeholderText = block.placeholder ?? '输入段落内容...';
   const isAnswerBlank = !!block.placeholder && effectiveText.length === 0;
@@ -92,6 +95,26 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
       onUpdate({ content: newTypst });
     }
   };
+
+  // Debounced version for onInput - reduces state updates during fast typing
+  const debouncedSync = () => {
+    if (syncDebounceRef.current) {
+      clearTimeout(syncDebounceRef.current);
+    }
+    syncDebounceRef.current = setTimeout(() => {
+      syncParagraphFromDom();
+      syncDebounceRef.current = null;
+    }, 150);
+  };
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (syncDebounceRef.current) {
+        clearTimeout(syncDebounceRef.current);
+      }
+    };
+  }, []);
 
   const getInlineMathPill = (id: string): HTMLElement | null => {
     if (!paragraphEditorRef.current) return null;
@@ -358,7 +381,7 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
           setIsEditingParagraph(false);
           syncParagraphFromDom();
         }}
-        onInput={syncParagraphFromDom}
+        onInput={debouncedSync}
         onClick={handleRichEditorClick}
         onPaste={handlePaste}
         onKeyDown={(e) => {
@@ -376,11 +399,11 @@ export default function TextBlockEditor({ block, onUpdate }: TextBlockEditorProp
             }
           }
         }}
-        style={
-          typeof block.lineSpacing === 'number' && block.lineSpacing !== 1
-            ? { lineHeight: block.lineSpacing }
-            : undefined
-        }
+        style={{
+          lineHeight: typeof block.lineSpacing === 'number'
+            ? 1 + (0.8 * block.lineSpacing)
+            : 1.8
+        }}
         className={
           "w-full min-h-[40px] p-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 whitespace-pre-wrap outline-none cursor-text [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-0 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-0 [&_li]:my-0" +
           (isAnswerBlank ? ' border-dashed' : '')

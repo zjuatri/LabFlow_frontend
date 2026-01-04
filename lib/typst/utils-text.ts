@@ -3,7 +3,7 @@ export * from './utils/tokenizer';
 export * from './utils/sanitizer';
 
 // Spacing Utilities
-export const defaultParagraphLeadingEm = 0.65;
+export const defaultParagraphLeadingEm = 0.8;
 export const supportedLineSpacingMultipliers = [0.8, 0.9, 1, 1.2, 1.5, 2] as const;
 
 export const snapLineSpacingMultiplier = (m: number): number | undefined => {

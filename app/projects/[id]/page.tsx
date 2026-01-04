@@ -205,6 +205,12 @@ export default function ProjectEditorPage() {
         return `${markerCode}\n${content}`;
       }
 
+      // Vertical space (#v) should NOT be wrapped in a block - wrapping changes its spacing behavior.
+      // This ensures consistent rendering between visual and source code modes.
+      if (trimmed.startsWith('#v(') || trimmed.startsWith('#block(width: 100%, above: 0pt, below: 0pt)[')) {
+        return `${markerCode}\n${content}`;
+      }
+
       // Headings in Typst use "= " / "== " / "=== " syntax at line start.
       // Wrapping them in #block[...] breaks the syntax because "=" must be at line start.
       // Convert to #heading(level: N)[...] function syntax which can be wrapped.
@@ -299,7 +305,6 @@ export default function ProjectEditorPage() {
       setSvgPages(data.pages || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
-      setSvgPages([]);
     } finally {
       setIsRendering(false);
     }

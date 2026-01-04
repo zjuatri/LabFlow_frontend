@@ -2,7 +2,7 @@
 
 import { TypstBlock } from '@/lib/typst';
 import { getToken } from '@/lib/auth';
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import BlockItem from './BlockItem';
 
 import { parseTablePayload } from './BlockEditor-utils/table-utils';
@@ -31,6 +31,14 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
   const [dropPosition, setDropPosition] = useState<DropPosition>(null);
   const suppressNextDragRef = useRef(false);
   const nextBlockIdRef = useRef(1);
+
+  // Use refs to hold latest values so callbacks don't need to depend on blocks/onChange
+  const blocksRef = useRef(blocks);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    blocksRef.current = blocks;
+    onChangeRef.current = onChange;
+  });
 
   const reorderBlocks = (fromId: string, toId: string, position: 'before' | 'after') => {
     if (fromId === toId) return;
@@ -107,9 +115,10 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
     }
   };
 
-  const updateBlock = (id: string, updates: Partial<TypstBlock>) => {
-    onChange(blocks.map(b => b.id === id ? { ...b, ...updates } : b));
-  };
+  const updateBlock = useCallback((id: string, updates: Partial<TypstBlock>) => {
+    const currentBlocks = blocksRef.current;
+    onChangeRef.current(currentBlocks.map(b => b.id === id ? { ...b, ...updates } : b));
+  }, []);
 
   // Migrate legacy list blocks into paragraph blocks.
   // Lists are now represented inside paragraphs as lines starting with "- " or "1.".
@@ -140,15 +149,16 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
     onChange(migrated);
   }, [blocks, onChange]);
 
-  const deleteBlock = (id: string) => {
-    onChange(blocks.filter(b => b.id !== id));
-  };
+  const deleteBlock = useCallback((id: string) => {
+    onChangeRef.current(blocksRef.current.filter(b => b.id !== id));
+  }, []);
 
-  const addBlock = (afterId?: string) => {
+  const addBlock = useCallback((afterId?: string) => {
+    const currentBlocks = blocksRef.current;
     let nextId = '';
     do {
       nextId = `block-${nextBlockIdRef.current++}`;
-    } while (blocks.some((b) => b.id === nextId));
+    } while (currentBlocks.some((b) => b.id === nextId));
 
     const newBlock: TypstBlock = {
       id: nextId,
@@ -157,14 +167,14 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
     };
 
     if (!afterId) {
-      onChange([...blocks, newBlock]);
+      onChangeRef.current([...currentBlocks, newBlock]);
     } else {
-      const index = blocks.findIndex(b => b.id === afterId);
-      const newBlocks = [...blocks];
+      const index = currentBlocks.findIndex(b => b.id === afterId);
+      const newBlocks = [...currentBlocks];
       newBlocks.splice(index + 1, 0, newBlock);
-      onChange(newBlocks);
+      onChangeRef.current(newBlocks);
     }
-  };
+  }, []);
 
   type LastTableSelection = { blockId: string; r1: number; c1: number; r2: number; c2: number };
   const [lastTableSelection, setLastTableSelection] = useState<LastTableSelection | null>(null);
@@ -173,7 +183,7 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
     setLastTableSelection(snap);
   }, []);
 
-  const renderChart = async (payload: ChartRenderRequest): Promise<string> => {
+  const renderChart = useCallback(async (payload: ChartRenderRequest): Promise<string> => {
     const token = getToken();
     const res = await fetch(`/api/projects/${projectId}/charts/render`, {
       method: 'POST',
@@ -191,29 +201,31 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
 
     const data = await res.json();
     return (data?.url as string) || '';
-  };
+  }, [projectId]);
 
-  const moveBlock = (id: string, direction: 'up' | 'down') => {
-    const index = blocks.findIndex(b => b.id === id);
+  const moveBlock = useCallback((id: string, direction: 'up' | 'down') => {
+    const currentBlocks = blocksRef.current;
+    const index = currentBlocks.findIndex(b => b.id === id);
     if (direction === 'up' && index > 0) {
-      const newBlocks = [...blocks];
+      const newBlocks = [...currentBlocks];
       [newBlocks[index - 1], newBlocks[index]] = [newBlocks[index], newBlocks[index - 1]];
-      onChange(newBlocks);
-    } else if (direction === 'down' && index < blocks.length - 1) {
-      const newBlocks = [...blocks];
+      onChangeRef.current(newBlocks);
+    } else if (direction === 'down' && index < currentBlocks.length - 1) {
+      const newBlocks = [...currentBlocks];
       [newBlocks[index], newBlocks[index + 1]] = [newBlocks[index + 1], newBlocks[index]];
-      onChange(newBlocks);
+      onChangeRef.current(newBlocks);
     }
-  };
+  }, []);
 
   /**
    * Moves existing blocks from the document into a composite row's children array.
    * The blocks are removed from the top-level blocks and added as children of the composite row.
    * Supports both single blockId (string) and multiple blockIds (string[]).
    */
-  const moveBlockToComposite = (compositeBlockId: string, blockIdToMove: string | string[]) => {
+  const moveBlockToComposite = useCallback((compositeBlockId: string, blockIdToMove: string | string[]) => {
+    const currentBlocks = blocksRef.current;
     const blockIds = Array.isArray(blockIdToMove) ? blockIdToMove : [blockIdToMove];
-    const compositeBlock = blocks.find(b => b.id === compositeBlockId && b.type === 'composite_row');
+    const compositeBlock = currentBlocks.find(b => b.id === compositeBlockId && b.type === 'composite_row');
 
     if (!compositeBlock) return;
 
@@ -225,7 +237,7 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
     // Find all blocks to move (filter out covers and composite rows)
     const blocksToMove = blockIds
       .slice(0, availableSlots) // Limit to available slots
-      .map(id => blocks.find(b => b.id === id))
+      .map(id => currentBlocks.find(b => b.id === id))
       .filter((b): b is TypstBlock =>
         b !== undefined && b.type !== 'cover' && b.type !== 'composite_row'
       );
@@ -235,7 +247,7 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
     const idsToRemove = new Set(blocksToMove.map(b => b.id));
 
     // Remove the blocks from top-level and add them to composite row's children
-    const newBlocks = blocks
+    const newBlocks = currentBlocks
       .filter(b => !idsToRemove.has(b.id))
       .map(b => {
         if (b.id === compositeBlockId) {
@@ -247,12 +259,12 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
         return b;
       });
 
-    onChange(newBlocks);
-  };
+    onChangeRef.current(newBlocks);
+  }, []);
 
 
 
-  const uploadImage = async (file: File, blockId: string) => {
+  const uploadImage = useCallback(async (file: File, blockId: string) => {
     const token = getToken();
     const form = new FormData();
     form.append('file', file);
@@ -275,10 +287,10 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
     if (url) {
       updateBlock(blockId, { content: url });
     }
-  };
+  }, [projectId]);
 
   // Build a lightweight list of table blocks for chart import UI.
-  const availableTables = blocks
+  const availableTables = useMemo(() => blocks
     .filter((b) => b.type === 'table')
     .map((b, idx) => {
       let caption = '';
@@ -290,7 +302,7 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
       }
       const label = caption ? `表格 ${idx + 1}: ${caption}` : `表格 ${idx + 1}`;
       return { id: b.id, label };
-    });
+    }), [blocks]);
 
   return (
     <div className="flex flex-col gap-4 p-6">

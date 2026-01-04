@@ -1,5 +1,7 @@
 'use client';
 
+import React from 'react';
+
 import { TypstBlock, BlockType } from '@/lib/typst';
 import { Trash2, Plus, ChevronUp, ChevronDown, ChevronRight } from 'lucide-react';
 import TitleBlockEditor from './BlockEditors/TitleBlockEditor';
@@ -39,7 +41,7 @@ interface BlockItemProps {
   onMoveBlockToComposite?: (compositeBlockId: string, blockIdToMove: string | string[]) => void;
 }
 
-function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdate, onDelete, onAddAfter, onMove, onUploadImage, onTableSelectionSnapshot, lastTableSelection, onRenderChart, onClick, imageWidthUnit = 'percent', onMoveBlockToComposite }: BlockItemProps) {
+const BlockItem = React.memo(function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdate, onDelete, onAddAfter, onMove, onUploadImage, onTableSelectionSnapshot, lastTableSelection, onRenderChart, onClick, imageWidthUnit = 'percent', onMoveBlockToComposite }: BlockItemProps) {
 
   const effectiveText = (block.content ?? '').replace(/\u200B/g, '').trim();
   const isAnswerBlank = block.type === 'paragraph' && !!block.placeholder && effectiveText.length === 0;
@@ -358,7 +360,7 @@ function BlockItem({ block, isFirst, isLast, allBlocks, availableTables, onUpdat
       </button>
     </div>
   );
-}
+});
 
 function getTypeName(type: BlockType): string {
   const names: Record<BlockType, string> = {
@@ -379,3 +381,4 @@ function getTypeName(type: BlockType): string {
 }
 
 export default BlockItem;
+export { BlockItem };

@@ -220,15 +220,17 @@ export function PreviewPanel({
 
             {/* Content Area */}
             <div className="flex-1 overflow-auto p-6 relative z-10" ref={previewRef as React.RefObject<HTMLDivElement>}>
-                {error ? (
-                    <div className="p-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-xl max-w-2xl mx-auto mt-10">
+                {error && (
+                    <div className="p-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-xl max-w-2xl mx-auto mb-8">
                         <p className="text-sm font-semibold text-red-600 dark:text-red-400 flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                             渲染错误
                         </p>
                         <pre className="mt-3 text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap font-mono bg-red-100/50 dark:bg-red-950/30 p-3 rounded-lg border border-red-200/50 dark:border-red-800/30">{error}</pre>
                     </div>
-                ) : svgPages.length > 0 ? (
+                )}
+
+                {svgPages.length > 0 ? (
                     <div className="flex flex-col items-center gap-8 pb-20">
                         {svgPages.map((svgContent, index) => (
                             <SvgPage
@@ -250,7 +252,7 @@ export function PreviewPanel({
                                 <div className="w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin text-blue-500" />
                                 <p className="text-sm font-medium animate-pulse">正在生成预览...</p>
                             </>
-                        ) : (
+                        ) : !error && (
                             <div className="text-center">
                                 <p className="text-sm">暂无预览内容</p>
                                 <p className="text-xs mt-1 opacity-70">请在左侧编辑器输入内容</p>

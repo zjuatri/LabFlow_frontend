@@ -40,6 +40,8 @@ const KNOWN_MATH_FUNCTIONS = new Set([
     'display',
     'mm', 'cm', 'm', 'km', 'um', 'nm', 'mg', 'g', 'kg', 'ms', 's', 'min', 'h',
     'Hz', 'kHz', 'MHz', 'GHz', 'Pa', 'kPa', 'MPa', 'GPa', 'J', 'kJ', 'W', 'V', 'A', 'mA',
+    // Geometry/angle symbols
+    'degree', 'angle', 'perp', 'parallel', 'prop',
 ]);
 
 export function sanitizeTypstMathSegment(segment: string): string {

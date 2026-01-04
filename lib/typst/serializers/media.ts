@@ -178,7 +178,7 @@ export function serializeImage(block: TypstBlock, imageIndex: number, settings: 
 
     // Handle caption position via gap/local set if critical, but figure defaults to bottom. 
     // To support top caption, we'd need #show figure: set figure(caption-pos: top) in preamble or block scoped.
-    // For block scoped: 
+    // Note: Figure caption font (SimSun) is now set globally in preamble.ts
     let blockPrefix = '';
     if (settings.imageCaptionPosition === 'above') {
         blockPrefix = '#show figure: set figure(caption-pos: top)\n';

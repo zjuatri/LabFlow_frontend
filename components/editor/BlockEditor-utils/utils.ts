@@ -550,7 +550,15 @@ export const typstInlineToHtml = (typst: string, opts?: { skipListDetection?: bo
     const html = parse(line ?? '');
     // Use div blocks so Enter behavior and line detection are stable in contentEditable.
     // Check for content but don't trim the actual html (preserve spacer spans and ZWSP for cursor positioning)
-    const hasContent = html.replace(/\u200B/g, '').replace(/<span class="inline-math-spacer"[^>]*><\/span>/g, '').trim();
+    // IMPORTANT: We consider a line as having content if the parsed HTML contains any non-ZWSP, non-spacer text.
+    // However, trailing spaces in the original line should NOT cause a new visual line in the editor.
+    // Strip ZWSP and spacer spans, then check if there's any remaining content.
+    const strippedHtml = html.replace(/\u200B/g, '').replace(/<span class="inline-math-spacer"[^>]*><\/span>/g, '');
+    // Check if there's any visible content (not just whitespace)
+    const hasVisibleContent = strippedHtml.replace(/&nbsp;/g, ' ').trim().length > 0;
+    // Also check if the original HTML has content (handles cases like inline math pills)
+    const hasHtmlElements = /<[^>]+>/.test(strippedHtml.replace(/<br\s*\/?>/gi, ''));
+    const hasContent = hasVisibleContent || hasHtmlElements;
     return hasContent ? `<div>${html}</div>` : `<div><br/></div>`;
   };
 
@@ -758,7 +766,22 @@ export const htmlToTypstInline = (root: HTMLElement): string => {
     }
 
     if (tag === 'div' || tag === 'p') {
-      const txt = Array.from(el.childNodes).map(normalize).join('');
+      const children = Array.from(el.childNodes);
+      // Special case: a div with only a single <br> represents an empty line.
+      // We should return just '\n' instead of '\n' + '\n' (from the br conversion).
+      if (children.length === 1 && children[0].nodeType === Node.ELEMENT_NODE &&
+        (children[0] as HTMLElement).tagName.toLowerCase() === 'br') {
+        return '\n';
+      }
+      // Also handle divs with only whitespace text followed by <br>
+      if (children.length === 2 &&
+        children[0].nodeType === Node.TEXT_NODE &&
+        (children[0].textContent ?? '').replace(/\u200B/g, '').trim() === '' &&
+        children[1].nodeType === Node.ELEMENT_NODE &&
+        (children[1] as HTMLElement).tagName.toLowerCase() === 'br') {
+        return '\n';
+      }
+      const txt = children.map(normalize).join('');
       return '\n' + txt;
     }
     return walk(node);

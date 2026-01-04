@@ -63,6 +63,7 @@ export function useAiAssistant({ projectId, existingBlocks, onInsertBlocks, onCl
                 description: '',
                 shouldInclude: true, // User requested default true
                 // Set defaults
+                usePageRange: false,
                 pdfPageStart: isPdf ? '1' : undefined,
                 pdfPageEnd: isPdf ? '5' : undefined,
                 imageRecognize: !isPdf ? false : undefined,
@@ -80,6 +81,7 @@ export function useAiAssistant({ projectId, existingBlocks, onInsertBlocks, onCl
             url: '',
             type: 'pdf', // URL mode primarily supporting PDF ingest via MinerU
             description: '',
+            usePageRange: false,
             pdfPageStart: '1',
             pdfPageEnd: '5',
         };
@@ -184,12 +186,15 @@ export function useAiAssistant({ projectId, existingBlocks, onInsertBlocks, onCl
                         throw new Error('URL 不能为空');
                     }
 
+                    const pStart = f.usePageRange ? (f.pdfPageStart || '1') : '';
+                    const pEnd = f.usePageRange ? (f.pdfPageEnd || '5') : '';
+
                     const { context, debug } = await preparePdfContextWithDebug({
                         projectId,
                         pdfFile: f.source === 'local' ? f.file || null : null,
                         pdfUrl: f.source === 'url' ? f.url : undefined,
-                        pageStart: f.pdfPageStart || '1',
-                        pageEnd: f.pdfPageEnd || '5',
+                        pageStart: pStart,
+                        pageEnd: pEnd,
                         parserMode: draft.parserMode,
                         onStep: (step) => setProgressMsg(`处理 ${displayName}: ${step}`),
                     });

@@ -44,6 +44,12 @@ const LATEX_TO_TYPST_TOKENS: Record<string, string> = {
   '\\emptyset': 'emptyset',
   '\\forall': 'forall',
   '\\exists': 'exists',
+  '\\circ': 'degree',
+  '\\degree': 'degree',
+  '\\angle': 'angle',
+  '\\perp': 'perp',
+  '\\parallel': 'parallel',
+  '\\propto': 'prop',
 
   // arrows
   '\\Rightarrow': '=>',
@@ -181,6 +187,21 @@ export function latexToTypstMath(latex: string): string {
   // Normalize escaped backslashes: \\command -> \command
   // This handles cases where LaTeX was stored with escaped backslashes (e.g., \\pm -> \pm)
   s = s.replace(/\\\\([a-zA-Z]+)/g, '\\$1');
+
+  // Handle LaTeX backslash-space (\ ) which is a space command in LaTeX
+  // Convert it to a regular space or thin space (~) in Typst
+  // Note: \  (backslash + space) should become a regular space
+  s = s.replace(/\\ /g, ' ');
+
+  // Handle other LaTeX space commands
+  // \, = thin space, \; = thick space, \: = medium space, \! = negative thin space
+  // \quad = em space, \qquad = 2em space
+  s = s.replace(/\\,/g, ' ');      // thin space -> space
+  s = s.replace(/\\;/g, ' ');      // thick space -> space
+  s = s.replace(/\\:/g, ' ');      // medium space -> space
+  s = s.replace(/\\!/g, '');       // negative thin space -> remove
+  s = s.replace(/\\quad/g, '  ');  // quad space -> double space
+  s = s.replace(/\\qquad/g, '   '); // qquad -> triple space
 
   // FIRST: Convert \text{...} to Typst quoted strings immediately
   // Use a unique Unicode marker to protect them from splitLetters
@@ -360,7 +381,9 @@ export function latexToTypstMath(latex: string): string {
     // Display mode
     'display',
     // Units (common)
-    'rad'
+    'rad',
+    // Geometry/angle symbols
+    'degree', 'angle', 'perp', 'parallel', 'prop'
   ]);
 
   const splitLetters = (text: string): string => {
