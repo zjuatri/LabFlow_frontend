@@ -34,13 +34,13 @@ export default function DocsManagePage() {
     }, [token, isAdmin]);
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this document?')) return;
+        if (!confirm('确定要删除此文档吗？')) return;
         try {
             await deleteDocument(id);
             setDocs(prev => prev.filter(d => d.id !== id));
         } catch (error) {
             console.error(error);
-            alert('Failed to delete');
+            alert('删除失败');
         }
     };
 
@@ -70,22 +70,22 @@ export default function DocsManagePage() {
 
                     <Link
                         href="/manage/docs/structure"
-                        className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 rounded-lg font-medium transition-colors shadow-sm"
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors shadow-sm shadow-blue-500/20"
                     >
                         <Edit2 size={16} />
-                        Edit Navigation
+                        管理导航与文档
                     </Link>
-                    <Link
+                    {/* <Link
                         href="/manage/docs/create"
                         className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors shadow-sm shadow-blue-500/20"
                     >
                         <Plus size={18} />
                         新建文档
-                    </Link>
+                    </Link> */}
                 </div>
 
                 {loading ? (
-                    <div className="text-center py-20 text-zinc-500">Loading...</div>
+                    <div className="text-center py-20 text-zinc-500">加载中...</div>
                 ) : docs.length === 0 ? (
                     <div className="text-center py-20 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800">
                         <FileText className="mx-auto text-zinc-300 dark:text-zinc-700 mb-4" size={48} />
@@ -97,10 +97,10 @@ export default function DocsManagePage() {
                         <table className="w-full text-left text-sm">
                             <thead className="bg-zinc-50 dark:bg-zinc-950/50 border-b border-zinc-100 dark:border-zinc-800">
                                 <tr>
-                                    <th className="px-6 py-4 font-medium text-zinc-500">Title / Slug</th>
-                                    <th className="px-6 py-4 font-medium text-zinc-500">Status</th>
-                                    <th className="px-6 py-4 font-medium text-zinc-500">Last Updated</th>
-                                    <th className="px-6 py-4 font-medium text-zinc-500 text-right">Actions</th>
+                                    <th className="px-6 py-4 font-medium text-zinc-500">标题 / 路径</th>
+                                    <th className="px-6 py-4 font-medium text-zinc-500">状态</th>
+                                    <th className="px-6 py-4 font-medium text-zinc-500">最后更新</th>
+                                    <th className="px-6 py-4 font-medium text-zinc-500 text-right">操作</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -113,11 +113,11 @@ export default function DocsManagePage() {
                                         <td className="px-6 py-4">
                                             {doc.is_published ? (
                                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                                                    <Globe size={12} /> Published
+                                                    <Globe size={12} /> 已发布
                                                 </span>
                                             ) : (
                                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-                                                    <EyeOff size={12} /> Draft
+                                                    <EyeOff size={12} /> 草稿
                                                 </span>
                                             )}
                                         </td>

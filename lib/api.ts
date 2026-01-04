@@ -25,7 +25,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     let detail = 'Request failed';
     try {
       const data = await res.json();
-      detail = data?.detail ?? detail;
+      if (data?.detail) {
+        detail = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+      }
     } catch {
       // ignore
     }
@@ -300,7 +302,7 @@ export async function getSidebarStructure(): Promise<NavItem[]> {
 export async function updateSidebarStructure(structure: NavItem[]): Promise<NavItem[]> {
   return request<NavItem[]>('/api/docs/structure', {
     method: 'PUT',
-    body: JSON.stringify(structure),
+    body: JSON.stringify({ structure }),
   });
 }
 

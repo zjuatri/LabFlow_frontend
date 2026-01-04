@@ -15,7 +15,7 @@ import { useAuth } from '@/components/auth/AuthProvider';
 export default function SiteHeader() {
     const router = useRouter();
     const pathname = usePathname();
-    const { token, clearToken, isAdmin } = useAuth();
+    const { token, clearToken, isAdmin, isLoading } = useAuth();
 
     // Legacy decode removed as isAdmin is provided by context
 
@@ -50,8 +50,10 @@ export default function SiteHeader() {
 
                 {/* Navigation */}
                 <nav className="flex items-center gap-1 sm:gap-2">
-
-                    {!token ? (
+                    {isLoading ? (
+                        // Loading skeleton or empty space to prevent flicker
+                        <div className="w-24 h-8" />
+                    ) : !token ? (
                         <Link
                             href="/login"
                             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full text-sm font-medium transition-colors shadow-sm shadow-blue-500/20"
