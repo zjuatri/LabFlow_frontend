@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plus, Edit2, Trash2, ArrowLeft, FileText, Globe, EyeOff } from 'lucide-react';
+import { Edit2, Trash2, ArrowLeft, FileText, Globe, EyeOff } from 'lucide-react';
 import SiteHeader from '@/components/common/SiteHeader';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { listDocuments, deleteDocument, type Document } from '@/lib/api';

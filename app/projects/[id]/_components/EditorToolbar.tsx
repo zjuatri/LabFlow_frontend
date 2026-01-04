@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Save, Undo2, Redo2, Settings, FilePlus2 } from 'lucide-react';
+import { pluginRegistry } from '@/components/editor/plugins/registry';
 
 export type EditorMode = 'source' | 'visual';
 
@@ -17,6 +18,10 @@ interface EditorToolbarProps {
     showSettings: boolean; // Now used to highlight the button if matching modal is open
     onToggleSettings: () => void;
     onCloseSettings: () => void;
+
+    // Plugins
+    activePluginId: string | null;
+    onTogglePlugin: (id: string) => void;
 }
 
 export function EditorToolbar({
@@ -32,6 +37,8 @@ export function EditorToolbar({
     showSettings,
     onToggleSettings,
     onCloseSettings,
+    activePluginId,
+    onTogglePlugin,
 }: EditorToolbarProps) {
     const router = useRouter();
     const settingsRef = useRef<HTMLDivElement>(null);
@@ -128,6 +135,29 @@ export function EditorToolbar({
                     <Settings size={16} />
                 </button>
             </div>
-        </div>
+
+            {/* Plugin Divider */}
+            <div className="w-px h-6 bg-zinc-300 dark:bg-zinc-700 mx-1 hidden sm:block"></div>
+
+            <div className="flex items-center gap-3 shrink-0">
+                {pluginRegistry.getAll().map(plugin => (
+                    <button
+                        key={plugin.id}
+                        onClick={() => onTogglePlugin(plugin.id)}
+                        className={`
+                            flex items-center gap-2 px-3 py-1.5 rounded text-xs font-medium border transition-colors
+                            ${activePluginId === plugin.id
+                                ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-300'
+                                : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                            }
+                        `}
+                        title={plugin.description}
+                    >
+                        <plugin.icon size={14} />
+                        <span className="hidden xl:inline">{plugin.name}</span>
+                    </button>
+                ))}
+            </div>
+        </div >
     );
 }

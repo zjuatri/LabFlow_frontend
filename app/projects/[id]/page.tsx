@@ -16,10 +16,14 @@ import { useShallow } from 'zustand/react/shallow';
 import { CoverModal } from './_components/CoverModal';
 import { EditorToolbar } from './_components/EditorToolbar';
 import { PreviewPanel } from './_components/PreviewPanel';
-import { AiAssistantPlugin } from '@/components/editor/plugins/AiAssistantPlugin';
-import { ProjectSettingsModal } from './_components/ProjectSettingsModal';
 import { VisualEditorPane } from './_components/VisualEditorPane';
 import { SourceEditorPane } from './_components/SourceEditorPane';
+import { ProjectSettingsModal } from './_components/ProjectSettingsModal';
+
+// Import plugins to register them
+import '@/components/editor/plugins/AiAssistantPlugin';
+import '@/components/editor/plugins/samples/TodoPlugin';
+import { pluginRegistry } from '@/components/editor/plugins/registry';
 
 // In production/Docker we typically proxy /api/* through the same origin.
 // For local dev, set NEXT_PUBLIC_BACKEND_URL=http://localhost:8000.
@@ -65,8 +69,9 @@ export default function ProjectEditorPage() {
     setError,
     setSvgPages,
     setIsRendering,
-    showAiSidebar,
-    setShowAiSidebar,
+    activePluginId,
+    togglePlugin,
+    setActivePluginId,
   } = useEditorStore(
     useShallow((s) => ({
       mode: s.mode,
@@ -102,8 +107,9 @@ export default function ProjectEditorPage() {
       setError: s.setError,
       setSvgPages: s.setSvgPages,
       setIsRendering: s.setIsRendering,
-      showAiSidebar: s.showAiSidebar,
-      setShowAiSidebar: s.setShowAiSidebar,
+      activePluginId: s.activePluginId,
+      togglePlugin: s.togglePlugin,
+      setActivePluginId: s.setActivePluginId,
     }))
   );
 
@@ -118,7 +124,7 @@ export default function ProjectEditorPage() {
     const handleMouseMove = (e: MouseEvent) => {
       if (isResizingEditor) {
         // Calculate percentage based on window width
-        const mainAreaWidth = window.innerWidth - (showAiSidebar ? aiSidebarWidth : 0);
+        const mainAreaWidth = window.innerWidth - (activePluginId ? aiSidebarWidth : 0);
         const newPercent = (e.clientX / mainAreaWidth) * 100;
         setEditorWidthPercent(Math.max(20, Math.min(80, newPercent)));
       }
@@ -149,7 +155,7 @@ export default function ProjectEditorPage() {
       document.body.style.cursor = 'default';
       document.body.style.userSelect = 'auto';
     };
-  }, [isResizingEditor, isResizingAi, showAiSidebar, aiSidebarWidth]);
+  }, [isResizingEditor, isResizingAi, activePluginId, aiSidebarWidth]);
 
   const [activeAnchor, setActiveAnchor] = useState<{ pageIndex: number; localIndex: number } | null>(null);
   const [highlightNonce, setHighlightNonce] = useState(0);
@@ -439,7 +445,7 @@ export default function ProjectEditorPage() {
     <div className="flex h-screen w-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
 
       {/* Main Area: Editor + Preview */}
-      <div className="flex h-full transition-[width] duration-0" style={{ width: showAiSidebar ? `calc(100% - ${aiSidebarWidth}px)` : '100%' }}>
+      <div className="flex h-full transition-[width] duration-0" style={{ width: activePluginId ? `calc(100% - ${aiSidebarWidth}px)` : '100%' }}>
 
         {/* Editor Pane */}
         <div
@@ -462,6 +468,8 @@ export default function ProjectEditorPage() {
                 showSettings={showSettings}
                 onToggleSettings={() => setShowSettings(!showSettings)}
                 onCloseSettings={() => setShowSettings(false)}
+                activePluginId={activePluginId}
+                onTogglePlugin={togglePlugin}
               />
             );
           })()}
@@ -499,15 +507,15 @@ export default function ProjectEditorPage() {
             onDownloadPdf={() => void downloadPdf()}
             previewRef={previewRef}
             projectId={projectId}
-            onToggleAiSidebar={() => setShowAiSidebar(!showAiSidebar)}
-            isAiSidebarOpen={showAiSidebar}
+            onToggleAiSidebar={() => togglePlugin('ai-assistant')}
+            isAiSidebarOpen={activePluginId === 'ai-assistant'}
             title={title}
           />
         </div>
       </div>
 
       {/* AI Sidebar Resizer */}
-      {showAiSidebar && (
+      {activePluginId && (
         <div
           className="w-1 cursor-ew-resize hover:bg-blue-500/50 active:bg-blue-600 transition-colors z-30 flex flex-col justify-center items-center group -ml-0.5 border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
           onMouseDown={(e) => { e.preventDefault(); setIsResizingAi(true); }}
@@ -516,25 +524,29 @@ export default function ProjectEditorPage() {
         </div>
       )}
 
-      {showAiSidebar && (
+      {activePluginId && (
         <div
           className="h-full bg-white dark:bg-zinc-950 shrink-0 z-30 shadow-2xl flex flex-col"
           style={{ width: `${aiSidebarWidth}px` }}
         >
-          <AiAssistantPlugin
-            projectId={projectId}
-            existingBlocks={blocks}
-            onInsertBlocks={(newBlocks) => {
-              // Append new blocks to existing blocks
-              const nextBlocks = [...blocks, ...newBlocks];
-              setBlocks(nextBlocks);
-              // Trigger auto-save immediately
-              setTimeout(() => {
-                saveProject();
-              }, 0);
-            }}
-            onClose={() => setShowAiSidebar(false)}
-          />
+          {(() => {
+            const plugin = pluginRegistry.get(activePluginId);
+            if (!plugin) return <div className="p-4 text-red-500">Plugin not found: {activePluginId}</div>;
+
+            const PluginComponent = plugin.component;
+            return (
+              <PluginComponent
+                projectId={projectId}
+                existingBlocks={blocks}
+                onInsertBlocks={(newBlocks) => {
+                  const nextBlocks = [...blocks, ...newBlocks];
+                  setBlocks(nextBlocks);
+                  setTimeout(() => saveProject(), 0);
+                }}
+                onClose={() => setActivePluginId(null)}
+              />
+            );
+          })()}
         </div>
       )}
 

@@ -41,6 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         const stored = getStoredToken();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setTokenState(stored);
         setIsLoading(false);
     }, []);

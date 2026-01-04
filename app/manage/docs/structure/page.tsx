@@ -277,12 +277,6 @@ export default function StructureEditorPage() {
         setJsonContent(JSON.stringify(newStruct, null, 2));
     };
 
-    const handleAddRootDocument = (url: string, title: string) => {
-        const newStruct = [...structure, { title, url }];
-        setStructure(newStruct);
-        setJsonContent(JSON.stringify(newStruct, null, 2));
-    };
-
     const handleJsonChange = (val: string) => {
         setJsonContent(val);
         try {
@@ -316,9 +310,12 @@ export default function StructureEditorPage() {
 
             await updateSidebarStructure(finalStructure);
             alert('保存成功！');
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error('Save failed:', e);
-            let msg = e.message || '保存失败';
+            let msg = '保存失败';
+            if (e instanceof Error) {
+                msg = e.message;
+            }
             try {
                 if (msg.startsWith('[') || msg.startsWith('{')) {
                     msg = `保存失败: ${msg}`;

@@ -39,8 +39,8 @@ interface EditorState {
     syncSource: SyncSource;
     docSettings: DocumentSettings;
 
-    // AI Sidebar state
-    showAiSidebar: boolean;
+    // Plugin Sidebar state
+    activePluginId: string | null; // ID of the currently open plugin, or null if closed
 
     // Editor mode
     mode: EditorMode;
@@ -82,7 +82,8 @@ interface EditorActions {
     // UI toggles
     setShowSettings: (show: boolean) => void;
     setShowCoverModal: (show: boolean) => void;
-    setShowAiSidebar: (show: boolean) => void;
+    setActivePluginId: (id: string | null) => void;
+    togglePlugin: (id: string) => void;
     setError: (error: string | null) => void;
 
     // Cover modal
@@ -137,7 +138,7 @@ const initialState: EditorState = {
     syncSource: 'code',
     docSettings: { ...defaultDocumentSettings },
 
-    showAiSidebar: false,
+    activePluginId: null,
 
     // Editor mode
     mode: 'visual',
@@ -276,7 +277,15 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
     setShowSettings: (showSettings) => set({ showSettings }),
     setShowCoverModal: (showCoverModal) => set({ showCoverModal }),
-    setShowAiSidebar: (showAiSidebar) => set({ showAiSidebar }),
+    setActivePluginId: (id) => set({ activePluginId: id }),
+    togglePlugin: (id) => {
+        const state = get();
+        if (state.activePluginId === id) {
+            set({ activePluginId: null });
+        } else {
+            set({ activePluginId: id });
+        }
+    },
     setError: (error) => set({ error }),
 
     // -------------------------------------------------------------------------

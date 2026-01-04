@@ -1,21 +1,15 @@
 'use client';
 
 import { Sparkles, FileText, Upload, X, ArrowRight, Loader2, Play, Copy, Check, Trash2, Image as ImageIcon, Link as LinkIcon, Eye } from 'lucide-react';
-import type { TypstBlock } from '@/lib/typst';
 import { useAiAssistant } from './useAiAssistant';
+import { EditorPlugin, EditorPluginProps } from './types'; // Import types
+import { pluginRegistry } from './registry'; // Import registry
 
 /* --------------------------------------------------------------------------------
  * Component
  * -------------------------------------------------------------------------------- */
 
-interface AiAssistantPluginProps {
-    projectId: string;
-    existingBlocks?: TypstBlock[];
-    onInsertBlocks: (blocks: TypstBlock[]) => void;
-    onClose: () => void;
-}
-
-export function AiAssistantPlugin({ projectId, existingBlocks, onInsertBlocks, onClose }: AiAssistantPluginProps) {
+export function AiAssistantPlugin({ projectId, existingBlocks, onInsertBlocks, onClose }: EditorPluginProps) {
     const {
         draft,
         setDraft,
@@ -373,3 +367,15 @@ export function AiAssistantPlugin({ projectId, existingBlocks, onInsertBlocks, o
         </div>
     );
 }
+
+// Define the plugin object
+export const aiAssistantPluginDefinition: EditorPlugin = {
+    id: 'ai-assistant',
+    name: 'AI 助手',
+    icon: Sparkles,
+    component: AiAssistantPlugin,
+    description: '智能辅助写作工具',
+};
+
+// Register it (side-effect import will trigger this)
+pluginRegistry.register(aiAssistantPluginDefinition);
