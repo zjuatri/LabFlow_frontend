@@ -97,13 +97,13 @@ export default function ImageBlockEditor({ block, onUpdate, onUploadImage, width
           </div>
         ) : (
           <div className="flex flex-col gap-3 p-3 bg-zinc-50 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
-            <div className={`flex ${alignClass}`}>
+            <div className={`flex justify-center`}>
               <Image
                 src={block.content}
                 alt="图片预览"
                 width={400}
                 height={300}
-                className="max-h-48 max-w-full h-auto w-auto object-contain rounded"
+                className="max-h-32 max-w-full h-auto w-auto object-contain rounded"
                 unoptimized
                 onError={handleImageError}
               />
