@@ -130,10 +130,10 @@ export default function CompositeRowItem({
 
     return (
         <div
-            className="group relative border rounded-lg p-3 cursor-pointer transition-colors duration-200 border-indigo-200 dark:border-indigo-700 hover:border-indigo-400 dark:hover:border-indigo-500 bg-white dark:bg-zinc-900"
+            className="group relative border rounded-lg p-6 cursor-pointer transition-colors duration-200 border-indigo-200 dark:border-indigo-700 hover:border-indigo-400 dark:hover:border-indigo-500 bg-white dark:bg-zinc-900"
             onClick={onClick}
         >
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
                 <button
                     type="button"
                     onClick={(e) => {
@@ -446,7 +446,7 @@ export default function CompositeRowItem({
             </div>
 
             {!collapsed && (
-                <div className="pl-4 border-l-2 border-indigo-200 dark:border-indigo-700 space-y-2">
+                <div className="pl-4 border-l-2 border-indigo-200 dark:border-indigo-700 space-y-4">
                     {children.length === 0 ? (
                         <div className="text-xs text-zinc-500 dark:text-zinc-400">(空复合行 - 点击上方 + 添加子块，或点击 ↓ 导入已有块)</div>
 
@@ -543,7 +543,7 @@ export default function CompositeRowItem({
             )}
 
             {children.length > 0 && children.length < 2 && (
-                <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-2">
+                <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-4">
                     ⚠ 复合行至少需要2个子块才能正常渲染
                 </div>
             )}

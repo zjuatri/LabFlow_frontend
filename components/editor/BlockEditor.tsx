@@ -26,8 +26,8 @@ type ChartRenderRequest = {
 
 export default function BlockEditor({ blocks, onChange, projectId, onBlockClick }: BlockEditorProps) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  // Track drop position: which block and whether to insert before or after
-  type DropPosition = { targetId: string; position: 'before' | 'after' } | null;
+  // Track drop position: which block and whether to insert before/after or inside (merge)
+  type DropPosition = { targetId: string; position: 'before' | 'after' | 'inside' } | null;
   const [dropPosition, setDropPosition] = useState<DropPosition>(null);
   const suppressNextDragRef = useRef(false);
   const nextBlockIdRef = useRef(1);
@@ -53,6 +53,58 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
 
     next.splice(insertIndex, 0, moved);
     onChange(next);
+  };
+
+  const handleMergeBlocks = (draggedId: string, targetId: string) => {
+    if (draggedId === targetId) return;
+
+    const draggedBlock = blocks.find(b => b.id === draggedId);
+    const targetBlock = blocks.find(b => b.id === targetId);
+
+    if (!draggedBlock || !targetBlock) return;
+
+    // Prevent merging incompatible types (e.g. cover, or nesting composite rows for now if desired)
+    // For now allow merging any non-cover blocks.
+    if (draggedBlock.type === 'cover' || targetBlock.type === 'cover') return;
+
+    // Case 1: Target is already a composite row
+    if (targetBlock.type === 'composite_row') {
+      const currentChildren = Array.isArray(targetBlock.children) ? targetBlock.children : [];
+      if (currentChildren.length >= 4) return; // Max columns reached
+
+      const newBlocks = blocks.filter(b => b.id !== draggedId).map(b => {
+        if (b.id === targetId) {
+          return {
+            ...b,
+            children: [...currentChildren, draggedBlock]
+          };
+        }
+        return b;
+      });
+      onChange(newBlocks);
+    }
+    // Case 2: Target is a normal block -> Create new composite row
+    else {
+      // Create new composite block
+      let nextId = '';
+      do {
+        nextId = `block-${nextBlockIdRef.current++}`;
+      } while (blocks.some((b) => b.id === nextId));
+
+      const newCompositeBlock: TypstBlock = {
+        id: nextId,
+        type: 'composite_row',
+        content: '',
+        children: [targetBlock, draggedBlock]
+      };
+
+      // Replace target with new composite, remove dragged
+      const newBlocks = blocks
+        .filter(b => b.id !== draggedId)
+        .map(b => b.id === targetId ? newCompositeBlock : b);
+
+      onChange(newBlocks);
+    }
   };
 
   const updateBlock = (id: string, updates: Partial<TypstBlock>) => {
@@ -241,7 +293,7 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
     });
 
   return (
-    <div className="flex flex-col gap-2 p-4">
+    <div className="flex flex-col gap-4 p-6">
       {blocks.map((block, index) => (
         <div
           key={block.id}
@@ -275,10 +327,22 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
             e.preventDefault();
             if (!draggingId || draggingId === block.id) return;
 
-            // Calculate cursor position relative to block midpoint
             const rect = e.currentTarget.getBoundingClientRect();
-            const midY = rect.top + rect.height / 2;
-            const position = e.clientY < midY ? 'before' : 'after';
+            const y = e.clientY - rect.top;
+            const h = rect.height;
+
+            let position: 'before' | 'after' | 'inside';
+
+            // Top 25% -> Before
+            // Bottom 25% -> After
+            // Middle 50% -> Inside (Merge)
+            if (y < h * 0.25) {
+              position = 'before';
+            } else if (y > h * 0.75) {
+              position = 'after';
+            } else {
+              position = 'inside';
+            }
 
             setDropPosition({ targetId: block.id, position });
           }}
@@ -289,7 +353,11 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
             e.preventDefault();
             const fromId = e.dataTransfer.getData('text/plain') || draggingId;
             if (fromId && dropPosition) {
-              reorderBlocks(fromId, dropPosition.targetId, dropPosition.position);
+              if (dropPosition.position === 'inside') {
+                handleMergeBlocks(fromId, dropPosition.targetId);
+              } else {
+                reorderBlocks(fromId, dropPosition.targetId, dropPosition.position);
+              }
             }
             setDraggingId(null);
             setDropPosition(null);
@@ -308,6 +376,10 @@ export default function BlockEditor({ blocks, onChange, projectId, onBlockClick 
           {/* Insertion indicator line - after */}
           {dropPosition?.targetId === block.id && dropPosition.position === 'after' && (
             <div className="absolute -bottom-1 left-0 right-0 h-0.5 bg-blue-500 rounded-full z-10" />
+          )}
+          {/* Merge indicator - inside */}
+          {dropPosition?.targetId === block.id && dropPosition.position === 'inside' && (
+            <div className="absolute inset-0 border-2 border-dashed border-blue-400 rounded-lg z-10 pointer-events-none bg-blue-50/10" />
           )}
           <BlockItem
             block={block}
