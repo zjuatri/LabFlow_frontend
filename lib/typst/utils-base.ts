@@ -126,7 +126,7 @@ export function unwrapBlockDecorators(input: string): {
         // Case 1: #align(center)[ ... ]
         const alignDataMatch = current.match(/^#align\s*\(\s*(left|center|right)\s*\)\s*\[([\s\S]*)\]$/);
         if (alignDataMatch) {
-            align = alignDataMatch[1] as any;
+            align = alignDataMatch[1] as 'left' | 'center' | 'right';
             current = alignDataMatch[2].trim();
             changed = true;
             continue;

@@ -1,5 +1,8 @@
 'use client';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @next/next/no-img-element */
+
 import React, { useMemo, useState } from 'react';
 import { createProject } from '../../lib/api';
 import { uploadPdfAndIngest } from '../../lib/pdf-ingest';
@@ -100,7 +103,7 @@ export default function PdfTestPage() {
 
     try {
       const project = await createProject(title);
-      
+
       // 并行执行基础解析和公式识别
       const [ingest, visionRes] = await Promise.all([
         uploadPdfAndIngest(project.id, file, {
@@ -116,7 +119,7 @@ export default function PdfTestPage() {
           return null;
         })
       ]);
-      
+
       setResult(ingest);
       if (visionRes) {
         setVisionResult(visionRes);

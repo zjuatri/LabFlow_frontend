@@ -13,7 +13,6 @@ import {
     injectDocumentSettings,
 } from '@/lib/typst';
 import { getProject, updateProject, listProjects, type Project } from '@/lib/api';
-import { getToken } from '@/lib/auth';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -163,7 +162,7 @@ const initialState: EditorState = {
 // Store
 // ---------------------------------------------------------------------------
 
-const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
+
 
 export const useEditorStore = create<EditorStore>((set, get) => ({
     ...initialState,

@@ -145,9 +145,7 @@ export class ParagraphParser implements BlockParser {
         }
 
         // 3. Accumulate lines
-        let pendingContent = '';
         let placeholder: string | undefined;
-        let isList = false;
 
         // Handle Answer Placeholder start
         if (trimmed.includes(LF_ANSWER_MARKER) || (trimmed.startsWith('#block(') && !trimmed.includes('height:'))) {

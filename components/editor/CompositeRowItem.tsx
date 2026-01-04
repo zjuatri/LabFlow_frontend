@@ -66,7 +66,7 @@ export default function CompositeRowItem({
     onUpdate,
     onDelete,
     onAddAfter,
-    onUploadImage,
+    // onUploadImage,
     onTableSelectionSnapshot,
     lastTableSelection,
     onRenderChart,
@@ -156,7 +156,7 @@ export default function CompositeRowItem({
                     onClick={(e) => e.stopPropagation()}
                     onChange={(e) => {
                         e.stopPropagation();
-                        onUpdate({ compositeJustify: e.target.value as any });
+                        onUpdate({ compositeJustify: e.target.value as 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around' | 'space-evenly' });
                     }}
                     className="text-[10px] px-1 py-0.5 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800"
                     title="水平对齐"

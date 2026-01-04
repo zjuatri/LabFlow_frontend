@@ -1,14 +1,14 @@
 import { Trash2, Plus, FileText } from 'lucide-react';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
-import { listProjects } from '@/lib/api';
+// import { listProjects } from '@/lib/api';
 
 export default function WorkspaceHeader() {
     const {
         selectedIds,
         activeTab,
-        setShowCreateModal,
-        setLoading, // Loading for templates if needed, or local loading state
-        setProjects // To set templates
+        setShowCreateModal
+        // setLoading, // Loading for templates if needed, or local loading state
+        // setProjects // To set templates
         // Actually template loading logic was: load listProjects('template') into local state
         // Let's keep template loading local to the button or move to store?
         // Store has 'projects' which is main list.
@@ -16,14 +16,7 @@ export default function WorkspaceHeader() {
         // We can handle template modal visibility here.
     } = useWorkspaceStore();
 
-    const handleTemplateClick = () => {
-        // In a real app we might want a specific store action to open template modal AND load templates
-        // For now let's just trigger the modal via a hypothetical store action or a prop if we keep modal state up?
-        // Wait, plan said "Manage modals visibility" in store.
-        // I need to add 'showTemplateModal' to store or keep it local?
-        // Store is better to decouple.
-        // I should update store to have showTemplateModal.
-    };
+
 
     const tabLabel = {
         report: '实验报告',

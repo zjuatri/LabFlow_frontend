@@ -24,13 +24,12 @@ export async function uploadPdfAndParseTableFormulasWithVisionDebug(
   if (typeof options.pageStart === 'number') qs.set('page_start', String(options.pageStart));
   if (typeof options.pageEnd === 'number') qs.set('page_end', String(options.pageEnd));
 
-  const url = `${backend}/api/projects/${encodeURIComponent(projectId)}/pdf/table/formula/vision${
-    qs.toString() ? `?${qs.toString()}` : ''
-  }`;
+  const url = `${backend}/api/projects/${encodeURIComponent(projectId)}/pdf/table/formula/vision${qs.toString() ? `?${qs.toString()}` : ''
+    }`;
 
   const res = await fetch(url, { method: 'POST', headers, body: form });
   const text = await res.text();
-  let json: any = null;
+  let json: Record<string, unknown> | null = null;
   try {
     json = JSON.parse(text);
   } catch {

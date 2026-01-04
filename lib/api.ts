@@ -235,3 +235,79 @@ export async function updateManagePrompts(payload: {
     body: JSON.stringify(payload),
   });
 }
+
+// ------------------------------------------------------------------
+// Documents API
+// ------------------------------------------------------------------
+
+export type Document = {
+  id: string;
+  slug: string;
+  title: string;
+  content: string;
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function listDocuments(publishedOnly: boolean = true): Promise<Document[]> {
+  return request<Document[]>(`/api/docs?published_only=${publishedOnly}`);
+}
+
+export async function getDocument(slug: string): Promise<Document> {
+  // Handles generic error if 404
+  return request<Document>(`/api/docs/${slug}`);
+}
+
+export async function createDocument(payload: {
+  slug: string;
+  title: string;
+  content: string;
+  is_published?: boolean;
+}): Promise<Document> {
+  return request<Document>('/api/docs', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateDocument(
+  id: string,
+  payload: {
+    slug?: string;
+    title?: string;
+    content?: string;
+    is_published?: boolean;
+  }
+): Promise<Document> {
+  return request<Document>(`/api/docs/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+
+export type NavItem = {
+  title: string;
+  url?: string;
+  items?: NavItem[];
+};
+
+export async function getSidebarStructure(): Promise<NavItem[]> {
+  return request<NavItem[]>('/api/docs/structure');
+}
+
+export async function updateSidebarStructure(structure: NavItem[]): Promise<NavItem[]> {
+  return request<NavItem[]>('/api/docs/structure', {
+    method: 'PUT',
+    body: JSON.stringify(structure),
+  });
+}
+
+export async function deleteDocument(id: string): Promise<void> {
+  await request<unknown>(`/api/docs/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+

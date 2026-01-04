@@ -85,7 +85,7 @@ export function AiAssistantPlugin({ projectId, existingBlocks, onInsertBlocks, o
                         </label>
 
                         <div className="space-y-2 mb-2">
-                            {draft.files.map((file, idx) => (
+                            {draft.files.map((file) => (
                                 <div key={file.id} className="p-2 border border-zinc-200 dark:border-zinc-800 rounded bg-zinc-50 dark:bg-zinc-900 text-xs">
                                     <div className="flex items-start justify-between mb-2">
                                         <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
@@ -220,7 +220,7 @@ export function AiAssistantPlugin({ projectId, existingBlocks, onInsertBlocks, o
                             <select
                                 className="w-full text-xs p-1.5 rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                 value={draft.selectedModel}
-                                onChange={e => setDraft({ ...draft, selectedModel: e.target.value as any })}
+                                onChange={e => setDraft({ ...draft, selectedModel: e.target.value as 'deepseek-chat' | 'deepseek-reasoner' | 'qwen3-max' })}
                             >
                                 <option value="deepseek-chat">DeepSeek V3</option>
                                 <option value="deepseek-reasoner">DeepSeek R1 (Reasoning)</option>
@@ -235,7 +235,7 @@ export function AiAssistantPlugin({ projectId, existingBlocks, onInsertBlocks, o
                                 className="w-full text-xs p-1.5 rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                 value={draft.parserMode}
                                 onChange={e => {
-                                    const mode = e.target.value as any;
+                                    const mode = e.target.value as 'mineru' | 'local';
                                     setDraft(prev => ({ ...prev, parserMode: mode }));
                                 }}
                             >

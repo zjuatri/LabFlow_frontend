@@ -28,7 +28,7 @@ export class CoverParser implements BlockParser {
 
         let fixedOnePage = false;
         try {
-            const payload = JSON.parse(base64DecodeUtf8(m[1])) as any;
+            const payload = JSON.parse(base64DecodeUtf8(m[1])) as { fixedOnePage?: boolean };
             fixedOnePage = !!payload?.fixedOnePage;
         } catch {
             fixedOnePage = false;

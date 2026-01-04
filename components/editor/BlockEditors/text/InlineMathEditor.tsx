@@ -1,5 +1,5 @@
 import { latexToTypstMath, typstToLatexMath } from '@/lib/math-convert';
-import { InlineMathState, InlineMathFormat } from '@/components/editor/BlockEditor-utils/types';
+import { InlineMathState } from '@/components/editor/BlockEditor-utils/types';
 
 interface InlineMathEditorProps {
     state: InlineMathState;

@@ -1,4 +1,4 @@
-import { TypstBlock } from '@/lib/typst';
+
 import {
   ChartType,
   ChartData,
@@ -14,27 +14,27 @@ import {
  */
 export function readTableSelection(selUnknown: unknown): TableSelection | undefined {
   if (!selUnknown || typeof selUnknown !== 'object') return undefined;
-  
+
   const sel = selUnknown as Record<string, unknown>;
   const blockId = typeof sel['blockId'] === 'string' ? (sel['blockId'] as string) : '';
   const r1 = Number(sel['r1']);
   const c1 = Number(sel['c1']);
   const r2 = Number(sel['r2']);
   const c2 = Number(sel['c2']);
-  
+
   if (blockId && Number.isFinite(r1) && Number.isFinite(c1) && Number.isFinite(r2) && Number.isFinite(c2)) {
     return { blockId, r1, c1, r2, c2 };
   }
-  
+
   return undefined;
 }
 
 /**
  * 解析散点图系列数据
  */
-export function parseScatterSeries(seriesUnknown: unknown, legacySelection?: TableSelection): ScatterSeries[] {
+export function parseScatterSeries(seriesUnknown: unknown): ScatterSeries[] {
   if (!Array.isArray(seriesUnknown)) return [];
-  
+
   return seriesUnknown
     .map((item, idx): ScatterSeries | null => {
       if (!item || typeof item !== 'object') return null;
@@ -82,7 +82,7 @@ export function parseScatterSeries(seriesUnknown: unknown, legacySelection?: Tab
  */
 export function parseBarSeries(barSeriesUnknown: unknown): BarSeries[] {
   if (!Array.isArray(barSeriesUnknown)) return [];
-  
+
   return barSeriesUnknown
     .map((item, idx): BarSeries | null => {
       if (!item || typeof item !== 'object') return null;
@@ -102,7 +102,7 @@ export function parseBarSeries(barSeriesUnknown: unknown): BarSeries[] {
  */
 export function parsePieRows(pieRowsUnknown: unknown): PieRow[] {
   if (!Array.isArray(pieRowsUnknown)) return [];
-  
+
   return pieRowsUnknown
     .map((item): PieRow | null => {
       if (!item || typeof item !== 'object') return null;
@@ -135,7 +135,7 @@ export function migrateScatterFromManualText(manualText: string, legacySelection
       yTableSelection: { blockId: legacySelection.blockId, r1: top, r2: bottom, c1: cY, c2: cY },
     }];
   }
-  
+
   const lines = (manualText ?? '').replace(/\r/g, '').split('\n');
   const xRow = lines[0] ?? '';
   const yRow = lines[1] ?? '';
@@ -150,7 +150,7 @@ export function migrateBarFromManualText(manualText: string): { barSeries: BarSe
   const rows = lines.map((l) => l.split(/\t|,/).map((x) => x.trim()));
   const labelsOrder: string[] = [];
   const seriesMap = new Map<string, Map<string, string>>();
-  
+
   for (const r of rows) {
     if (r.length >= 3) {
       const s = r[0] ?? '';
@@ -169,7 +169,7 @@ export function migrateBarFromManualText(manualText: string): { barSeries: BarSe
       seriesMap.get('')!.set(label, val);
     }
   }
-  
+
   const xRowMigrated = labelsOrder.join('\t');
   const nextSeries: BarSeries[] = [];
   const keys = Array.from(seriesMap.keys());
@@ -180,11 +180,11 @@ export function migrateBarFromManualText(manualText: string): { barSeries: BarSe
     const yCells = labelsOrder.map((lab) => m.get(lab) ?? '');
     nextSeries.push({ name, source: 'manual', axisMode: 'cols', yRow: yCells.join('\t'), tableSelection: undefined });
   }
-  
+
   if (nextSeries.length > 0 && xRowMigrated) {
     return { barSeries: nextSeries, barXRow: xRowMigrated };
   }
-  
+
   return null;
 }
 
@@ -243,7 +243,7 @@ export function safeParseChartContent(content: string): ChartData {
 
     const legacySelection = readTableSelection(parsed['tableSelection']);
 
-    let scatterSeries = parseScatterSeries(parsed['scatterSeries'], legacySelection);
+    let scatterSeries = parseScatterSeries(parsed['scatterSeries']);
     let barSeries = parseBarSeries(parsed['barSeries']);
     const barXRow = typeof parsed['barXRow'] === 'string' ? (parsed['barXRow'] as string) : '';
     const barXSource: 'manual' | 'table' = parsed['barXSource'] === 'table' ? 'table' : 'manual';

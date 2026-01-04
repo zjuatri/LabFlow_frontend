@@ -1,7 +1,6 @@
 import { TypstBlock } from '@/lib/typst';
 import {
   ChartData,
-  ChartType,
   TableSelection,
   getTablePayloadById,
   getCellPlain,
@@ -14,7 +13,7 @@ import { ChartRenderRequest } from '../ChartBlockEditor';
 export function readVectorFromTableSelection(sel: TableSelection, allBlocks: TypstBlock[]): string[] {
   const payload = getTablePayloadById(sel.blockId, allBlocks);
   if (!payload) return [];
-  
+
   const top = Math.min(sel.r1, sel.r2);
   const bottom = Math.max(sel.r1, sel.r2);
   const left = Math.min(sel.c1, sel.c2);
@@ -43,7 +42,7 @@ export function readVectorFromTableSelection(sel: TableSelection, allBlocks: Typ
 export function convertScatterData(chart: ChartData, allBlocks: TypstBlock[]): Array<Record<string, unknown>> {
   const data: Array<Record<string, unknown>> = [];
   const series = chart.scatterSeries ?? [];
-  
+
   for (const s of series) {
     const xSource = s.xSource ?? 'manual';
     const ySource = s.ySource ?? 'manual';
@@ -100,7 +99,7 @@ export function convertScatterData(chart: ChartData, allBlocks: TypstBlock[]): A
       }
     }
   }
-  
+
   return data;
 }
 
@@ -195,7 +194,7 @@ export function convertBarData(chart: ChartData, allBlocks: TypstBlock[]): Array
       }
     }
   }
-  
+
   return data;
 }
 
@@ -204,7 +203,7 @@ export function convertBarData(chart: ChartData, allBlocks: TypstBlock[]): Array
  */
 export function convertPieData(chart: ChartData, allBlocks: TypstBlock[]): Array<Record<string, unknown>> {
   const data: Array<Record<string, unknown>> = [];
-  
+
   if (chart.dataSource === 'manual') {
     for (const row of chart.pieRows ?? []) {
       const label = (row.label ?? '').trim();
@@ -247,7 +246,7 @@ export function convertPieData(chart: ChartData, allBlocks: TypstBlock[]): Array
       }
     }
   }
-  
+
   return data;
 }
 

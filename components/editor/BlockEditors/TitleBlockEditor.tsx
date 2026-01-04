@@ -169,13 +169,7 @@ export default function TitleBlockEditor({ block, onUpdate }: TitleBlockEditorPr
     syncParagraphFromDom();
   };
 
-  const applyList = (kind: 'ordered' | 'bullet') => {
-    const editor = paragraphEditorRef.current;
-    if (!editor) return;
-    editor.focus();
-    document.execCommand(kind === 'ordered' ? 'insertOrderedList' : 'insertUnorderedList');
-    syncParagraphFromDom();
-  };
+
 
   const insertInlineMath = () => {
     const editor = paragraphEditorRef.current;

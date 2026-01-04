@@ -148,12 +148,6 @@ export function serializeImage(block: TypstBlock, imageIndex: number, settings: 
     // If path looks hallucinated, output a styled placeholder instead
     if (isLikelyHallucinated(imagePath)) {
         const warningText = captionText || '图片路径无效';
-        // Escape special characters for Typst and truncate path
-        const pathDisplay = (imagePath.length > 50 ? imagePath.slice(0, 50) + '…' : imagePath)
-            .replace(/\\/g, '\\\\')
-            .replace(/\[/g, '\\[')
-            .replace(/\]/g, '\\]')
-            .replace(/"/g, '\\"');
 
         // Use single-line format to avoid parsing issues when nested in other blocks
         const textContent = `#text(fill: rgb("#DC2626"), weight: "bold")[图片缺失] #h(1em) #text(size: 0.8em, fill: rgb("#991B1B"))[${warningText}]`;

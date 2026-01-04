@@ -1,17 +1,12 @@
 import { useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Save, Undo2, Redo2, Settings, FilePlus2 } from 'lucide-react';
-import { type DocumentSettings } from '@/lib/typst';
 
 export type EditorMode = 'source' | 'visual';
 
 interface EditorToolbarProps {
     mode: EditorMode;
     onModeSwitch: (mode: EditorMode) => void;
-    title: string;
-    onTitleChange: (title: string) => void;
-    docSettings: DocumentSettings;
-    onSettingsChange: (settings: DocumentSettings) => void;
     canUndo: boolean;
     canRedo: boolean;
     onUndo: () => void;
@@ -22,21 +17,11 @@ interface EditorToolbarProps {
     showSettings: boolean; // Now used to highlight the button if matching modal is open
     onToggleSettings: () => void;
     onCloseSettings: () => void;
-
-
-    // Cover-specific settings (only relevant when editing a report that contains a cover block)
-    hasCover?: boolean;
-    coverFixedOnePage?: boolean;
-    onCoverFixedOnePageChange?: (fixed: boolean) => void;
 }
 
 export function EditorToolbar({
     mode,
     onModeSwitch,
-    title,
-    onTitleChange,
-    docSettings,
-    onSettingsChange,
     canUndo,
     canRedo,
     onUndo,
@@ -47,10 +32,6 @@ export function EditorToolbar({
     showSettings,
     onToggleSettings,
     onCloseSettings,
-
-    hasCover,
-    coverFixedOnePage,
-    onCoverFixedOnePageChange,
 }: EditorToolbarProps) {
     const router = useRouter();
     const settingsRef = useRef<HTMLDivElement>(null);

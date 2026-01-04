@@ -39,7 +39,7 @@ export default function ProjectPreview({ code, className = '' }: ProjectPreviewP
                 } else {
                     if (mounted) setError(true);
                 }
-            } catch (err) {
+            } catch {
                 if (mounted) setError(true);
             } finally {
                 if (mounted) setLoading(false);

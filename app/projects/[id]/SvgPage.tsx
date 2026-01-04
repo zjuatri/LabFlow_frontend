@@ -56,30 +56,24 @@ export function SvgPage({
     svgContent // Pass svgContent to trigger re-analysis on content change
   );
 
-  // Re-use logic for visuals but simpler now because hook does the heavy lifting
-  const [hoverRect, setHoverRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
-
-  useEffect(() => {
-    if (!containerRef.current || !isVisible || hoveredLocalIndex === null) {
-      setHoverRect(null);
-      return;
+  // Compute hover rect inline - getBlockRect is stable from the hook
+  // We compute this during render since it's purely derived from hoveredLocalIndex
+  const getComputedHoverRect = () => {
+    if (!isVisible || hoveredLocalIndex === null) {
+      return null;
     }
-
-    // Try to get precise rect from hook
     const rect = getBlockRect(hoveredLocalIndex);
     if (rect && rect.l !== Infinity) {
-      // Add some padding
-      const padding = 2; // subtle padding
-      setHoverRect({
+      const padding = 2;
+      return {
         left: rect.l - padding,
         top: rect.t - padding,
         width: (rect.r - rect.l) + padding * 2,
         height: (rect.b - rect.t) + padding * 2
-      });
-    } else {
-      setHoverRect(null);
+      };
     }
-  }, [hoveredLocalIndex, isVisible, getBlockRect]);
+    return null;
+  };
 
 
   // Handle scrolling to active block marker (highlight effect)
@@ -89,48 +83,48 @@ export function SvgPage({
 
     lastHighlightNonceRef.current = highlightNonce;
 
+    // Helper to show flash highlight using block rect
+    const showFlashHighlight = (rect: { l: number; t: number; r: number; b: number }) => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const padding = 4;
+      const left = rect.l - padding;
+      const top = rect.t - padding;
+      const width = (rect.r - rect.l) + padding * 2;
+      const height = (rect.b - rect.t) + padding * 2;
+
+      const highlight = document.createElement('div');
+      Object.assign(highlight.style, {
+        position: 'absolute',
+        left: `${left}px`,
+        top: `${top}px`,
+        width: `${width}px`,
+        height: `${height}px`,
+        backgroundColor: 'rgba(59, 130, 246, 0.15)',
+        border: '2px solid rgba(59, 130, 246, 0.4)',
+        borderRadius: '4px',
+        zIndex: '20',
+        opacity: '0',
+        transition: 'opacity 0.3s',
+        pointerEvents: 'none'
+      });
+
+      container.appendChild(highlight);
+      requestAnimationFrame(() => highlight.style.opacity = '1');
+
+      setTimeout(() => {
+        highlight.style.opacity = '0';
+        setTimeout(() => highlight.remove(), 300);
+      }, 1000);
+    };
+
     // Use getBlockRect for accurate block bounds
     const rect = getBlockRect(activeLocalIndex);
     if (rect && rect.l !== Infinity) {
       showFlashHighlight(rect);
     }
   }, [highlightNonce, isVisible, activeLocalIndex, getBlockRect]);
-
-  // Helper to show flash highlight using block rect
-  const showFlashHighlight = (rect: { l: number; t: number; r: number; b: number }) => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const padding = 4;
-    const left = rect.l - padding;
-    const top = rect.t - padding;
-    const width = (rect.r - rect.l) + padding * 2;
-    const height = (rect.b - rect.t) + padding * 2;
-
-    const highlight = document.createElement('div');
-    Object.assign(highlight.style, {
-      position: 'absolute',
-      left: `${left}px`,
-      top: `${top}px`,
-      width: `${width}px`,
-      height: `${height}px`,
-      backgroundColor: 'rgba(59, 130, 246, 0.15)',
-      border: '2px solid rgba(59, 130, 246, 0.4)',
-      borderRadius: '4px',
-      zIndex: '20',
-      opacity: '0',
-      transition: 'opacity 0.3s',
-      pointerEvents: 'none'
-    });
-
-    container.appendChild(highlight);
-    requestAnimationFrame(() => highlight.style.opacity = '1');
-
-    setTimeout(() => {
-      highlight.style.opacity = '0';
-      setTimeout(() => highlight.remove(), 300);
-    }, 1000);
-  };
 
   return (
     <div
@@ -149,23 +143,26 @@ export function SvgPage({
       onMouseLeave={handleMouseLeave}
     >
       {/* Hover Overlay - Using simple band logic now */}
-      {hoverRect && (
-        <div
-          style={{
-            position: 'absolute',
-            left: hoverRect.left,
-            top: hoverRect.top,
-            width: hoverRect.width,
-            height: hoverRect.height,
-            backgroundColor: 'rgba(59, 130, 246, 0.08)', // Faint blue
-            // border: '1px solid rgba(59, 130, 246, 0.2)',
-            pointerEvents: 'none',
-            borderRadius: '2px',
-            zIndex: 10,
-            transition: 'all 0.1s ease-out'
-          }}
-        />
-      )}
+      {(() => {
+        const hoverRect = getComputedHoverRect();
+        return hoverRect && (
+          <div
+            style={{
+              position: 'absolute',
+              left: hoverRect.left,
+              top: hoverRect.top,
+              width: hoverRect.width,
+              height: hoverRect.height,
+              backgroundColor: 'rgba(59, 130, 246, 0.08)', // Faint blue
+              // border: '1px solid rgba(59, 130, 246, 0.2)',
+              pointerEvents: 'none',
+              borderRadius: '2px',
+              zIndex: 10,
+              transition: 'all 0.1s ease-out'
+            }}
+          />
+        );
+      })()}
       {isVisible ? (
         <div
           dangerouslySetInnerHTML={{ __html: svgContent }}

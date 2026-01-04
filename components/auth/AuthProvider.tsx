@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useMemo, useState } from 'react';
 import { getToken as getStoredToken, setToken as setStoredToken, clearToken as clearStoredToken } from '@/lib/auth';
 
 type AuthContextValue = {
@@ -13,7 +13,12 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function decodeJwtPayload(token: string): any | null {
+interface JwtPayload {
+    role?: string;
+    [key: string]: unknown;
+}
+
+function decodeJwtPayload(token: string): JwtPayload | null {
     try {
         const parts = token.split('.');
         if (parts.length < 2) return null;
@@ -31,15 +36,14 @@ function decodeJwtPayload(token: string): any | null {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [token, setTokenState] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [token, setTokenState] = useState<string | null>(() => {
+        if (typeof window !== 'undefined') {
+            return getStoredToken();
+        }
+        return null;
+    });
 
-    useEffect(() => {
-        // Initialize token from storage
-        const stored = getStoredToken();
-        setTokenState(stored);
-        setIsLoading(false);
-    }, []);
+    // Removed unused isLoading state
 
     const setToken = (newToken: string) => {
         setStoredToken(newToken);
@@ -58,8 +62,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, [token]);
 
     const value = useMemo(
-        () => ({ token, isLoading, setToken, clearToken, isAdmin }),
-        [token, isLoading, isAdmin]
+        () => ({ token, isLoading: false, setToken, clearToken, isAdmin }),
+        [token, isAdmin]
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+// import { useRouter } from 'next/navigation';
 import {
     FolderOpen
 } from 'lucide-react';
@@ -17,7 +17,7 @@ export default function ProjectGrid() {
         toggleSelect,
         setError,
         createProject,
-        loadProjects,
+        // loadProjects,
         setRenamingProject,
         setDeletingProject,
         viewScale,

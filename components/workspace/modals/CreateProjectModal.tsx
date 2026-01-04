@@ -10,11 +10,9 @@ export default function CreateProjectModal() {
     const [error, setError] = useState<string | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
+    // Auto-focus when modal opens
     useEffect(() => {
         if (showCreateModal) {
-            setTitle('');
-            setError(null);
-            // Auto focus fix for some browsers if autoFocus prop doesn't work perfectly in dynamic modals
             setTimeout(() => inputRef.current?.focus(), 50);
         }
     }, [showCreateModal]);
@@ -27,6 +25,9 @@ export default function CreateProjectModal() {
         try {
             const p = await createProject(title.trim());
             setShowCreateModal(false);
+            // Reset state after closing
+            setTitle('');
+            setError(null);
             router.push(`/projects/${p.id}`);
         } catch (err) {
             setError(err instanceof Error ? err.message : '创建失败');

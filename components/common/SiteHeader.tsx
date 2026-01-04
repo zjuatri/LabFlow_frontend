@@ -1,4 +1,6 @@
-import { useMemo } from 'react';
+'use client';
+
+// import { useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -83,6 +85,19 @@ export default function SiteHeader() {
                             >
                                 <Library size={16} />
                                 <span className="hidden sm:inline">工作区</span>
+                            </Link>
+
+                            <Link
+                                href="/docs"
+                                className={`
+              flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all
+              ${isActive('/docs')
+                                        ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
+                                        : 'text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900'}
+            `}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-book-open"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
+                                <span className="hidden sm:inline">文档</span>
                             </Link>
 
                             {isAdmin && (

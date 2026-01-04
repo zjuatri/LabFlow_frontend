@@ -58,6 +58,7 @@ export function TextPanel({ title, value }: { title: string; value: string }) {
     );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function PdfContextVisualizer({ context }: { context: any }) {
     const [activeTab, setActiveTab] = useState<'text' | 'images' | 'tables'>('text');
 
@@ -77,8 +78,8 @@ export function PdfContextVisualizer({ context }: { context: any }) {
                             key={tab}
                             onClick={() => setActiveTab(tab)}
                             className={`px-3 py-1 text-xs rounded-md transition-all ${activeTab === tab
-                                    ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm'
-                                    : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+                                ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm'
+                                : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
                                 }`}
                         >
                             {tab === 'text' ? '文本内容' : tab === 'images' ? '提取图片' : '提取表格'}
@@ -91,6 +92,7 @@ export function PdfContextVisualizer({ context }: { context: any }) {
                 {activeTab === 'text' && (
                     <div className="space-y-4">
                         {ocrPages.length > 0 ? (
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             ocrPages.map((p: any, i: number) => (
                                 <div key={i} className="space-y-2">
                                     <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Page {p.page}</div>
@@ -108,9 +110,11 @@ export function PdfContextVisualizer({ context }: { context: any }) {
                 {activeTab === 'images' && (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                         {images.length > 0 ? (
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             images.map((img: any, i: number) => (
                                 <div key={i} className="space-y-1">
                                     <div className="aspect-[4/3] rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 overflow-hidden relative group">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img
                                             src={img.url}
                                             alt={img.filename}
@@ -133,6 +137,7 @@ export function PdfContextVisualizer({ context }: { context: any }) {
                 {activeTab === 'tables' && (
                     <div className="space-y-6">
                         {tables.length > 0 ? (
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             tables.map((tbl: any, i: number) => (
                                 <div key={i} className="space-y-2">
                                     <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">表格 {i + 1} (Page {tbl.page})</div>

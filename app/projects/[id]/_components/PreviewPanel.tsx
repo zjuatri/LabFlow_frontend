@@ -222,7 +222,7 @@ export function PreviewPanel({
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-auto p-6 relative z-10" ref={previewRef as any}>
+            <div className="flex-1 overflow-auto p-6 relative z-10" ref={previewRef as React.RefObject<HTMLDivElement>}>
                 {error ? (
                     <div className="p-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-xl max-w-2xl mx-auto mt-10">
                         <p className="text-sm font-semibold text-red-600 dark:text-red-400 flex items-center gap-2">

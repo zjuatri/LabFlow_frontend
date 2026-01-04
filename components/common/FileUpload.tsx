@@ -122,11 +122,10 @@ export default function FileUpload({
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
         onDrop={handleDrop}
-        className={`relative border-2 border-dashed rounded-lg p-6 transition-colors ${
-          dragActive
-            ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
-            : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950'
-        }`}
+        className={`relative border-2 border-dashed rounded-lg p-6 transition-colors ${dragActive
+          ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
+          : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950'
+          }`}
       >
         <input
           type="file"
@@ -164,7 +163,10 @@ export default function FileUpload({
               className="flex items-center gap-3 p-3 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg"
             >
               {file.preview ? (
-                <img src={file.preview} alt={file.name} className="w-10 h-10 object-cover rounded" />
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={file.preview} alt={file.name} className="w-10 h-10 object-cover rounded" />
+                </>
               ) : file.type.startsWith('image/') ? (
                 <ImageIcon className="w-10 h-10 text-zinc-400" />
               ) : (

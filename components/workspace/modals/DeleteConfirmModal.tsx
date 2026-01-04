@@ -10,7 +10,7 @@ export default function DeleteConfirmModal() {
         setBatchDeleting,
         selectedIds,
         deleteProject,
-        deleteSelectedProjects
+        // deleteSelectedProjects
     } = useWorkspaceStore();
 
     const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -86,7 +86,7 @@ export default function DeleteConfirmModal() {
                         {batchDeleting ? (
                             <>即将删除 <span className="font-semibold text-zinc-900 dark:text-zinc-200">{selectedIds.size}</span> 个项目。</>
                         ) : (
-                            <>确定要删除 <span className="font-semibold text-zinc-900 dark:text-zinc-200">"{deletingProject?.title}"</span> 吗？</>
+                            <>确定要删除 <span className="font-semibold text-zinc-900 dark:text-zinc-200">&quot;{deletingProject?.title}&quot;</span> 吗？</>
                         )}
                         <br />
                         此操作无法撤销。

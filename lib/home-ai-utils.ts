@@ -71,10 +71,10 @@ export function buildUserInputJson(params: {
   };
 }
 
-function simplifyBlocksForAi(blocks: TypstBlock[]): any[] {
+function simplifyBlocksForAi(blocks: TypstBlock[]): Array<Record<string, unknown> | null> {
   return blocks.map((b) => {
     // Basic allowed fields
-    const newB: any = {
+    const newB: Record<string, unknown> = {
       type: b.type,
     };
 
@@ -90,19 +90,20 @@ function simplifyBlocksForAi(blocks: TypstBlock[]): any[] {
 
     if (b.type === 'image') {
       // User requested: if no caption, do NOT include in context
-      if (!(b as any).caption) {
+      if (!(b as unknown as Record<string, unknown>).caption) {
         return null; // Will be filtered out later
       }
       delete newB.content;
-      newB.caption = (b as any).caption;
+      newB.caption = (b as unknown as Record<string, unknown>).caption;
     }
     // For other blocks allow content.
 
     // Whitelist specific content-bearing or structural fields
-    if ((b as any).level) newB.level = (b as any).level; // heading
-    if ((b as any).language) newB.language = (b as any).language; // code
-    if ((b as any).inputLines) newB.inputLines = (b as any).inputLines; // input_field
-    if ((b as any).caption && b.type !== 'image') newB.caption = (b as any).caption; // tables/others
+    const bRecord = b as unknown as Record<string, unknown>;
+    if (bRecord.level) newB.level = bRecord.level; // heading
+    if (bRecord.language) newB.language = bRecord.language; // code
+    if (bRecord.inputLines) newB.inputLines = bRecord.inputLines; // input_field
+    if (bRecord.caption && b.type !== 'image') newB.caption = bRecord.caption; // tables/others
 
     // Recursion for children
     if (b.children && Array.isArray(b.children)) {

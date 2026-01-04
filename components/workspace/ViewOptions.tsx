@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import {
-    LayoutGrid, List as ListIcon, ChevronDown, Check, SlidersHorizontal
+    LayoutGrid, List as ListIcon, ChevronDown, Check
 } from 'lucide-react';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 

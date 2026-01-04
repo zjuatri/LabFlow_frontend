@@ -22,23 +22,6 @@ export class CodeParser implements BlockParser {
         // but the current parser logic (in parse.ts) assumed multi-line state machine.
         // Let's handle generic case.
 
-        // Check if closed on same line
-        if (trimmed.length > 3 && trimmed.endsWith('```') && trimmed !== '```') {
-            // It's a single line code block, but usually these are inline code.
-            // Typst block code behaves like markdown.
-            const content = trimmed.substring(3, trimmed.length - 3).trim();
-            // This might arguably be a paragraph with inline code, but if it is the ONLY thing on the line?
-            // The original parser treated "startsWith('```')" as entering code block mode.
-            // If it ends on same line, we should handle it.
-            // But original parser loop:
-            // if (trimmed.startsWith('```')) { if (!inCodeBlock) { inCodeBlock=true ... } }
-            // It didn't explicitly check for single-line closure in the opening check,
-            // BUT `inCodeBlock` logic would process next lines. 
-            // If the same line contained the closer, the logic would be:
-            // Start line: inCodeBlock = true.
-            // Next iteration: "next line".
-            // So checks if `trimmed` is strictly the opener.
-        }
 
         // Let's implement the loop to find the closer
         for (; i < lines.length; i++) {

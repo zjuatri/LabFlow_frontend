@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SiteHeader from '@/components/common/SiteHeader';
 import {
@@ -49,14 +49,7 @@ export default function CreateProjectPage() {
   const [selectedModel, setSelectedModel] = useState<'deepseek-chat' | 'deepseek-reasoner' | 'qwen3-max'>('deepseek-chat');
   const [thinkingEnabled, setThinkingEnabled] = useState(false);
 
-  useEffect(() => {
-    // Default behavior for models
-    if (selectedModel === 'deepseek-reasoner') {
-      setThinkingEnabled(true);
-    } else {
-      setThinkingEnabled(false);
-    }
-  }, [selectedModel]);
+
 
   const handleGenerate = async () => {
     if (!handleInteraction()) return;
@@ -297,7 +290,15 @@ export default function CreateProjectPage() {
                   <label className="text-xs font-semibold uppercase text-zinc-500 mb-3 block">Reasoning Model</label>
                   <select
                     value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value as any)}
+                    onChange={(e) => {
+                      const val = e.target.value as 'deepseek-chat' | 'deepseek-reasoner' | 'qwen3-max';
+                      setSelectedModel(val);
+                      if (val === 'deepseek-reasoner') {
+                        setThinkingEnabled(true);
+                      } else {
+                        setThinkingEnabled(false);
+                      }
+                    }}
                     className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 outline-none"
                   >
                     <option value="deepseek-chat">DeepSeek V3 (Chat)</option>

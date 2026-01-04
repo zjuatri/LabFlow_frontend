@@ -94,7 +94,7 @@ function extractCompactTables(
     const tablePayload = (tt.tablePayload && typeof tt.tablePayload === 'object') ? (tt.tablePayload as Record<string, unknown>) : null;
     const caption = typeof tablePayload?.caption === 'string' ? (tablePayload.caption as string) : undefined;
 
-    const cellsRaw = (tablePayload as any)?.cells;
+    const cellsRaw = (tablePayload as Record<string, unknown> | null)?.cells;
     let cells_preview: Array<Array<{ content?: string; rowspan?: number; colspan?: number; is_placeholder?: boolean }>> | undefined;
     let has_merged_cells = false;
     if (Array.isArray(cellsRaw)) {
@@ -218,12 +218,13 @@ export async function preparePdfContextWithDebug(params: {
   }
 
   // Log MinerU debug URL for easy testing
-  if ((ingest as any).mineru_debug_url) {
-    console.log('🔗 MinerU PDF URL (click to test):', (ingest as any).mineru_debug_url);
+  const ingestRecord = ingest as Record<string, unknown>;
+  if (ingestRecord.mineru_debug_url) {
+    console.log('🔗 MinerU PDF URL (click to test):', ingestRecord.mineru_debug_url);
   }
 
   // Table formula vision only for local mode (requires file upload)
-  let tableVision: any = null;
+  let tableVision: Record<string, unknown> | null = null;
   if (params.pdfFile) {
     params.onStep('表格公式识别（table formula vision）');
     tableVision = await uploadPdfAndParseTableFormulasWithVision(params.projectId, params.pdfFile, {

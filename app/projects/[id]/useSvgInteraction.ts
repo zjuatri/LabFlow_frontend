@@ -90,7 +90,7 @@ export function useSvgInteraction(
 
         let currentBlockIndex = -1;
         let nextMarker = markers[0];
-        let nextMarkerAncestors = new Set<Element>();
+        const nextMarkerAncestors = new Set<Element>();
 
         // Setup for first block (before first marker - usually empty or header?)
         // We only care about blocks starting with a marker.
@@ -136,7 +136,7 @@ export function useSvgInteraction(
             if (tag === 'g' && el.children.length > 0) continue;
 
             // 4. Add to union
-            if (typeof (el as any).getBoundingClientRect === 'function') {
+            if ('getBoundingClientRect' in el && typeof (el as SVGGraphicsElement).getBoundingClientRect === 'function') {
                 const r = getScreenRect(el as SVGGraphicsElement);
                 if (r) {
                     const l = r.left - containerRect.left;
@@ -151,7 +151,7 @@ export function useSvgInteraction(
                     if (w > containerWidth * 0.8) {
                         // Check if this is likely a background rect (not text)
                         // Text in Typst SVG is usually rendered as <use> or <path> with complex d attribute
-                        const isLikelyBackground = tag === 'rect' || 
+                        const isLikelyBackground = tag === 'rect' ||
                             (tag === 'path' && (!el.getAttribute('d') || el.getAttribute('d')!.split(' ').length < 10));
                         if (isLikelyBackground) continue;
                     }
@@ -174,17 +174,16 @@ export function useSvgInteraction(
         for (let i = 0; i < markers.length; i++) {
             const existing = rects.get(i);
             const marker = markers[i];
-            
+
             // If the block has no valid rect (still at Infinity), use marker position
             if (!existing || existing.l === Infinity || existing.t === Infinity) {
                 const markerRect = getScreenRect(marker);
                 if (markerRect) {
-                    const ml = markerRect.left - containerRect.left;
                     const mt = markerRect.top - containerRect.top;
-                    
+
                     // Find the next block's top position to determine this block's height
                     let blockBottom = mt + 40; // Default minimum height
-                    
+
                     // Look for the next block with a valid rect
                     for (let j = i + 1; j < markers.length; j++) {
                         const nextRect = rects.get(j);
@@ -199,7 +198,7 @@ export function useSvgInteraction(
                             break;
                         }
                     }
-                    
+
                     // Create a rect spanning the page width from marker to next block
                     rects.set(i, {
                         l: 0, // Start from left edge
@@ -212,7 +211,7 @@ export function useSvgInteraction(
                 // Ensure minimum dimensions for existing rects
                 const width = existing.r - existing.l;
                 const height = existing.b - existing.t;
-                
+
                 if (width < 10 || height < 10) {
                     // Expand small rects to be more clickable
                     const markerRect = getScreenRect(marker);
@@ -228,7 +227,7 @@ export function useSvgInteraction(
                 }
             }
         }
-        
+
         blockRectsRef.current = rects;
     }, [containerRef]);
 
@@ -261,7 +260,7 @@ export function useSvgInteraction(
             if (rect.l === Infinity || rect.t === Infinity || rect.r === -Infinity || rect.b === -Infinity) {
                 continue;
             }
-            
+
             if (x >= rect.l && x <= rect.r && y >= rect.t && y <= rect.b) {
                 // If nested blocks (rare in this flattened view but possible overlap), 
                 // pick the smallest one? Or the one that started later (usually deeper)?

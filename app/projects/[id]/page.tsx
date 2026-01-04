@@ -51,7 +51,6 @@ export default function ProjectEditorPage() {
     reset,
     switchMode,
     setTitle,
-    setCode,
     setBlocks,
     setDocSettings,
     setShowSettings,
@@ -89,7 +88,6 @@ export default function ProjectEditorPage() {
       reset: s.reset,
       switchMode: s.switchMode,
       setTitle: s.setTitle,
-      setCode: s.setCode,
       setBlocks: s.setBlocks,
       setDocSettings: s.setDocSettings,
       setShowSettings: s.setShowSettings,
@@ -294,7 +292,7 @@ export default function ProjectEditorPage() {
     } finally {
       setIsRendering(false);
     }
-  }, []);
+  }, [setError, setIsRendering, setSvgPages]);
 
   const downloadPdf = useCallback(async () => {
     // For export, we generate clean code without markers and without draft blocks (like vertical space guides)
@@ -329,7 +327,7 @@ export default function ProjectEditorPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     }
-  }, [BASE_URL, blocks, docSettings, title]);
+  }, [blocks, docSettings, title, setError]);
 
   // Handle block click and scroll to corresponding position in preview
   const handleBlockClick = useCallback((index: number) => {
@@ -435,7 +433,7 @@ export default function ProjectEditorPage() {
         }, 200);
       }, 1000);
     }
-  }, [svgPages, blocks, suppressEditorSync]);
+  }, [svgPages, suppressEditorSync]);
 
   return (
     <div className="flex h-screen w-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
@@ -450,18 +448,10 @@ export default function ProjectEditorPage() {
         >
 
           {(() => {
-            const coverIndex = blocks.findIndex((b) => b.type === 'cover');
-            const hasCover = coverIndex >= 0;
-            const coverFixedOnePage = hasCover ? !!blocks[coverIndex]?.coverFixedOnePage : false;
-
             return (
               <EditorToolbar
                 mode={mode}
                 onModeSwitch={switchMode}
-                title={title}
-                onTitleChange={setTitle}
-                docSettings={docSettings}
-                onSettingsChange={setDocSettings}
                 canUndo={canUndo()}
                 canRedo={canRedo()}
                 onUndo={undo}
@@ -472,14 +462,6 @@ export default function ProjectEditorPage() {
                 showSettings={showSettings}
                 onToggleSettings={() => setShowSettings(!showSettings)}
                 onCloseSettings={() => setShowSettings(false)}
-                hasCover={hasCover}
-                coverFixedOnePage={coverFixedOnePage}
-                onCoverFixedOnePageChange={(fixed) => {
-                  if (coverIndex < 0) return;
-                  const next = [...blocks];
-                  next[coverIndex] = { ...next[coverIndex], coverFixedOnePage: fixed };
-                  setBlocks(next);
-                }}
               />
             );
           })()}

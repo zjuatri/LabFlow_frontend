@@ -129,7 +129,7 @@ function normalizeListToOrderedParagraph(rawList: unknown): string {
     return map[cn] ?? null;
   };
 
-  const normalizeLine = (line: string, fallbackIndex: number): { kind: 'ordered' | 'bullet' | 'plain'; line: string } => {
+  const normalizeLine = (line: string): { kind: 'ordered' | 'bullet' | 'plain'; line: string } => {
     // Bullet
     const bulletMatch = line.match(/^[-*]\s+(.+)$/);
     if (bulletMatch) {
@@ -156,7 +156,7 @@ function normalizeListToOrderedParagraph(rawList: unknown): string {
     return { kind: 'plain', line: line.trim() };
   };
 
-  const normalized = rawLines.map((l, i) => normalizeLine(l, i + 1));
+  const normalized = rawLines.map((l) => normalizeLine(l));
   const hasBullet = normalized.some((x) => x.kind === 'bullet');
   const hasOrdered = normalized.some((x) => x.kind === 'ordered');
 
@@ -224,24 +224,6 @@ function detectPureListContent(text: string): 'ordered' | 'unordered' | false {
   return false;
 }
 
-function looksLikeMultiLineListParagraph(text: string): boolean {
-  // Heuristic: if a paragraph contains multiple non-empty lines, it's usually a list
-  // (e.g., 实验目的 1/2/3/4). Converting to an ordered list is acceptable and improves structure.
-  const normalized = text.replace(/\r\n/g, '\n');
-  if (!normalized.includes('\n')) return false;
-  if (normalized.includes('\n\n')) return false;
-
-  const lines = normalized
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
-
-  if (lines.length < 2) return false;
-  if (lines.length > 30) return false;
-  if (lines.some((l) => l.length > 200)) return false;
-
-  return true;
-}
 
 function normalizeBlockMany(raw: unknown, getNextId: () => string, projectId: string): TypstBlock[] {
   if (!isObject(raw)) {

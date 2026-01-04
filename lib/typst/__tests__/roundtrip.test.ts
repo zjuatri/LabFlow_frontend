@@ -4,11 +4,11 @@ import { blocksToTypst } from '../serialize';
 import { TypstBlock } from '../types';
 
 // Helper to remove IDs and undefined values for comparison
-function cleanIds(obj: any): any {
+function cleanIds<T>(obj: T): T {
     if (Array.isArray(obj)) {
-        return obj.map(cleanIds);
+        return obj.map(cleanIds) as T;
     } else if (obj !== null && typeof obj === 'object') {
-        const newObj: any = {};
+        const newObj: Record<string, unknown> = {};
         for (const key in obj) {
             if (key === 'id') continue;
             const val = obj[key];
@@ -26,7 +26,7 @@ function cleanIds(obj: any): any {
                 }
             }
         }
-        return newObj;
+        return newObj as unknown as T;
     }
     return obj;
 }

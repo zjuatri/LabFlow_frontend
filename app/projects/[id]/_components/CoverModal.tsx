@@ -11,10 +11,12 @@ interface CoverModalProps {
 }
 
 export function CoverModal({ show, onClose, onInsert, loading, covers }: CoverModalProps) {
-    if (!show) return null;
+
 
     const [selectedCoverId, setSelectedCoverId] = useState<string | null>(null);
     const selectedCover = useMemo(() => covers.find(c => c.id === selectedCoverId) ?? null, [covers, selectedCoverId]);
+
+    if (!show) return null;
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in duration-200" onClick={onClose}>

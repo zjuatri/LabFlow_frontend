@@ -3,25 +3,9 @@ import ViewOptions from './ViewOptions';
 
 
 export default function SelectionBar() {
-    const { projects, selectedIds, toggleSelect, selectAll } = useWorkspaceStore();
+    const { projects, selectedIds } = useWorkspaceStore();
 
-    const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-        // Logic inside component or store? Store has selectAll/deselectAll.
-        // But toggle behavior is conditional.
-        if (selectedIds.size === projects.length) {
-            // If all selected, verify deselect logic? 
-            // Store `selectAll` selects all. `deselectAll` deselects all.
-            // This checkbox is 'checked' if all selected.
-            // If user unchecks, we deselect all.
-            // If user checks, we select all.
-            if (e.target.checked) {
-                // This branch shouldn't happen if checked is true?
-                // If currently checked (all selected), and user clicks, e.target.checked becomes false.
-            }
-        }
-        // Actually simpler to just call store method based on current state?
-        // Projects count > 0 check is needed.
-    };
+
 
     const allSelected = projects.length > 0 && selectedIds.size === projects.length;
     // const { viewScale, setViewScale } = useWorkspaceStore(); // Handled by ViewOptions component now

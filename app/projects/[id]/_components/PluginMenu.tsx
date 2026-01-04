@@ -3,10 +3,9 @@ import { Sparkles, ChevronDown, MonitorPlay } from 'lucide-react';
 
 interface PluginMenuProps {
     onToggleAiSidebar: () => void;
-    isAiSidebarOpen?: boolean;
 }
 
-export function PluginMenu({ onToggleAiSidebar, isAiSidebarOpen }: PluginMenuProps) {
+export function PluginMenu({ onToggleAiSidebar }: PluginMenuProps) {
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 

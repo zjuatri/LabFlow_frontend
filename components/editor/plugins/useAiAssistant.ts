@@ -35,7 +35,7 @@ export function useAiAssistant({ projectId, existingBlocks, onInsertBlocks, onCl
 
     // Progress / Debug info
     const [progressMsg, setProgressMsg] = useState('');
-    const [prepDebug, setPrepDebug] = useState<Record<string, any>>({});
+    const [prepDebug, setPrepDebug] = useState<Record<string, unknown>>({});
     const [sentPrompt, setSentPrompt] = useState<string>('');
     const [showPrompt, setShowPrompt] = useState(false);
 
@@ -121,9 +121,15 @@ export function useAiAssistant({ projectId, existingBlocks, onInsertBlocks, onCl
         return data?.url as string;
     };
 
+
+    type ProcessedContext =
+        | { type: 'pdf'; filename: string; description?: string; data: Record<string, unknown> }
+        | { type: 'image'; filename: string; url: string; description?: string; visionAnalysis: string | null; shouldInclude?: boolean }
+        | { type: 'error'; filename: string; error: string };
+
     const processFiles = async () => {
-        const contexts: any[] = [];
-        const debugs: Record<string, any> = {};
+        const contexts: ProcessedContext[] = [];
+        const debugs: Record<string, unknown> = {};
 
         for (const f of draft.files) {
             const displayName = f.source === 'url' ? (f.url || 'Untitled URL') : f.file?.name || 'Untitled File';
@@ -239,13 +245,20 @@ export function useAiAssistant({ projectId, existingBlocks, onInsertBlocks, onCl
                             user_description: c.description,
                             parsed_content: c.data
                         };
-                    } else {
+                    } else if (c.type === 'image') {
                         return {
                             filename: c.filename,
                             url: c.url,
                             user_description: c.description,
                             vision_analysis: c.visionAnalysis,
                             should_include: c.shouldInclude
+                        };
+                    } else {
+                        // Error case
+                        return {
+                            filename: c.filename,
+                            error: c.error,
+                            status: 'failed'
                         };
                     }
                 })
@@ -288,13 +301,11 @@ export function useAiAssistant({ projectId, existingBlocks, onInsertBlocks, onCl
             setStatus('generating');
             setProgressMsg('AI 思考中...');
 
-            let fullText = '';
             await chatWithDeepSeekStream(finalMessage, draft.selectedModel, draft.thinkingEnabled, (evt) => {
                 if (evt.type === 'thought') {
                     setAiThought((prev) => prev + evt.delta);
                 } else if (evt.type === 'content') {
                     setAiResponse((prev) => prev + evt.delta);
-                    fullText += evt.delta;
                 }
             });
 

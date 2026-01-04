@@ -1,7 +1,5 @@
 
 import { typstToBlocks } from '../lib/typst/parse';
-import * as fs from 'fs';
-import * as path from 'path';
 
 const sampleTypst = `
 = Heading 1
@@ -27,16 +25,16 @@ print("Hello")
 
 
 // Helper to remove IDs for comparison as they are generated randomly
-function cleanIds(obj: any): any {
+function cleanIds<T>(obj: T): T {
     if (Array.isArray(obj)) {
-        return obj.map(cleanIds);
+        return obj.map(cleanIds) as T;
     } else if (obj !== null && typeof obj === 'object') {
-        const newObj: any = {};
+        const newObj: Record<string, unknown> = {};
         for (const key in obj) {
             if (key === 'id') continue;
             newObj[key] = cleanIds(obj[key]);
         }
-        return newObj;
+        return newObj as unknown as T;
     }
     return obj;
 }
