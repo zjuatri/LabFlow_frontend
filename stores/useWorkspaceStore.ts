@@ -39,6 +39,10 @@ interface WorkspaceState {
     deleteProject: (id: string) => Promise<void>;
     deleteSelectedProjects: () => Promise<void>;
     updateProject: (id: string, data: Partial<Project>) => Promise<void>;
+
+    // View Settings
+    viewScale: number; // 0 to 4
+    setViewScale: (scale: number) => void;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -141,5 +145,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         set(state => ({
             projects: state.projects.map(p => p.id === id ? { ...p, ...data } : p)
         }));
-    }
+    },
+
+    viewScale: 1, // Default to Small Grid
+    setViewScale: (viewScale) => set({ viewScale: Math.max(0, Math.min(4, viewScale)) })
 }));

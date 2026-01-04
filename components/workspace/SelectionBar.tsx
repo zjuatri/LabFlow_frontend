@@ -1,4 +1,6 @@
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
+import ViewOptions from './ViewOptions';
+
 
 export default function SelectionBar() {
     const { projects, selectedIds, toggleSelect, selectAll } = useWorkspaceStore();
@@ -22,11 +24,12 @@ export default function SelectionBar() {
     };
 
     const allSelected = projects.length > 0 && selectedIds.size === projects.length;
+    // const { viewScale, setViewScale } = useWorkspaceStore(); // Handled by ViewOptions component now
 
     return (
-        <div className="flex items-center justify-between mb-4 px-1">
-            <label className="flex items-center gap-2 cursor-pointer group">
-                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${allSelected ? 'bg-blue-600 border-blue-600' : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 group-hover:border-blue-500'}`}>
+        <div className="flex items-center justify-between mb-6 px-1 py-2">
+            <label className="flex items-center gap-3 cursor-pointer group">
+                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${allSelected ? 'bg-blue-600 border-blue-600' : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 group-hover:border-blue-500'}`}>
                     {allSelected && <div className="w-2.5 h-2.5 bg-white rounded-sm" />}
                     <input
                         type="checkbox"
@@ -46,9 +49,14 @@ export default function SelectionBar() {
                     全选
                 </span>
             </label>
-            <span className="text-sm text-zinc-400">
-                {projects.length} 个项目
-            </span>
+
+            <div className="flex items-center gap-5">
+                <ViewOptions />
+
+                <span className="text-sm text-zinc-500 dark:text-zinc-400 font-medium">
+                    共 {projects.length} 个项目
+                </span>
+            </div>
         </div>
     );
 }
