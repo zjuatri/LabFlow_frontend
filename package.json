@@ -17,12 +17,14 @@
     "gray-matter": "^4.0.3",
     "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
+    "mitex-wasm": "^0.2.5",
     "next": "16.1.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-image-crop": "^11.0.10",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "tex2typst": "^0.5.5",
     "zustand": "^5.0.9"
   },
   "devDependencies": {
